@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { prisma } from "@/lib/prisma";
 import { formatSecondsToTime } from "@/lib/scoring";
+import { resolveTeamNames } from "@/lib/match-pool-teams";
 
 export const revalidate = 15;
 
@@ -31,6 +32,8 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
   });
 
   if (!game || !game.championship.isPublished) notFound();
+
+  const teamNames = await resolveTeamNames(game.matchPools.flatMap((mp) => [mp.teamAId, mp.teamBId]));
 
   return (
     <div className="container py-16">
@@ -113,7 +116,9 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                 {game.matchPools.map((mp) => (
                   <TableRow key={mp.id}>
                     <TableCell>{mp.roundName}</TableCell>
-                    <TableCell>Team {mp.teamAId.slice(0, 6)} vs Team {mp.teamBId.slice(0, 6)}</TableCell>
+                    <TableCell>
+                      {teamNames.get(mp.teamAId) ?? "Unknown team"} vs {teamNames.get(mp.teamBId) ?? "Unknown team"}
+                    </TableCell>
                     <TableCell>
                       {mp.teamAScore ?? "-"} : {mp.teamBScore ?? "-"}
                     </TableCell>

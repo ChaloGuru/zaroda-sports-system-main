@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { matchPoolSchema } from "@/lib/validations";
+import { resolveTeamNames } from "@/lib/match-pool-teams";
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +12,15 @@ export async function GET(request: Request) {
     if (!gameId) return NextResponse.json({ error: "gameId is required" }, { status: 400 });
 
     const matchPools = await prisma.matchPool.findMany({ where: { gameId }, orderBy: { createdAt: "asc" } });
-    return NextResponse.json({ matchPools });
+    const names = await resolveTeamNames(matchPools.flatMap((mp) => [mp.teamAId, mp.teamBId]));
+
+    const enriched = matchPools.map((mp) => ({
+      ...mp,
+      teamAName: names.get(mp.teamAId) ?? "Unknown team",
+      teamBName: names.get(mp.teamBId) ?? "Unknown team",
+    }));
+
+    return NextResponse.json({ matchPools: enriched });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });
