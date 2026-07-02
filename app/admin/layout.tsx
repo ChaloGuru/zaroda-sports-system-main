@@ -8,6 +8,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/admin/messaging", label: "Messaging", icon: "Megaphone" },
   { href: "/admin/audit-log", label: "Audit Log", icon: "ScrollText" },
   { href: "/admin/account", label: "Account", icon: "UserCog" },
+  { href: "https://zarodasolutions.app/", label: "Zaroda School", icon: "ExternalLink", external: true },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

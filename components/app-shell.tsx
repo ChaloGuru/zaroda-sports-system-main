@@ -15,6 +15,7 @@ import {
   Inbox,
   CreditCard,
   UserCog,
+  ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -29,7 +30,8 @@ export type IconName =
   | "ScrollText"
   | "Inbox"
   | "CreditCard"
-  | "UserCog";
+  | "UserCog"
+  | "ExternalLink";
 
 // Server Component layouts (admin/dashboard) can't pass icon component
 // references as props into this Client Component - functions aren't
@@ -45,12 +47,15 @@ const ICONS: Record<IconName, LucideIcon> = {
   Inbox,
   CreditCard,
   UserCog,
+  ExternalLink,
 };
 
 export interface NavItem {
   href: string;
   label: string;
   icon: IconName;
+  /** Opens in a new tab instead of navigating the app - for links to sites outside Zaroda Sports. */
+  external?: boolean;
 }
 
 export function AppShell({
@@ -75,6 +80,20 @@ export function AppShell({
           {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = ICONS[item.icon];
+            if (item.external) {
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-md border-l-[3px] border-transparent pl-[9px] pr-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-overlay hover:text-foreground"
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </a>
+              );
+            }
             return (
               <Link
                 key={item.href}
@@ -118,6 +137,19 @@ export function AppShell({
           <nav className="flex gap-1 overflow-x-auto px-3 pb-3">
             {navItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              if (item.external) {
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-muted"
+                  >
+                    {item.label}
+                  </a>
+                );
+              }
               return (
                 <Link
                   key={item.href}
