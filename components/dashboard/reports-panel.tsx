@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet } from "@/lib/api-client";
 import { GAME_SCHOOL_LEVELS } from "@/lib/school-levels";
+import { addPdfLogoHeader } from "@/lib/pdf-logo";
 
 interface RankingRow {
   position: number;
@@ -33,10 +34,11 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
       const { default: jsPDF } = await import("jspdf");
       const autoTable = (await import("jspdf-autotable")).default;
       const doc = new jsPDF();
+      const contentY = await addPdfLogoHeader(doc);
       doc.setFontSize(14);
-      doc.text(`${championshipName} - Official Standings (${schoolLevel.replace("_", " ")})`, 14, 16);
+      doc.text(`${championshipName} - Official Standings (${schoolLevel.replace("_", " ")})`, 14, contentY + 6);
       autoTable(doc, {
-        startY: 22,
+        startY: contentY + 12,
         head: [["Position", "Institution", "Boys Total", "Girls Total", "Grand Total"]],
         body: standings.map((row) => [row.position, row.schoolName, row.boysTotal, row.girlsTotal, row.grandTotal]),
       });

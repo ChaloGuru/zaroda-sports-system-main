@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
+import { addPdfLogoHeader } from "@/lib/pdf-logo";
 
 interface SchoolOption {
   id: string;
@@ -83,10 +84,11 @@ export function BibRangesPanel({ championshipId }: { championshipId: string }) {
     const { default: jsPDF } = await import("jspdf");
     const autoTable = (await import("jspdf-autotable")).default;
     const doc = new jsPDF();
+    const contentY = await addPdfLogoHeader(doc);
     doc.setFontSize(14);
-    doc.text("Bib Range Allocation Checklist", 14, 16);
+    doc.text("Bib Range Allocation Checklist", 14, contentY + 6);
     autoTable(doc, {
-      startY: 22,
+      startY: contentY + 12,
       head: [["School", "Range Start", "Range End", "Allocated"]],
       body: (rangesData?.ranges ?? []).map((r) => [r.school.name, r.rangeStart, r.rangeEnd, r.rangeEnd - r.rangeStart + 1]),
     });

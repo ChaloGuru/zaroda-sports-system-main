@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Menu, X, Trophy } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -27,11 +28,8 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-heading font-extrabold text-foreground">
-          <Trophy className="h-6 w-6 text-primary" />
-          <span>
-            Zaroda <span className="text-primary">Sports</span>
-          </span>
+        <Link href="/" className="flex items-center">
+          <Image src="/images/logo.png" alt="Zaroda Sports Management System" width={144} height={96} className="h-12 w-auto" priority />
         </Link>
 
         <nav className="hidden items-center gap-6 lg:flex">

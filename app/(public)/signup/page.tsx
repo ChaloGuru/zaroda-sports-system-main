@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -67,6 +68,7 @@ export default function SignupPage() {
   return (
     <div className="container grid gap-10 py-16 lg:grid-cols-2 lg:items-start">
       <div className="lg:sticky lg:top-24">
+        <Image src="/images/logo.png" alt="Zaroda Sports Management System" width={216} height={144} className="mb-6 h-16 w-auto" priority />
         <h1 className="text-3xl font-bold text-foreground">Create your free Zaroda account</h1>
         <p className="mt-4 text-muted">
           Base-level championships are always free and never count against any quota. Subscribe only when you're

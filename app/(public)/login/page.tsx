@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
-import { Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,7 +43,7 @@ export default function LoginPage() {
     <div className="container flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
-          <Trophy className="h-8 w-8 text-primary" />
+          <Image src="/images/logo.png" alt="Zaroda Sports Management System" width={216} height={144} className="h-16 w-auto" priority />
           <CardTitle>Log in to Zaroda Sports</CardTitle>
           <CardDescription>Manage your championships, games, and results</CardDescription>
         </CardHeader>

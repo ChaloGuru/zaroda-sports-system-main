@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
@@ -63,7 +64,7 @@ export function AppShell({
     <div className="flex min-h-screen">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface-raised lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-border px-6 font-heading font-extrabold text-foreground">
-          <Trophy className="h-5 w-5 text-primary" />
+          <Image src="/images/logo.png" alt="Zaroda Sports" width={144} height={96} className="h-9 w-auto" priority />
           {title}
         </div>
         <nav className="flex-1 space-y-1 p-4">
@@ -98,7 +99,7 @@ export function AppShell({
         <header className="flex flex-col border-b border-border lg:hidden">
           <div className="flex h-16 items-center justify-between px-6">
             <span className="flex items-center gap-2 font-heading font-extrabold text-foreground">
-              <Trophy className="h-5 w-5 text-primary" /> {title}
+              <Image src="/images/logo.png" alt="Zaroda Sports" width={144} height={96} className="h-9 w-auto" /> {title}
             </span>
             <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className="text-sm text-muted">
               Sign out
