@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+// z.string().email().optional() still runs the email-format check against an
+// empty string (forms submit "" for a blank field, not undefined), making an
+// "optional" field reject a blank input. These treat "" as "not provided".
+const emptyToUndefined = (val: unknown) => (val === "" ? undefined : val);
+const optionalEmail = z.preprocess(emptyToUndefined, z.string().email().nullable().optional());
+const optionalUrl = z.preprocess(emptyToUndefined, z.string().url().nullable().optional());
+
 export const accountTypeSchema = z.enum(["SCHOOL", "OPEN_TOURNAMENT"]);
 export const gameCategorySchema = z.enum(["BALL_GAMES", "ATHLETICS", "MUSIC", "OTHER_GAMES"]);
 export const levelSchema = z.enum(["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL"]);
@@ -128,7 +135,7 @@ export const circularSchema = z.object({
   senderRole: z.string().max(100).default("National Admin"),
   targetLevel: levelSchema.default("NATIONAL"),
   isPublished: z.boolean().default(true),
-  documentUrl: z.string().url().nullable().optional(),
+  documentUrl: optionalUrl,
 });
 export type CircularInput = z.infer<typeof circularSchema>;
 
@@ -158,7 +165,7 @@ export const paymentInitializeSchema = z.object({
   teamName: z.string().min(1).max(200).optional(),
   teamCode: z.string().min(1).max(50).optional(),
   teamGender: genderSchema.optional(),
-  contactEmail: z.string().email().optional(),
+  contactEmail: optionalEmail,
   contactName: z.string().max(200).optional(),
   contactPhone: z.string().max(20).optional(),
   feeId: z.string().uuid().optional(),
@@ -181,7 +188,7 @@ export const tournamentTeamSchema = z.object({
   teamCode: z.string().max(50).nullable().optional(),
   teamColor: z.string().max(30).nullable().optional(),
   contactName: z.string().max(200).nullable().optional(),
-  contactEmail: z.string().email().nullable().optional(),
+  contactEmail: optionalEmail,
   contactPhone: z.string().max(20).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
 });
@@ -206,7 +213,7 @@ export type MatchPoolInput = z.infer<typeof matchPoolSchema>;
 
 export const roleAssignmentSchema = z.object({
   userId: z.string().uuid().optional(),
-  email: z.string().email().optional(),
+  email: optionalEmail,
   name: z.string().max(200).optional(),
   password: passwordSchema.optional(),
   role: z.enum(["TOURNAMENT_ADMIN", "SCOREKEEPER", "OFFICIAL"]),

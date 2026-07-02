@@ -119,6 +119,24 @@ describe("tournamentTeamSchema", () => {
       dashboardTournamentTeamSchema.safeParse({ ...payload, gameId: "22222222-2222-2222-2222-222222222222" }).success,
     ).toBe(true);
   });
+
+  it("accepts an empty-string contactEmail as 'not provided' (form fields submit '', not undefined)", () => {
+    const result = tournamentTeamSchema.safeParse({
+      championshipId: "11111111-1111-1111-1111-111111111111",
+      name: "Thunder FC",
+      contactEmail: "",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("still rejects a malformed non-empty contactEmail", () => {
+    const result = tournamentTeamSchema.safeParse({
+      championshipId: "11111111-1111-1111-1111-111111111111",
+      name: "Thunder FC",
+      contactEmail: "not-an-email",
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("timeInputSchema", () => {
