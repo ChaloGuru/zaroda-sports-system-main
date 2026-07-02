@@ -37,20 +37,20 @@ export default async function LandingPage() {
           sizes="100vw"
           className="object-cover object-center"
         />
-        {/* Light navy wash - keeps the photo visible while still grounding the section in the brand color */}
-        <div className="absolute inset-0 bg-gradient-to-b from-navy-light/55 via-navy-light/25 to-background" />
+        {/* Navy wash - keeps the photo visible while still grounding the section in the brand color */}
+        <div className="absolute inset-0 bg-gradient-to-b from-navy/70 via-navy/30 to-background" />
         {/* Glossy diagonal sheen for a glass-like highlight across the photo */}
         <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/15 to-transparent" />
         <div className="absolute inset-x-0 top-0 h-2/3 bg-gradient-to-b from-white/15 via-white/0 to-transparent" />
 
         <div className="container relative flex flex-col items-center gap-6 py-24 text-center">
-          <span className="rounded-full border border-gold/40 bg-gold/10 px-4 py-1 text-sm font-medium text-gold backdrop-blur-sm">
+          <span className="rounded-full border border-white/30 bg-white/15 px-4 py-1 text-sm font-medium text-white backdrop-blur-sm">
             Built for Kenyan school &amp; open championships
           </span>
-          <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-foreground drop-shadow-[0_2px_16px_rgba(6,15,46,0.9)] sm:text-6xl">
+          <h1 className="max-w-3xl text-4xl font-extrabold tracking-tight text-white drop-shadow-[0_2px_16px_rgba(6,15,46,0.9)] sm:text-6xl">
             Run your championship from bib numbers to final rankings
           </h1>
-          <p className="max-w-2xl text-lg text-foreground/90 drop-shadow-[0_2px_10px_rgba(6,15,46,0.9)]">
+          <p className="max-w-2xl text-lg text-white/90 drop-shadow-[0_2px_10px_rgba(6,15,46,0.9)]">
             Zaroda Sports Management System handles registration, call-room check-ins, live results capture, and
             public standings for athletics, ball games, music, and other competitions - starting completely free.
           </p>
@@ -66,16 +66,16 @@ export default async function LandingPage() {
           </div>
           <div className="mt-4 grid grid-cols-3 gap-8 text-center">
             <div>
-              <p className="text-3xl font-bold text-gold">{stats.tenants}</p>
-              <p className="text-sm text-muted">Organizations</p>
+              <p className="font-mono text-3xl font-bold tabular-nums text-white">{stats.tenants}</p>
+              <p className="text-sm text-white/70">Organizations</p>
             </div>
             <div>
-              <p className="text-3xl font-bold text-gold">{stats.championships}</p>
-              <p className="text-sm text-muted">Championships</p>
+              <p className="font-mono text-3xl font-bold tabular-nums text-white">{stats.championships}</p>
+              <p className="text-sm text-white/70">Championships</p>
             </div>
             <div>
-              <p className="text-3xl font-bold text-gold">{stats.participants}</p>
-              <p className="text-sm text-muted">Participants</p>
+              <p className="font-mono text-3xl font-bold tabular-nums text-white">{stats.participants}</p>
+              <p className="text-sm text-white/70">Participants</p>
             </div>
           </div>
         </div>
@@ -90,22 +90,22 @@ export default async function LandingPage() {
 
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <FeatureCard
-            icon={<Trophy className="h-6 w-6 text-gold" />}
+            icon={<Trophy className="h-6 w-6 text-primary" />}
             title="Full event lifecycle"
             description="Registration, heats, lane seeding, call-room check-in, and results capture in one place."
           />
           <FeatureCard
-            icon={<Timer className="h-6 w-6 text-gold" />}
+            icon={<Timer className="h-6 w-6 text-primary" />}
             title="Athletics & ball games"
             description="Time parsing, bib ranges, and sport-specific standings for football, basketball, rugby & more."
           />
           <FeatureCard
-            icon={<Medal className="h-6 w-6 text-gold" />}
+            icon={<Medal className="h-6 w-6 text-primary" />}
             title="Public rankings"
             description="County/regional-style standings, medal tables, and printable PDF result sheets."
           />
           <FeatureCard
-            icon={<ShieldCheck className="h-6 w-6 text-gold" />}
+            icon={<ShieldCheck className="h-6 w-6 text-primary" />}
             title="Role-based access"
             description="Tenant owners, tournament admins, scorekeepers and officials each see only what they should."
           />
@@ -114,7 +114,7 @@ export default async function LandingPage() {
 
       <section className="border-t border-border bg-surface-raised py-20">
         <div className="container flex flex-col items-center gap-6 text-center">
-          <Users className="h-10 w-10 text-gold" />
+          <Users className="h-10 w-10 text-primary" />
           <h2 className="text-2xl font-bold text-foreground">Ready to run your first championship?</h2>
           <p className="max-w-xl text-muted">
             Sign up as a school or an open-tournament organizer. Your first Base championship is free and never

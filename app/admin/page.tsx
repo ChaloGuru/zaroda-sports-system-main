@@ -64,11 +64,11 @@ export default async function AdminOverviewPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={<Building2 className="h-5 w-5 text-gold" />} label="Tenants" value={tenantCount} />
-        <StatCard icon={<Trophy className="h-5 w-5 text-gold" />} label="Championships" value={championshipCount} />
-        <StatCard icon={<Users className="h-5 w-5 text-gold" />} label="Participants" value={participantCount} />
+        <StatCard icon={<Building2 className="h-5 w-5 text-primary" />} label="Tenants" value={tenantCount} />
+        <StatCard icon={<Trophy className="h-5 w-5 text-primary" />} label="Championships" value={championshipCount} />
+        <StatCard icon={<Users className="h-5 w-5 text-primary" />} label="Participants" value={participantCount} />
         <StatCard
-          icon={<Banknote className="h-5 w-5 text-gold" />}
+          icon={<Banknote className="h-5 w-5 text-primary" />}
           label="Revenue (6mo, KES)"
           value={paidTransactions.reduce((sum, tx) => sum + tx.amountKes, 0)}
         />
@@ -87,7 +87,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
       <CardContent className="flex items-center gap-4 py-6">
         <div className="flex h-11 w-11 items-center justify-center rounded-md bg-navy-light/40">{icon}</div>
         <div>
-          <p className="text-2xl font-bold text-foreground">{value.toLocaleString()}</p>
+          <p className="font-mono text-2xl font-bold tabular-nums text-foreground">{value.toLocaleString()}</p>
           <p className="text-sm text-muted">{label}</p>
         </div>
       </CardContent>

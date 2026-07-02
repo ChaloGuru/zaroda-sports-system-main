@@ -43,7 +43,7 @@ export function ChampionshipTabs({
           {games.length === 0 && <p className="text-muted">No games have been added yet.</p>}
           {games.map((game) => (
             <Link key={game.id} href={`/game/${game.id}`}>
-              <Card className="h-full transition-colors hover:border-gold/50">
+              <Card className="h-full transition-colors hover:border-primary/50">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">{game.gender}</Badge>

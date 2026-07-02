@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
+import defaultTheme from "tailwindcss/defaultTheme";
 
 const config: Config = {
-  darkMode: ["class"],
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -14,47 +14,52 @@ const config: Config = {
       screens: { "2xl": "1400px" },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", ...defaultTheme.fontFamily.sans],
+        heading: ["var(--font-heading)", ...defaultTheme.fontFamily.sans],
+        mono: ["var(--font-mono)", ...defaultTheme.fontFamily.mono],
+      },
       colors: {
+        background: "#EEF2F9",
+        foreground: "#0F1E3D",
         navy: {
-          DEFAULT: "#0A1F5C",
-          light: "#1A3A8F",
-          dark: "#060F2E",
+          DEFAULT: "#0A1633",
+          light: "#1B57B8",
+          dark: "#060E22",
         },
-        gold: {
-          DEFAULT: "#D4A017",
-        },
-        surface: {
-          DEFAULT: "#0D1117",
-          raised: "#161B22",
-          overlay: "#21262D",
-        },
-        border: "#30363D",
-        foreground: "#E6EDF3",
-        muted: "#8B949E",
-        background: "#0D1117",
         primary: {
-          DEFAULT: "#0A1F5C",
-          foreground: "#E6EDF3",
+          DEFAULT: "#1B57B8",
+          foreground: "#FFFFFF",
         },
         accent: {
-          DEFAULT: "#D4A017",
-          foreground: "#0A1F5C",
+          DEFAULT: "#2E6BE6",
+          foreground: "#FFFFFF",
         },
-        destructive: {
-          DEFAULT: "#DA3633",
-          foreground: "#E6EDF3",
+        gold: {
+          DEFAULT: "#C99A2E",
+        },
+        surface: {
+          DEFAULT: "#FFFFFF",
+          raised: "#F7F9FD",
+          overlay: "#EAF1FF",
         },
         card: {
-          DEFAULT: "#161B22",
-          foreground: "#E6EDF3",
+          DEFAULT: "#FFFFFF",
+          foreground: "#0F1E3D",
         },
-        input: "#21262D",
-        ring: "#D4A017",
+        border: "#E2E7F0",
+        input: "#E2E7F0",
+        muted: "#5A6B87",
+        ring: "#2E6BE6",
+        destructive: {
+          DEFAULT: "#C43D3D",
+          foreground: "#FFFFFF",
+        },
       },
       borderRadius: {
-        lg: "16px",
-        md: "12px",
-        sm: "10px",
+        lg: "14px",
+        md: "10px",
+        sm: "8px",
       },
     },
   },

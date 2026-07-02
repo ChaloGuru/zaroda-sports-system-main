@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LaneChip } from "@/components/ui/lane-chip";
 import { PanelErrorBoundary } from "@/components/error-boundary";
 import { apiGet } from "@/lib/api-client";
 import { GAME_SCHOOL_LEVELS } from "@/lib/school-levels";
@@ -69,14 +70,16 @@ function TeamStandingsTable({ game }: { game: GameStandings }) {
           <TableBody>
             {game.standings.map((row, index) => (
               <TableRow key={row.teamId}>
-                <TableCell>{index + 1}</TableCell>
+                <TableCell>
+                  <LaneChip value={index + 1} rank={index + 1} />
+                </TableCell>
                 <TableCell className="font-medium">{row.teamName}</TableCell>
-                <TableCell>{row.played}</TableCell>
-                <TableCell>{row.won}</TableCell>
-                <TableCell>{row.drawn}</TableCell>
-                <TableCell>{row.lost}</TableCell>
-                <TableCell>{row.gd}</TableCell>
-                <TableCell className="font-semibold text-gold">{row.points}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.played}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.won}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.drawn}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.lost}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.gd}</TableCell>
+                <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.points}</TableCell>
               </TableRow>
             ))}
             {game.standings.length === 0 && (
@@ -150,15 +153,17 @@ function StandingsTable({ championshipId }: { championshipId: string }) {
           <TableBody>
             {athleticsStandings.map((row) => (
               <TableRow key={row.schoolId}>
-                <TableCell>{row.position}</TableCell>
+                <TableCell>
+                  <LaneChip value={row.position} rank={row.position} />
+                </TableCell>
                 <TableCell className="font-medium">{row.schoolName}</TableCell>
-                <TableCell>{row.boysTrack}</TableCell>
-                <TableCell>{row.boysField}</TableCell>
-                <TableCell>{row.boysTotal}</TableCell>
-                <TableCell>{row.girlsTrack}</TableCell>
-                <TableCell>{row.girlsField}</TableCell>
-                <TableCell>{row.girlsTotal}</TableCell>
-                <TableCell className="font-semibold text-gold">{row.grandTotal}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.boysTrack}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.boysField}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.boysTotal}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.girlsTrack}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.girlsField}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.girlsTotal}</TableCell>
+                <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.grandTotal}</TableCell>
               </TableRow>
             ))}
             {athleticsStandings.length === 0 && (

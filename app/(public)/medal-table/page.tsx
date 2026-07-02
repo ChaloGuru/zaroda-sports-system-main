@@ -1,11 +1,14 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import { Medal } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LaneChip } from "@/components/ui/lane-chip";
+import { FinishLineRule } from "@/components/ui/finish-line-rule";
 import { PanelErrorBoundary } from "@/components/error-boundary";
 import { apiGet } from "@/lib/api-client";
 
@@ -60,7 +63,7 @@ function MedalTableExplorer() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Medal className="h-5 w-5 text-gold" /> Medal Table
+              <Medal className="h-5 w-5 text-[#C99A2E]" /> Medal Table
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -78,12 +81,14 @@ function MedalTableExplorer() {
               <TableBody>
                 {(data?.medalTable ?? []).map((row) => (
                   <TableRow key={row.schoolId}>
-                    <TableCell>{row.position}</TableCell>
+                    <TableCell>
+                      <LaneChip value={row.position} rank={row.position} />
+                    </TableCell>
                     <TableCell className="font-medium">{row.schoolName}</TableCell>
-                    <TableCell className="text-gold">{row.gold}</TableCell>
-                    <TableCell className="text-foreground/80">{row.silver}</TableCell>
-                    <TableCell className="text-amber-700">{row.bronze}</TableCell>
-                    <TableCell className="font-semibold">{row.total}</TableCell>
+                    <TableCell className="font-mono tabular-nums text-[#C99A2E]">{row.gold}</TableCell>
+                    <TableCell className="font-mono tabular-nums text-[#8A93A3]">{row.silver}</TableCell>
+                    <TableCell className="font-mono tabular-nums text-[#A9682F]">{row.bronze}</TableCell>
+                    <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.total}</TableCell>
                   </TableRow>
                 ))}
                 {(data?.medalTable ?? []).length === 0 && (
@@ -104,10 +109,18 @@ function MedalTableExplorer() {
 
 export default function MedalTablePage() {
   return (
-    <div className="container py-16">
-      <h1 className="text-3xl font-bold text-foreground">Medal Table</h1>
-      <p className="mt-2 text-muted">Gold, silver, and bronze counts by institution.</p>
-      <div className="mt-8">
+    <div>
+      <section className="relative flex h-56 items-end overflow-hidden sm:h-64">
+        <Image src="/images/hero.png" alt="" fill priority sizes="100vw" className="object-cover" />
+        <div className="absolute inset-0 bg-[linear-gradient(100deg,#0A1633,rgba(10,22,51,0.7),rgba(10,22,51,0.35))]" />
+        <div className="container relative pb-8">
+          <h1 className="font-heading text-3xl font-extrabold text-white sm:text-4xl">Medal Table</h1>
+          <p className="mt-2 max-w-xl text-white/80">Gold, silver, and bronze counts by institution.</p>
+        </div>
+        <FinishLineRule className="absolute inset-x-0 bottom-0" />
+      </section>
+
+      <div className="container py-16">
         <PanelErrorBoundary fallbackTitle="Medal table failed to load">
           <MedalTableExplorer />
         </PanelErrorBoundary>

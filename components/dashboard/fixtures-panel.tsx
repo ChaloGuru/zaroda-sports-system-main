@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { LaneChip } from "@/components/ui/lane-chip";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { computeStandings, type BallSport, type MatchResult, type StandingRow } from "@/lib/scoring";
 
@@ -115,15 +116,15 @@ function FixtureRow({ fixture, onChanged }: { fixture: MatchPoolRow; onChanged: 
   return (
     <TableRow>
       <TableCell className="text-muted">{fixture.roundName}</TableCell>
-      <TableCell className={fixture.winnerId === fixture.teamAId ? "font-semibold text-gold" : ""}>{fixture.teamAName}</TableCell>
+      <TableCell className={fixture.winnerId === fixture.teamAId ? "font-semibold text-primary" : ""}>{fixture.teamAName}</TableCell>
       <TableCell>
-        <Input type="number" min={0} className="h-8 w-16" value={scoreA} onChange={(e) => setScoreA(e.target.value)} />
+        <Input type="number" min={0} className="h-8 w-16 font-mono tabular-nums" value={scoreA} onChange={(e) => setScoreA(e.target.value)} />
       </TableCell>
       <TableCell className="text-muted">-</TableCell>
       <TableCell>
-        <Input type="number" min={0} className="h-8 w-16" value={scoreB} onChange={(e) => setScoreB(e.target.value)} />
+        <Input type="number" min={0} className="h-8 w-16 font-mono tabular-nums" value={scoreB} onChange={(e) => setScoreB(e.target.value)} />
       </TableCell>
-      <TableCell className={fixture.winnerId === fixture.teamBId ? "font-semibold text-gold" : ""}>{fixture.teamBName}</TableCell>
+      <TableCell className={fixture.winnerId === fixture.teamBId ? "font-semibold text-primary" : ""}>{fixture.teamBName}</TableCell>
       <TableCell>
         {fixture.winnerId === null && fixture.teamAScore !== null && fixture.teamBScore !== null && (
           <span className="text-sm text-muted">Draw</span>
@@ -204,16 +205,18 @@ function StandingsTable({
           <TableBody>
             {standings.map((row, index) => (
               <TableRow key={row.teamId}>
-                <TableCell>{index + 1}</TableCell>
+                <TableCell>
+                  <LaneChip value={index + 1} rank={index + 1} />
+                </TableCell>
                 <TableCell className="font-medium">{teamNameById.get(row.teamId) ?? "Unknown team"}</TableCell>
-                <TableCell>{row.played}</TableCell>
-                <TableCell>{row.won}</TableCell>
-                <TableCell>{row.drawn}</TableCell>
-                <TableCell>{row.lost}</TableCell>
-                <TableCell>{row.gf}</TableCell>
-                <TableCell>{row.ga}</TableCell>
-                <TableCell>{row.gd}</TableCell>
-                <TableCell className="font-semibold text-gold">{row.points}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.played}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.won}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.drawn}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.lost}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.gf}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.ga}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.gd}</TableCell>
+                <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.points}</TableCell>
               </TableRow>
             ))}
             {standings.length === 0 && (

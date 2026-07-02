@@ -39,7 +39,7 @@ export default function ContactsPage() {
     <div className="container flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
       <Card className="w-full max-w-lg">
         <CardHeader className="items-center text-center">
-          <Mail className="h-8 w-8 text-gold" />
+          <Mail className="h-8 w-8 text-primary" />
           <CardTitle>Get in touch</CardTitle>
           <CardDescription>Questions about a championship, subscription, or a bug report - we read every message.</CardDescription>
         </CardHeader>

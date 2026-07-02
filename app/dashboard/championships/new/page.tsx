@@ -154,8 +154,8 @@ export default function NewChampionshipPage() {
             </div>
 
             {needsUpgrade && (
-              <div className="flex items-start gap-3 rounded-md border border-gold/40 bg-gold/10 p-4">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-gold" />
+              <div className="flex items-start gap-3 rounded-md border border-[#8A6412]/30 bg-[#FBF2DC] p-4">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#8A6412]" />
                 <div className="flex-1">
                   <p className="font-medium text-foreground">Upgrade required for {level.replace("_", " ")}</p>
                   <p className="text-sm text-muted">

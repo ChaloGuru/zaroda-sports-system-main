@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { LaneChip } from "@/components/ui/lane-chip";
 import { prisma } from "@/lib/prisma";
 import { formatSecondsToTime, SPORT_CONFIGS } from "@/lib/scoring";
 import { resolveTeamNames } from "@/lib/match-pool-teams";
@@ -39,7 +40,7 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
 
   return (
     <div className="container py-16">
-      <Link href={`/championship/${game.championship.id}`} className="text-sm text-gold hover:underline">
+      <Link href={`/championship/${game.championship.id}`} className="text-sm text-primary hover:underline">
         &larr; {game.championship.name}
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -74,13 +75,19 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                     <TableBody>
                       {heat.participants.map((hp) => (
                         <TableRow key={hp.id}>
-                          <TableCell>{hp.position ?? "-"}</TableCell>
-                          <TableCell>{hp.laneNumber ?? "-"}</TableCell>
-                          <TableCell>{hp.participant.bibNumber}</TableCell>
+                          <TableCell>
+                            {hp.position ? <LaneChip value={hp.position} rank={hp.position} /> : "-"}
+                          </TableCell>
+                          <TableCell className="font-mono tabular-nums">{hp.laneNumber ?? "-"}</TableCell>
+                          <TableCell>
+                            <LaneChip value={hp.participant.bibNumber} />
+                          </TableCell>
                           <TableCell>
                             {hp.participant.firstName} {hp.participant.lastName}
                           </TableCell>
-                          <TableCell>{hp.timeTaken ? formatSecondsToTime(Number(hp.timeTaken)) : "-"}</TableCell>
+                          <TableCell className="font-mono tabular-nums">
+                            {hp.timeTaken ? formatSecondsToTime(Number(hp.timeTaken)) : "-"}
+                          </TableCell>
                           <TableCell>{hp.isQualifiedForFinal ? "Yes" : "-"}</TableCell>
                         </TableRow>
                       ))}
@@ -126,16 +133,18 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                   <TableBody>
                     {standings.map((row, index) => (
                       <TableRow key={row.teamId}>
-                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>
+                          <LaneChip value={index + 1} rank={index + 1} />
+                        </TableCell>
                         <TableCell className="font-medium">{row.teamName}</TableCell>
-                        <TableCell>{row.played}</TableCell>
-                        <TableCell>{row.won}</TableCell>
-                        <TableCell>{row.drawn}</TableCell>
-                        <TableCell>{row.lost}</TableCell>
-                        <TableCell>{row.gf}</TableCell>
-                        <TableCell>{row.ga}</TableCell>
-                        <TableCell>{row.gd}</TableCell>
-                        <TableCell className="font-semibold text-gold">{row.points}</TableCell>
+                        <TableCell className="font-mono tabular-nums">{row.played}</TableCell>
+                        <TableCell className="font-mono tabular-nums">{row.won}</TableCell>
+                        <TableCell className="font-mono tabular-nums">{row.drawn}</TableCell>
+                        <TableCell className="font-mono tabular-nums">{row.lost}</TableCell>
+                        <TableCell className="font-mono tabular-nums">{row.gf}</TableCell>
+                        <TableCell className="font-mono tabular-nums">{row.ga}</TableCell>
+                        <TableCell className="font-mono tabular-nums">{row.gd}</TableCell>
+                        <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.points}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -164,7 +173,7 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                       <TableCell>
                         {teamNames.get(mp.teamAId) ?? "Unknown team"} vs {teamNames.get(mp.teamBId) ?? "Unknown team"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="font-mono tabular-nums">
                         {mp.teamAScore ?? "-"} : {mp.teamBScore ?? "-"}
                       </TableCell>
                     </TableRow>
@@ -215,13 +224,15 @@ function ResultsTable({ participants, isTimed }: { participants: ParticipantRow[
       <TableBody>
         {participants.map((p) => (
           <TableRow key={p.id}>
-            <TableCell>{p.position ?? "-"}</TableCell>
-            <TableCell>{p.bibNumber}</TableCell>
+            <TableCell>{p.position ? <LaneChip value={p.position} rank={p.position} /> : "-"}</TableCell>
+            <TableCell>
+              <LaneChip value={p.bibNumber} />
+            </TableCell>
             <TableCell>
               {p.firstName} {p.lastName}
             </TableCell>
             <TableCell>{p.school?.name ?? p.tournamentTeam?.name ?? "-"}</TableCell>
-            <TableCell>
+            <TableCell className="font-mono tabular-nums">
               {isTimed ? (p.timeTaken ? formatSecondsToTime(Number(p.timeTaken)) : "-") : p.score ? Number(p.score) : "-"}
             </TableCell>
           </TableRow>

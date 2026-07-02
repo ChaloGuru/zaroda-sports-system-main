@@ -4,18 +4,30 @@
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased font-sans;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading), sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
   }
   ::selection {
-    @apply bg-gold/30;
+    @apply bg-accent/20;
   }
 }
 
 @layer utilities {
+  .tabular {
+    font-family: var(--font-mono), monospace;
+    font-variant-numeric: tabular-nums;
+  }
   .prose-circular {
-    @apply text-sm leading-relaxed text-foreground [&_a]:text-gold [&_a]:underline [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5;
+    @apply text-sm leading-relaxed text-foreground [&_a]:text-primary [&_a]:underline [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5;
   }
 }

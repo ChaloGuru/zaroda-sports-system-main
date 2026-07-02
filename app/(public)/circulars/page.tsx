@@ -31,7 +31,7 @@ export default async function CircularsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-gold" /> {circular.title}
+                    <FileText className="h-5 w-5 text-primary" /> {circular.title}
                   </CardTitle>
                   <p className="mt-1 text-sm text-muted">
                     {circular.senderName} - {circular.senderRole} - {formatDate(circular.createdAt)}
@@ -47,7 +47,7 @@ export default async function CircularsPage() {
                   href={circular.documentUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-gold hover:underline"
+                  className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
                 >
                   <Download className="h-4 w-4" /> Download attachment
                 </a>

@@ -80,7 +80,7 @@ export default function SignupPage() {
         </ul>
         <p className="mt-8 text-sm text-muted">
           Already have an account?{" "}
-          <Link href="/login" className="text-gold underline">
+          <Link href="/login" className="text-primary underline">
             Log in
           </Link>
         </p>

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LaneChip } from "@/components/ui/lane-chip";
 import { apiGet, apiPatch } from "@/lib/api-client";
 
 interface GameOption {
@@ -43,14 +44,17 @@ function ParticipantRowEditor({ participant, gameId, isTimed }: { participant: P
   });
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="font-medium text-foreground">
-          #{participant.bibNumber} - {participant.firstName} {participant.lastName}
-        </p>
-        <Badge variant={participant.status === "DISQUALIFIED" ? "destructive" : participant.status === "CONFIRMED_IN_CALL_ROOM" ? "success" : "outline"}>
-          {participant.status.replace(/_/g, " ")}
-        </Badge>
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <LaneChip value={participant.bibNumber} size="lg" />
+        <div>
+          <p className="font-medium text-foreground">
+            {participant.firstName} {participant.lastName}
+          </p>
+          <Badge variant={participant.status === "DISQUALIFIED" ? "destructive" : participant.status === "CONFIRMED_IN_CALL_ROOM" ? "success" : "outline"}>
+            {participant.status.replace(/_/g, " ")}
+          </Badge>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -58,12 +62,18 @@ function ParticipantRowEditor({ participant, gameId, isTimed }: { participant: P
           placeholder={isTimed ? "Time (12.06 or 1:23.45)" : "Score"}
           value={resultValue}
           onChange={(e) => setResultValue(e.target.value)}
-          className="w-40"
+          className="h-11 w-40 font-mono tabular-nums"
         />
-        <Input placeholder="Position" value={position} onChange={(e) => setPosition(e.target.value)} className="w-24" />
+        <Input
+          placeholder="Position"
+          value={position}
+          onChange={(e) => setPosition(e.target.value)}
+          className="h-11 w-24 font-mono tabular-nums"
+        />
         <Button
-          size="sm"
+          size="default"
           variant="secondary"
+          className="h-11"
           onClick={() =>
             patchMutation.mutate({
               timeInput: isTimed && resultValue ? resultValue : undefined,
@@ -75,13 +85,14 @@ function ParticipantRowEditor({ participant, gameId, isTimed }: { participant: P
           <Save className="h-4 w-4" /> Save
         </Button>
         <Button
-          size="sm"
+          size="default"
           variant="outline"
+          className="h-11"
           onClick={() => patchMutation.mutate({ status: "CONFIRMED_IN_CALL_ROOM" })}
         >
           <CheckCircle2 className="h-4 w-4" /> Check in
         </Button>
-        <Button size="sm" variant="destructive" onClick={() => patchMutation.mutate({ status: "DISQUALIFIED" })}>
+        <Button size="default" variant="destructive" className="h-11" onClick={() => patchMutation.mutate({ status: "DISQUALIFIED" })}>
           <Ban className="h-4 w-4" /> DQ
         </Button>
       </div>
@@ -110,12 +121,12 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
   const selectedGame = (gamesData?.games ?? []).find((g) => g.id === gameId);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <CardTitle>Call Room</CardTitle>
+    <Card className="border-navy-dark bg-navy">
+      <CardHeader className="flex flex-col gap-3 border-b border-white/10 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle className="text-white">Call Room</CardTitle>
         <div className="flex flex-1 flex-wrap items-center gap-3 sm:justify-end">
           <Select value={gameId} onValueChange={setGameId}>
-            <SelectTrigger className="w-64">
+            <SelectTrigger className="h-11 w-64">
               <SelectValue placeholder="Select a game" />
             </SelectTrigger>
             <SelectContent>
@@ -130,14 +141,14 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
               placeholder="Search bib or name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-56 pl-9"
+              className="h-11 w-56 pl-9"
             />
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {!gameId && <p className="text-muted">Select a game to open its call room.</p>}
-        {gameId && filtered.length === 0 && <p className="text-muted">No matching participants.</p>}
+      <CardContent className="space-y-3 pt-6">
+        {!gameId && <p className="text-white/70">Select a game to open its call room.</p>}
+        {gameId && filtered.length === 0 && <p className="text-white/70">No matching participants.</p>}
         {gameId &&
           filtered.map((p) => (
             <ParticipantRowEditor key={p.id} participant={p} gameId={gameId} isTimed={selectedGame?.isTimed ?? true} />

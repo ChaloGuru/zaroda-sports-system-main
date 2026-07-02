@@ -42,7 +42,7 @@ export default async function DashboardChampionshipsPage() {
         )}
         {championships.map((c) => (
           <Link key={c.id} href={`/dashboard/championships/${c.id}`}>
-            <Card className="transition-colors hover:border-gold/50">
+            <Card className="transition-colors hover:border-primary/50">
               <CardContent className="flex items-center justify-between py-5">
                 <div>
                   <p className="font-medium text-foreground">{c.name}</p>

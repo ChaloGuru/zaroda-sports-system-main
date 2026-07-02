@@ -1,6 +1,27 @@
 import type { Metadata } from "next";
+import { Archivo, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { cn } from "@/lib/utils";
+
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["700", "800"],
+  variable: "--font-heading",
+  display: "swap",
+});
+const ibmPlexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-sans",
+  display: "swap",
+});
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 const TITLE = "Zaroda Sports Management System | Championship & Athletics Management for Kenyan Schools";
 const DESCRIPTION =
@@ -21,7 +42,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className={cn(archivo.variable, ibmPlexSans.variable, ibmPlexMono.variable)}>
       <body>
         <Providers>{children}</Providers>
       </body>

@@ -39,7 +39,7 @@ export default function PricingPage() {
         <Badge variant="warning" className="mb-4">Essential tier</Badge>
         <h1 className="text-4xl font-bold text-foreground">Simple, per-level pricing in KES</h1>
         <p className="mt-4 text-muted">
-          <span className="font-semibold text-gold">Base level championships are always free</span> and never count
+          <span className="font-semibold text-primary">Base level championships are always free</span> and never count
           against any quota. Pay only once to unlock a specific level for a championship - Zone through National.
         </p>
       </div>
@@ -49,14 +49,14 @@ export default function PricingPage() {
           <Card key={tier.level} className="flex flex-col">
             <CardHeader>
               <CardTitle>{tier.level}</CardTitle>
-              <p className="text-3xl font-bold text-gold">{formatKes(tier.priceKes)}</p>
+              <p className="font-mono text-3xl font-bold tabular-nums text-primary">{formatKes(tier.priceKes)}</p>
               <p className="text-sm text-muted">per championship, per level</p>
             </CardHeader>
             <CardContent className="flex flex-1 flex-col justify-between gap-6">
               <ul className="space-y-2 text-sm text-foreground">
                 {FEATURES.map((feature) => (
                   <li key={feature} className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span>{feature}</span>
                   </li>
                 ))}
@@ -69,7 +69,7 @@ export default function PricingPage() {
         ))}
       </div>
 
-      <Card className="mx-auto mt-12 max-w-3xl border-gold/30 bg-gold/5">
+      <Card className="mx-auto mt-12 max-w-3xl border-2 border-primary bg-surface-overlay">
         <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
           <p className="text-lg font-semibold text-foreground">Base level is always free</p>
           <p className="text-muted">

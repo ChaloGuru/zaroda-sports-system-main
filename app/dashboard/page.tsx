@@ -49,10 +49,10 @@ export default async function DashboardOverviewPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard icon={<Trophy className="h-5 w-5 text-gold" />} label="Championships" value={championships.length} />
-        <StatCard icon={<Users className="h-5 w-5 text-gold" />} label="Total participants" value={totalParticipants} />
+        <StatCard icon={<Trophy className="h-5 w-5 text-primary" />} label="Championships" value={championships.length} />
+        <StatCard icon={<Users className="h-5 w-5 text-primary" />} label="Total participants" value={totalParticipants} />
         <StatCard
-          icon={<CreditCard className="h-5 w-5 text-gold" />}
+          icon={<CreditCard className="h-5 w-5 text-primary" />}
           label="Active subscriptions"
           value={activeSubscriptions.length}
         />
@@ -93,7 +93,7 @@ export default async function DashboardOverviewPage() {
             <Link
               key={c.id}
               href={`/dashboard/championships/${c.id}`}
-              className="flex items-center justify-between rounded-md border border-border p-4 transition-colors hover:border-gold/50"
+              className="flex items-center justify-between rounded-md border border-border p-4 transition-colors hover:border-primary/50"
             >
               <div>
                 <p className="font-medium text-foreground">{c.name}</p>
@@ -119,7 +119,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
       <CardContent className="flex items-center gap-4 py-6">
         <div className="flex h-11 w-11 items-center justify-center rounded-md bg-navy-light/40">{icon}</div>
         <div>
-          <p className="text-2xl font-bold text-foreground">{value}</p>
+          <p className="font-mono text-2xl font-bold tabular-nums text-foreground">{value}</p>
           <p className="text-sm text-muted">{label}</p>
         </div>
       </CardContent>

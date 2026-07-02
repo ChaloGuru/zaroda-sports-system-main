@@ -30,7 +30,7 @@ export default async function DashboardMessagesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Inbox className="h-5 w-5 text-gold" /> Inbox</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Inbox className="h-5 w-5 text-primary" /> Inbox</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {messages.length === 0 && <p className="text-muted">No messages yet.</p>}
@@ -49,7 +49,7 @@ export default async function DashboardMessagesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5 text-gold" /> Recent circulars</CardTitle>
+          <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5 text-primary" /> Recent circulars</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {circulars.length === 0 && <p className="text-muted">No circulars published yet.</p>}

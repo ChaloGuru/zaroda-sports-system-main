@@ -41,7 +41,7 @@ function PaymentSuccessContent() {
   return (
     <Card className="w-full max-w-md text-center">
       <CardHeader className="items-center">
-        {state === "loading" && <Loader2 className="h-12 w-12 animate-spin text-gold" />}
+        {state === "loading" && <Loader2 className="h-12 w-12 animate-spin text-primary" />}
         {state === "success" && <CheckCircle2 className="h-12 w-12 text-green-500" />}
         {state === "failed" && <XCircle className="h-12 w-12 text-red-500" />}
         <CardTitle>
@@ -65,7 +65,7 @@ export default function PaymentSuccessPage() {
         fallback={
           <Card className="w-full max-w-md text-center">
             <CardHeader className="items-center">
-              <Loader2 className="h-12 w-12 animate-spin text-gold" />
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
               <CardTitle>Loading</CardTitle>
             </CardHeader>
           </Card>

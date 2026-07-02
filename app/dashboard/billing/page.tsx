@@ -63,7 +63,7 @@ export default function BillingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-gold" /> Active subscriptions</CardTitle>
+          <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Active subscriptions</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -102,7 +102,7 @@ export default function BillingPage() {
             <div key={plan.id} className="flex flex-col justify-between rounded-md border border-border p-4">
               <div>
                 <p className="font-medium text-foreground">{plan.displayName}</p>
-                <p className="text-2xl font-bold text-gold">{formatKes(plan.priceKes)}</p>
+                <p className="font-mono text-2xl font-bold tabular-nums text-primary">{formatKes(plan.priceKes)}</p>
               </div>
               <Button className="mt-4" size="sm" onClick={() => subscribe(plan.id)}>
                 Subscribe

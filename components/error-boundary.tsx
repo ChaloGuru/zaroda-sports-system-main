@@ -32,7 +32,7 @@ export class PanelErrorBoundary extends React.Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card p-8 text-center">
-          <AlertTriangle className="h-8 w-8 text-gold" />
+          <AlertTriangle className="h-8 w-8 text-[#8A6412]" />
           <p className="font-medium text-foreground">{this.props.fallbackTitle ?? "This panel failed to load"}</p>
           <p className="text-sm text-muted">The rest of the dashboard is unaffected. Try reloading this panel.</p>
           <Button variant="secondary" size="sm" onClick={() => this.setState({ hasError: false })}>

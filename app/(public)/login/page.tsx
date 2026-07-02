@@ -43,7 +43,7 @@ export default function LoginPage() {
     <div className="container flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
-          <Trophy className="h-8 w-8 text-gold" />
+          <Trophy className="h-8 w-8 text-primary" />
           <CardTitle>Log in to Zaroda Sports</CardTitle>
           <CardDescription>Manage your championships, games, and results</CardDescription>
         </CardHeader>
@@ -65,7 +65,7 @@ export default function LoginPage() {
           </form>
           <p className="mt-6 text-center text-sm text-muted">
             No account yet?{" "}
-            <Link href="/signup" className="text-gold underline">
+            <Link href="/signup" className="text-primary underline">
               Sign up free
             </Link>
           </p>

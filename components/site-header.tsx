@@ -27,10 +27,10 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-bold text-foreground">
-          <Trophy className="h-6 w-6 text-gold" />
+        <Link href="/" className="flex items-center gap-2 font-heading font-extrabold text-foreground">
+          <Trophy className="h-6 w-6 text-primary" />
           <span>
-            Zaroda <span className="text-gold">Sports</span>
+            Zaroda <span className="text-primary">Sports</span>
           </span>
         </Link>
 
@@ -41,7 +41,7 @@ export function SiteHeader() {
               href={link.href}
               className={cn(
                 "text-sm font-medium text-muted transition-colors hover:text-foreground",
-                pathname === link.href && "text-gold",
+                pathname === link.href && "text-primary",
               )}
             >
               {link.label}

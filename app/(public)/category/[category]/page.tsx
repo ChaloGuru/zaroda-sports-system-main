@@ -42,7 +42,7 @@ export default async function CategoryPage({ params }: { params: { category: str
         {championships.length === 0 && <p className="text-muted">No published championships yet in this category.</p>}
         {championships.map((c) => (
           <Link key={c.id} href={`/championship/${c.id}`}>
-            <Card className="h-full transition-colors hover:border-gold/50">
+            <Card className="h-full transition-colors hover:border-primary/50">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
