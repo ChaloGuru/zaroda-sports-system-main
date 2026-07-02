@@ -71,7 +71,7 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface-raised lg:flex">
+      <aside className="no-print hidden w-64 shrink-0 flex-col border-r border-border bg-surface-raised lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-border px-6 font-heading font-extrabold text-foreground">
           <Image src="/images/logo.png" alt="Zaroda Sports" width={144} height={96} className="h-9 w-auto" priority />
           {title}
@@ -122,7 +122,7 @@ export function AppShell({
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="flex flex-col border-b border-border lg:hidden">
+        <header className="no-print flex flex-col border-b border-border lg:hidden">
           <div className="flex h-16 items-center justify-between px-6">
             <span className="flex items-center gap-2 font-heading font-extrabold text-foreground">
               <Image src="/images/logo.png" alt="Zaroda Sports" width={144} height={96} className="h-9 w-auto" /> {title}

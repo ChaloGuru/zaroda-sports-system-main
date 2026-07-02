@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LaneChip } from "@/components/ui/lane-chip";
 import { FinishLineRule } from "@/components/ui/finish-line-rule";
 import { PanelErrorBoundary } from "@/components/error-boundary";
+import { ResultsActions } from "@/components/championship/results-actions";
 import { apiGet } from "@/lib/api-client";
 
 interface ChampionshipOption {
@@ -40,21 +41,25 @@ function MedalTableExplorer() {
     queryFn: () => apiGet<{ medalTable: MedalRow[] }>(`/api/medal-table?championshipId=${championshipId}`),
     enabled: !!championshipId,
   });
+  const selected = (championships?.championships ?? []).find((c) => c.id === championshipId);
 
   return (
     <div className="space-y-6">
-      <Select value={championshipId} onValueChange={setChampionshipId}>
-        <SelectTrigger className="w-72">
-          <SelectValue placeholder="Choose a championship" />
-        </SelectTrigger>
-        <SelectContent>
-          {(championships?.championships ?? []).map((c) => (
-            <SelectItem key={c.id} value={c.id}>
-              {c.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Select value={championshipId} onValueChange={setChampionshipId}>
+          <SelectTrigger className="w-72">
+            <SelectValue placeholder="Choose a championship" />
+          </SelectTrigger>
+          <SelectContent>
+            {(championships?.championships ?? []).map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selected && <ResultsActions championshipId={selected.id} championshipName={selected.name} />}
+      </div>
 
       {!championshipId && <p className="text-muted">Select a championship to view its medal table.</p>}
       {championshipId && isLoading && <p className="text-muted">Loading medal table...</p>}

@@ -30,7 +30,7 @@ export function SiteHeader() {
   const isSuperAdmin = session?.user?.roles?.some((r) => r.role === "SUPER_ADMIN");
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
+    <header className="no-print sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center">
           <Image src="/images/logo.png" alt="Zaroda Sports Management System" width={144} height={96} className="h-12 w-auto" priority />

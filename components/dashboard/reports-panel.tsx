@@ -6,9 +6,13 @@ import { FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PrintButton } from "@/components/ui/print-button";
+import { ShareButton } from "@/components/ui/share-button";
 import { apiGet } from "@/lib/api-client";
 import { GAME_SCHOOL_LEVELS } from "@/lib/school-levels";
 import { addPdfLogoHeader } from "@/lib/pdf-logo";
+import { buildResultsShareMessage } from "@/lib/share-message";
+import { downloadOrganizationRankingsPdf, type OrganizationRankingPdfRow } from "@/lib/export-organization-rankings-pdf";
 
 interface RankingRow {
   position: number;
@@ -23,6 +27,9 @@ const SCHOOL_LEVEL_FILTERS = [{ value: "OVERALL", label: "Overall" }, ...GAME_SC
 export function ReportsPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   const [schoolLevel, setSchoolLevel] = React.useState("OVERALL");
   const [exporting, setExporting] = React.useState(false);
+  const [exportingRankings, setExportingRankings] = React.useState(false);
+
+  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/championship/${championshipId}` : "";
 
   async function exportStandings() {
     setExporting(true);
@@ -50,11 +57,35 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
     }
   }
 
+  async function exportOrganizationRankings() {
+    setExportingRankings(true);
+    try {
+      const { organizationRankings } = await apiGet<{ organizationRankings: OrganizationRankingPdfRow[] }>(
+        `/api/rankings?championshipId=${championshipId}&schoolLevel=OVERALL&gender=OVERALL`,
+      );
+      await downloadOrganizationRankingsPdf(championshipName, organizationRankings);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to export rankings");
+    } finally {
+      setExportingRankings(false);
+    }
+  }
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Reports</CardTitle>
-        <CardDescription>Printable, official-format exports of championship results.</CardDescription>
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+        <div>
+          <CardTitle>Reports</CardTitle>
+          <CardDescription>Printable, official-format exports of championship results.</CardDescription>
+        </div>
+        <div className="no-print flex flex-wrap items-center gap-2">
+          <PrintButton />
+          <ShareButton
+            title={championshipName}
+            message={buildResultsShareMessage(championshipName, publicUrl)}
+            url={publicUrl}
+          />
+        </div>
       </CardHeader>
       <CardContent className="flex flex-wrap items-end gap-3">
         <div>
@@ -69,6 +100,9 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
         </div>
         <Button onClick={exportStandings} disabled={exporting}>
           <FileDown className="h-4 w-4" /> {exporting ? "Exporting..." : "Export final standings (PDF)"}
+        </Button>
+        <Button variant="secondary" onClick={exportOrganizationRankings} disabled={exportingRankings}>
+          <FileDown className="h-4 w-4" /> {exportingRankings ? "Exporting..." : "Export organization rankings (PDF)"}
         </Button>
       </CardContent>
     </Card>
