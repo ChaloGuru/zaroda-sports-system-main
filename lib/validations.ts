@@ -73,7 +73,17 @@ export type ChampionshipCreateInput = z.infer<typeof championshipCreateSchema>;
 export const championshipUpdateSchema = championshipFieldsSchema.partial();
 export type ChampionshipUpdateInput = z.infer<typeof championshipUpdateSchema>;
 
-export const ballSportSchema = z.enum(["FOOTBALL", "BASKETBALL", "VOLLEYBALL", "HANDBALL", "RUGBY", "NETBALL"]);
+export const ballSportSchema = z.enum([
+  "FOOTBALL",
+  "BASKETBALL",
+  "VOLLEYBALL",
+  "HANDBALL",
+  "RUGBY",
+  "NETBALL",
+  "CHESS",
+  "TABLE_TENNIS",
+  "BADMINTON",
+]);
 
 export const gameCreateSchema = z.object({
   championshipId: z.string().uuid(),
@@ -199,6 +209,18 @@ export type TournamentTeamInput = z.infer<typeof tournamentTeamSchema>;
 export const dashboardTournamentTeamSchema = tournamentTeamSchema.extend({
   gameId: z.string().uuid("Select a game for this team"),
 });
+
+// Bulk-registers a list of participating organizations/schools as a team in
+// every game the championship already has (e.g. 15 schools x 16 games ->
+// 240 teams in one action), instead of creating each org/game combination
+// by hand.
+export const bulkTournamentTeamsSchema = z.object({
+  championshipId: z.string().uuid(),
+  organizationNames: z
+    .array(z.string().min(1).max(200))
+    .min(1, "Add at least one organization name"),
+});
+export type BulkTournamentTeamsInput = z.infer<typeof bulkTournamentTeamsSchema>;
 
 export const matchPoolSchema = z.object({
   gameId: z.string().uuid(),

@@ -33,6 +33,10 @@ enum GameCategory {
 
 // Matches lib/scoring.ts's BallSport union exactly - drives which
 // win/draw/loss points config computeStandings applies to a game's fixtures.
+// Despite the name (kept to avoid a wider rename across schema/scoring/UI),
+// this also covers the dual/team-match "indoor games" run at higher
+// competition levels (chess, table tennis, badminton) - they use the same
+// fixtures/standings pipeline as the ball sports above.
 enum BallSport {
   FOOTBALL
   BASKETBALL
@@ -40,6 +44,9 @@ enum BallSport {
   HANDBALL
   RUGBY
   NETBALL
+  CHESS
+  TABLE_TENNIS
+  BADMINTON
 }
 
 enum Level {

@@ -5,10 +5,11 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -42,6 +43,8 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [bulkOpen, setBulkOpen] = React.useState(false);
+  const [bulkText, setBulkText] = React.useState("");
 
   const { data: gamesData } = useQuery({
     queryKey: ["games", championshipId],
@@ -113,6 +116,33 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
     }
   }
 
+  const bulkMutation = useMutation({
+    mutationFn: (organizationNames: string[]) =>
+      apiPost<{ created: number; skipped: number }>("/api/tournament-teams/bulk", { championshipId, organizationNames }),
+    onSuccess: (result) => {
+      toast.success(
+        `${result.created} team${result.created === 1 ? "" : "s"} created` +
+          (result.skipped > 0 ? ` (${result.skipped} already existed)` : ""),
+      );
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", championshipId] });
+      setBulkOpen(false);
+      setBulkText("");
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to add organizations"),
+  });
+
+  function submitBulk() {
+    const organizationNames = bulkText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (organizationNames.length === 0) {
+      toast.error("Enter at least one organization name");
+      return;
+    }
+    bulkMutation.mutate(organizationNames);
+  }
+
   function gameName(gameId: string | null): string {
     if (!gameId) return "No game selected";
     return games.find((g) => g.id === gameId)?.name ?? "Unknown game";
@@ -125,17 +155,50 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
           <CardTitle>Teams</CardTitle>
           <CardDescription>Teams register for a specific game - gender comes from the game, not asked separately.</CardDescription>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreate} disabled={games.length === 0}>
-              <Plus className="h-4 w-4" /> Add team
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Edit team" : "Add a team"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="secondary" disabled={games.length === 0}>
+                <Users className="h-4 w-4" /> Add organizations
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add participating organizations</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="bulk-orgs">One organization/school name per line</Label>
+                  <Textarea
+                    id="bulk-orgs"
+                    className="mt-1.5 min-h-[160px]"
+                    placeholder={"Manyonge Primary\nOruba Primary\nSt. Mary's Primary"}
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                  />
+                  <p className="mt-1.5 text-xs text-muted">
+                    Creates a team for each organization in every one of this championship&apos;s {games.length} game
+                    {games.length === 1 ? "" : "s"}. Already-existing organization/game combinations are skipped.
+                  </p>
+                </div>
+                <Button className="w-full" disabled={bulkMutation.isPending} onClick={submitBulk}>
+                  {bulkMutation.isPending ? "Adding..." : "Add organizations"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" onClick={openCreate} disabled={games.length === 0}>
+                <Plus className="h-4 w-4" /> Add team
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingId ? "Edit team" : "Add a team"}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
               <div>
                 <Label htmlFor="team-name">Name</Label>
                 <Input id="team-name" className="mt-1.5" {...register("name")} />
@@ -188,7 +251,8 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
               </Button>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent className="space-y-2">
         {games.length === 0 && (

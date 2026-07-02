@@ -5,6 +5,7 @@ import {
   gameCreateSchema,
   tournamentTeamSchema,
   dashboardTournamentTeamSchema,
+  bulkTournamentTeamsSchema,
   timeInputSchema,
   bibRangeSchema,
   paymentInitializeSchema,
@@ -134,6 +135,24 @@ describe("tournamentTeamSchema", () => {
       championshipId: "11111111-1111-1111-1111-111111111111",
       name: "Thunder FC",
       contactEmail: "not-an-email",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("bulkTournamentTeamsSchema", () => {
+  it("accepts a list of organization names", () => {
+    const result = bulkTournamentTeamsSchema.safeParse({
+      championshipId: "11111111-1111-1111-1111-111111111111",
+      organizationNames: ["Manyonge Primary", "Oruba Primary"],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty list", () => {
+    const result = bulkTournamentTeamsSchema.safeParse({
+      championshipId: "11111111-1111-1111-1111-111111111111",
+      organizationNames: [],
     });
     expect(result.success).toBe(false);
   });

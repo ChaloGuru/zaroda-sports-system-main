@@ -229,6 +229,18 @@ describe("computeStandings", () => {
     const standings = computeStandings(["A", "B"], results, "RUGBY");
     expect(standings.every((s) => s.points === 2)).toBe(true);
   });
+
+  it("allows chess team matches to draw (board points can split evenly)", () => {
+    const results: MatchResult[] = [{ teamAId: "A", teamBId: "B", teamAScore: 2, teamBScore: 2 }];
+    const standings = computeStandings(["A", "B"], results, "CHESS");
+    expect(standings.every((s) => s.points === 1)).toBe(true);
+  });
+
+  it.each(["TABLE_TENNIS", "BADMINTON"] as const)("%s has no draws - a tied scoreline awards no points", (sport) => {
+    const results: MatchResult[] = [{ teamAId: "A", teamBId: "B", teamAScore: 3, teamBScore: 3 }];
+    const standings = computeStandings(["A", "B"], results, sport);
+    expect(standings.every((s) => s.points === 0)).toBe(true);
+  });
 });
 
 describe("pointsForPosition", () => {

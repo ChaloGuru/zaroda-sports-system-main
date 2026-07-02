@@ -40,7 +40,17 @@ interface MatchPoolRow {
   winnerId: string | null;
 }
 
-const BALL_SPORTS: BallSport[] = ["FOOTBALL", "BASKETBALL", "VOLLEYBALL", "HANDBALL", "RUGBY", "NETBALL"];
+const BALL_SPORTS: BallSport[] = [
+  "FOOTBALL",
+  "BASKETBALL",
+  "VOLLEYBALL",
+  "HANDBALL",
+  "RUGBY",
+  "NETBALL",
+  "CHESS",
+  "TABLE_TENNIS",
+  "BADMINTON",
+];
 
 const SPORT_LABELS: Record<BallSport, string> = {
   FOOTBALL: "Goals",
@@ -49,7 +59,17 @@ const SPORT_LABELS: Record<BallSport, string> = {
   HANDBALL: "Goals",
   RUGBY: "Points",
   NETBALL: "Goals",
+  CHESS: "Boards",
+  TABLE_TENNIS: "Games",
+  BADMINTON: "Games",
 };
+
+function sportLabel(sport: string): string {
+  return sport
+    .split("_")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ");
+}
 
 function FixtureRow({ fixture, onChanged }: { fixture: MatchPoolRow; onChanged: () => void }) {
   const [scoreA, setScoreA] = React.useState(fixture.teamAScore?.toString() ?? "");
@@ -260,7 +280,7 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
                     <SelectTrigger className="mt-1.5 w-40"><SelectValue placeholder="Sport" /></SelectTrigger>
                     <SelectContent>
                       {BALL_SPORTS.map((s) => (
-                        <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>
+                        <SelectItem key={s} value={s}>{sportLabel(s)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -371,7 +391,7 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
         <Card>
           <CardHeader>
             <CardTitle>Standings</CardTitle>
-            <CardDescription>Auto-updates from saved fixture scores using {selectedGame.sport.charAt(0) + selectedGame.sport.slice(1).toLowerCase()} rules.</CardDescription>
+            <CardDescription>Auto-updates from saved fixture scores using {sportLabel(selectedGame.sport)} rules.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>

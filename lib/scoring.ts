@@ -147,7 +147,16 @@ export function seedLanes(
 // Ball games: standings computation
 // ─────────────────────────────────────────────────────────────────────────
 
-export type BallSport = "FOOTBALL" | "BASKETBALL" | "VOLLEYBALL" | "HANDBALL" | "RUGBY" | "NETBALL";
+export type BallSport =
+  | "FOOTBALL"
+  | "BASKETBALL"
+  | "VOLLEYBALL"
+  | "HANDBALL"
+  | "RUGBY"
+  | "NETBALL"
+  | "CHESS"
+  | "TABLE_TENNIS"
+  | "BADMINTON";
 
 export interface SportConfig {
   drawAllowed: boolean;
@@ -164,6 +173,14 @@ export const SPORT_CONFIGS: Record<BallSport, SportConfig> = {
   HANDBALL: { drawAllowed: true, winPoints: 2, drawPoints: 1, lossPoints: 0, scoreLabel: "Goals" },
   RUGBY: { drawAllowed: true, winPoints: 4, drawPoints: 2, lossPoints: 0, scoreLabel: "Points" },
   NETBALL: { drawAllowed: false, winPoints: 3, drawPoints: 0, lossPoints: 0, scoreLabel: "Goals" },
+  // Indoor/dual-match games run at higher competition levels. Defaults below
+  // are a reasonable starting point (chess team matches commonly split board
+  // points and can be drawn; table tennis/badminton are decided by games won
+  // so draws aren't possible) - adjust SPORT_CONFIGS here if your federation
+  // uses a different points scale.
+  CHESS: { drawAllowed: true, winPoints: 2, drawPoints: 1, lossPoints: 0, scoreLabel: "Boards" },
+  TABLE_TENNIS: { drawAllowed: false, winPoints: 2, drawPoints: 0, lossPoints: 0, scoreLabel: "Games" },
+  BADMINTON: { drawAllowed: false, winPoints: 2, drawPoints: 0, lossPoints: 0, scoreLabel: "Games" },
 };
 
 export interface CardCount {

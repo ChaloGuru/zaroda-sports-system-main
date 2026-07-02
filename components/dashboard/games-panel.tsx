@@ -31,13 +31,30 @@ interface GameRow {
 
 const GENDERS = ["BOYS", "GIRLS", "MIXED"];
 const CATEGORIES = ["BALL_GAMES", "ATHLETICS", "MUSIC", "OTHER_GAMES"];
+// "Indoor games" (chess, table tennis, badminton) are run at higher
+// competition levels and use the same fixtures/standings pipeline as ball
+// games, just filed under the OTHER_GAMES category instead.
 const BALL_SPORTS = ["FOOTBALL", "BASKETBALL", "VOLLEYBALL", "HANDBALL", "RUGBY", "NETBALL"];
+const INDOOR_SPORTS = ["CHESS", "TABLE_TENNIS", "BADMINTON"];
+
+function sportLabel(sport: string): string {
+  return sport
+    .split("_")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ");
+}
 
 // A championship's schoolLevel is a single pricing tier (Primary/JS bundled,
 // Senior School, or Tertiary). Only a PRIMARY_JS championship needs a
 // per-game choice - Senior School and Tertiary championships have exactly
 // one valid game-level value each, so the field is hidden and auto-set.
 const PRIMARY_JS_GAME_LEVELS = GAME_SCHOOL_LEVELS.filter((l) => l.value === "PRIMARY" || l.value === "JS");
+
+function defaultSportForCategory(category: string): GameCreateInput["sport"] {
+  if (category === "BALL_GAMES") return "FOOTBALL";
+  if (category === "OTHER_GAMES") return "CHESS";
+  return null;
+}
 
 function emptyDefaults(category: string, championshipId: string, needsLevelChoice: boolean, championshipSchoolLevel: string): GameCreateInput {
   return {
@@ -47,7 +64,7 @@ function emptyDefaults(category: string, championshipId: string, needsLevelChoic
     gender: "BOYS",
     schoolLevel: needsLevelChoice ? "PRIMARY" : (championshipSchoolLevel as GameCreateInput["schoolLevel"]),
     isTimed: category === "ATHLETICS",
-    sport: category === "BALL_GAMES" ? "FOOTBALL" : null,
+    sport: defaultSportForCategory(category),
     maxQualifiers: 5,
   };
 }
@@ -82,7 +99,9 @@ export function GamesPanel({
     resolver: zodResolver(gameCreateSchema),
     defaultValues: emptyDefaults(category, championshipId, needsLevelChoice, championshipSchoolLevel),
   });
-  const isBallGames = watch("category") === "BALL_GAMES";
+  const watchedCategory = watch("category");
+  const showsSportPicker = watchedCategory === "BALL_GAMES" || watchedCategory === "OTHER_GAMES";
+  const sportOptions = watchedCategory === "OTHER_GAMES" ? INDOOR_SPORTS : BALL_SPORTS;
 
   function openCreate() {
     setEditingId(null);
@@ -186,7 +205,7 @@ export function GamesPanel({
                       const nextCategory = v as GameCreateInput["category"];
                       setValue("category", nextCategory);
                       setValue("isTimed", nextCategory === "ATHLETICS");
-                      setValue("sport", nextCategory === "BALL_GAMES" ? "FOOTBALL" : null);
+                      setValue("sport", defaultSportForCategory(nextCategory));
                     }}
                   >
                     <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -197,14 +216,17 @@ export function GamesPanel({
                     </SelectContent>
                   </Select>
                 </div>
-                {isBallGames ? (
+                {showsSportPicker ? (
                   <div>
                     <Label>Sport</Label>
-                    <Select value={watch("sport") ?? "FOOTBALL"} onValueChange={(v) => setValue("sport", v as GameCreateInput["sport"])}>
+                    <Select
+                      value={watch("sport") ?? sportOptions[0]}
+                      onValueChange={(v) => setValue("sport", v as GameCreateInput["sport"])}
+                    >
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {BALL_SPORTS.map((s) => (
-                          <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>
+                        {sportOptions.map((s) => (
+                          <SelectItem key={s} value={s}>{sportLabel(s)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -242,7 +264,7 @@ export function GamesPanel({
               <p className="font-medium text-foreground">{game.name}</p>
               <p className="text-sm text-muted">
                 {game.gender} - {gameSchoolLevelLabel(game.schoolLevel)}
-                {game.sport ? ` - ${game.sport.charAt(0) + game.sport.slice(1).toLowerCase()}` : ""} -{" "}
+                {game.sport ? ` - ${sportLabel(game.sport)}` : ""} -{" "}
                 {game._count.participants} participants
               </p>
             </div>
