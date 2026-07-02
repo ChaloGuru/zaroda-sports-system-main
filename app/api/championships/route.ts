@@ -10,6 +10,7 @@ import {
   AuthorizationError,
 } from "@/lib/authorize";
 import { championshipCreateSchema } from "@/lib/validations";
+import { PRIMARY_JS_BALL_GAMES_TEMPLATE } from "@/lib/default-games";
 
 /**
  * Public callers only ever see published championships. Authenticated
@@ -99,6 +100,31 @@ export async function POST(request: Request) {
       recordId: (result) => result.id,
       newData: input,
     });
+
+    // Primary/JS ball-games championships all run the same standard event
+    // roster - seed it automatically so tenants only need to add teams.
+    // The Games tab still allows editing/adding/removing any of these.
+    if (championship.schoolLevel === "PRIMARY_JS" && championship.category === "BALL_GAMES") {
+      const gamesToCreate = PRIMARY_JS_BALL_GAMES_TEMPLATE.map((g) => ({
+        championshipId: championship.id,
+        name: g.name,
+        category: "BALL_GAMES" as const,
+        gender: g.gender,
+        schoolLevel: g.schoolLevel,
+        isTimed: false,
+        sport: g.sport,
+      }));
+
+      await withAudit({
+        actorId: ctx.userId,
+        operation: "INSERT",
+        tableName: "games",
+        oldData: undefined,
+        mutate: (tx) => tx.game.createMany({ data: gamesToCreate }),
+        recordId: () => championship.id,
+        newData: gamesToCreate,
+      });
+    }
 
     return NextResponse.json({ championship }, { status: 201 });
   } catch (error) {

@@ -4,6 +4,7 @@ import {
   championshipCreateSchema,
   gameCreateSchema,
   tournamentTeamSchema,
+  dashboardTournamentTeamSchema,
   timeInputSchema,
   bibRangeSchema,
   paymentInitializeSchema,
@@ -93,21 +94,30 @@ describe("gameCreateSchema", () => {
 });
 
 describe("tournamentTeamSchema", () => {
-  const base = {
-    championshipId: "11111111-1111-1111-1111-111111111111",
-    name: "Thunder FC",
-    teamCode: "THU",
-    gender: "BOYS" as const,
-  };
-
-  it("accepts a valid team payload with gender", () => {
-    expect(tournamentTeamSchema.safeParse(base).success).toBe(true);
+  // Gender is intentionally absent - it's derived server-side from the
+  // team's selected game, not collected on the form.
+  it("accepts a team payload with only name and championshipId", () => {
+    const result = tournamentTeamSchema.safeParse({
+      championshipId: "11111111-1111-1111-1111-111111111111",
+      name: "Thunder FC",
+    });
+    expect(result.success).toBe(true);
   });
 
-  it("rejects a team payload missing gender", () => {
-    const { gender: _gender, ...withoutGender } = base;
-    const result = tournamentTeamSchema.safeParse(withoutGender);
+  it("rejects a team payload missing name", () => {
+    const result = tournamentTeamSchema.safeParse({
+      championshipId: "11111111-1111-1111-1111-111111111111",
+    });
     expect(result.success).toBe(false);
+  });
+
+  it("dashboardTournamentTeamSchema requires a gameId, unlike the base schema", () => {
+    const payload = { championshipId: "11111111-1111-1111-1111-111111111111", name: "Thunder FC" };
+    expect(tournamentTeamSchema.safeParse(payload).success).toBe(true);
+    expect(dashboardTournamentTeamSchema.safeParse(payload).success).toBe(false);
+    expect(
+      dashboardTournamentTeamSchema.safeParse({ ...payload, gameId: "22222222-2222-2222-2222-222222222222" }).success,
+    ).toBe(true);
   });
 });
 

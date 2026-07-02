@@ -2,15 +2,19 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { getAuthContext, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
-import { tournamentTeamSchema } from "@/lib/validations";
+import { tournamentTeamSchema, dashboardTournamentTeamSchema } from "@/lib/validations";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const championshipId = searchParams.get("championshipId");
+    const gameId = searchParams.get("gameId");
     if (!championshipId) return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
 
-    const teams = await prisma.tournamentTeam.findMany({ where: { championshipId }, orderBy: { name: "asc" } });
+    const where: Record<string, unknown> = { championshipId };
+    if (gameId) where.gameId = gameId;
+
+    const teams = await prisma.tournamentTeam.findMany({ where, orderBy: { name: "asc" } });
     return NextResponse.json({ teams });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
@@ -21,17 +25,28 @@ export async function GET(request: Request) {
 /**
  * Open-tournament teams may self-register without authentication (they pay
  * their entry fee directly via /api/payments/initialize with mode
- * "team_fee"). Tenant staff can also add teams from the dashboard.
+ * "team_fee") - no specific game is chosen in that flow. Tenant staff adding
+ * teams from the dashboard must pick the game the team is registering for;
+ * gender is derived from that game rather than asked separately.
  */
 export async function POST(request: Request) {
   try {
-    const body: unknown = await request.json();
-    const input = tournamentTeamSchema.parse(body);
+    const rawBody: unknown = await request.json();
+    const ctx = await getAuthContext();
+    const input = ctx ? dashboardTournamentTeamSchema.parse(rawBody) : tournamentTeamSchema.parse(rawBody);
 
     const championship = await prisma.championship.findUnique({ where: { id: input.championshipId } });
     if (!championship) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
 
-    const ctx = await getAuthContext();
+    let gender: "BOYS" | "GIRLS" | "MIXED" = "MIXED";
+    if (input.gameId) {
+      const game = await prisma.game.findUnique({ where: { id: input.gameId } });
+      if (!game || game.championshipId !== input.championshipId) {
+        return NextResponse.json({ error: "Game not found in this championship" }, { status: 404 });
+      }
+      gender = game.gender;
+    }
+
     if (ctx) {
       await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN"]);
     }
@@ -45,9 +60,10 @@ export async function POST(request: Request) {
         tx.tournamentTeam.create({
           data: {
             championshipId: input.championshipId,
+            gameId: input.gameId ?? null,
             name: input.name,
-            teamCode: input.teamCode,
-            gender: input.gender,
+            teamCode: input.teamCode ?? null,
+            gender,
             teamColor: input.teamColor ?? null,
             contactName: input.contactName ?? null,
             contactEmail: input.contactEmail ?? null,

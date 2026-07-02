@@ -18,7 +18,7 @@ interface GameSummary {
 interface TeamSummary {
   id: string;
   name: string;
-  teamCode: string;
+  teamCode: string | null;
 }
 
 export function ChampionshipTabs({
@@ -68,7 +68,7 @@ export function ChampionshipTabs({
             <Card key={team.id}>
               <CardHeader>
                 <CardTitle>{team.name}</CardTitle>
-                <p className="text-sm text-muted">Code: {team.teamCode}</p>
+                {team.teamCode && <p className="text-sm text-muted">Code: {team.teamCode}</p>}
               </CardHeader>
             </Card>
           ))}

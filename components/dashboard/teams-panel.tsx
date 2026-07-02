@@ -13,13 +13,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { tournamentTeamSchema, type TournamentTeamInput } from "@/lib/validations";
+import { dashboardTournamentTeamSchema, type TournamentTeamInput } from "@/lib/validations";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
+
+interface GameOption {
+  id: string;
+  name: string;
+  gender: string;
+}
 
 interface TeamRow {
   id: string;
   name: string;
-  teamCode: string;
+  teamCode: string | null;
+  gameId: string | null;
   gender: string;
   teamColor: string | null;
   contactName: string | null;
@@ -27,16 +34,20 @@ interface TeamRow {
   contactPhone: string | null;
 }
 
-const GENDERS = ["BOYS", "GIRLS", "MIXED"];
-
 function emptyDefaults(championshipId: string): TournamentTeamInput {
-  return { championshipId, name: "", teamCode: "", gender: "MIXED" };
+  return { championshipId, gameId: "", name: "" };
 }
 
 export function TeamsPanel({ championshipId }: { championshipId: string }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
+
+  const { data: gamesData } = useQuery({
+    queryKey: ["games", championshipId],
+    queryFn: () => apiGet<{ games: GameOption[] }>(`/api/games?championshipId=${championshipId}`),
+  });
+  const games = gamesData?.games ?? [];
 
   const { data, isLoading } = useQuery({
     queryKey: ["tournament-teams", championshipId],
@@ -51,7 +62,7 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
     reset,
     formState: { errors },
   } = useForm<TournamentTeamInput>({
-    resolver: zodResolver(tournamentTeamSchema),
+    resolver: zodResolver(dashboardTournamentTeamSchema),
     defaultValues: emptyDefaults(championshipId),
   });
 
@@ -65,9 +76,9 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
     setEditingId(team.id);
     reset({
       championshipId,
+      gameId: team.gameId ?? "",
       name: team.name,
       teamCode: team.teamCode,
-      gender: team.gender as TournamentTeamInput["gender"],
       teamColor: team.teamColor,
       contactName: team.contactName,
       contactEmail: team.contactEmail,
@@ -102,16 +113,21 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
     }
   }
 
+  function gameName(gameId: string | null): string {
+    if (!gameId) return "No game selected";
+    return games.find((g) => g.id === gameId)?.name ?? "Unknown game";
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Teams</CardTitle>
-          <CardDescription>Open-tournament team entries for this championship.</CardDescription>
+          <CardDescription>Teams register for a specific game - gender comes from the game, not asked separately.</CardDescription>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreate}>
+            <Button size="sm" onClick={openCreate} disabled={games.length === 0}>
               <Plus className="h-4 w-4" /> Add team
             </Button>
           </DialogTrigger>
@@ -120,30 +136,29 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
               <DialogTitle>{editingId ? "Edit team" : "Add a team"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="team-name">Name</Label>
-                  <Input id="team-name" className="mt-1.5" {...register("name")} />
-                  {errors.name && <p className="mt-1 text-sm text-red-400">{errors.name.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="team-code">Team code</Label>
-                  <Input id="team-code" className="mt-1.5" {...register("teamCode")} />
-                  {errors.teamCode && <p className="mt-1 text-sm text-red-400">{errors.teamCode.message}</p>}
-                </div>
+              <div>
+                <Label htmlFor="team-name">Name</Label>
+                <Input id="team-name" className="mt-1.5" {...register("name")} />
+                {errors.name && <p className="mt-1 text-sm text-red-400">{errors.name.message}</p>}
+              </div>
+
+              <div>
+                <Label>Game</Label>
+                <Select value={watch("gameId") ?? ""} onValueChange={(v) => setValue("gameId", v)}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select a game" /></SelectTrigger>
+                  <SelectContent>
+                    {games.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>{g.name} ({g.gender})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.gameId && <p className="mt-1 text-sm text-red-400">{errors.gameId.message}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Gender</Label>
-                  <Select value={watch("gender")} onValueChange={(v) => setValue("gender", v as TournamentTeamInput["gender"])}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {GENDERS.map((g) => (
-                        <SelectItem key={g} value={g}>{g}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="team-code">Team code (optional)</Label>
+                  <Input id="team-code" className="mt-1.5" {...register("teamCode")} />
                 </div>
                 <div>
                   <Label htmlFor="team-color">Team color (optional)</Label>
@@ -153,17 +168,17 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="contactName">Contact name</Label>
+                  <Label htmlFor="contactName">Contact name (optional)</Label>
                   <Input id="contactName" className="mt-1.5" {...register("contactName")} />
                 </div>
                 <div>
-                  <Label htmlFor="contactPhone">Contact phone</Label>
+                  <Label htmlFor="contactPhone">Contact phone (optional)</Label>
                   <Input id="contactPhone" className="mt-1.5" {...register("contactPhone")} />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="contactEmail">Contact email</Label>
+                <Label htmlFor="contactEmail">Contact email (optional)</Label>
                 <Input id="contactEmail" type="email" className="mt-1.5" {...register("contactEmail")} />
                 {errors.contactEmail && <p className="mt-1 text-sm text-red-400">{errors.contactEmail.message}</p>}
               </div>
@@ -176,14 +191,18 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
         </Dialog>
       </CardHeader>
       <CardContent className="space-y-2">
+        {games.length === 0 && (
+          <p className="text-muted">Add a game in the Games tab first - teams register for a specific game.</p>
+        )}
         {isLoading && <p className="text-muted">Loading teams...</p>}
-        {!isLoading && (data?.teams ?? []).length === 0 && <p className="text-muted">No teams yet. Add your first team.</p>}
+        {!isLoading && games.length > 0 && (data?.teams ?? []).length === 0 && <p className="text-muted">No teams yet. Add your first team.</p>}
         {(data?.teams ?? []).map((team) => (
           <div key={team.id} className="flex items-center justify-between rounded-md border border-border p-3">
             <div>
               <p className="font-medium text-foreground">{team.name}</p>
               <p className="text-sm text-muted">
-                {team.teamCode} - {team.gender}
+                {gameName(team.gameId)} - {team.gender}
+                {team.teamCode ? ` - ${team.teamCode}` : ""}
                 {team.contactName ? ` - ${team.contactName}` : ""}
               </p>
             </div>

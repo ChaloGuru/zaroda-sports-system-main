@@ -226,8 +226,12 @@ model School {
 model TournamentTeam {
   id             String   @id @default(uuid())
   championshipId String
+  // The game a team is registered for - gender is derived from this game
+  // rather than asked separately. Nullable because the public team_fee
+  // self-registration flow (no specific game chosen) doesn't set it.
+  gameId         String?
   name           String
-  teamCode       String
+  teamCode       String?
   gender         Gender   @default(MIXED)
   teamColor      String?
   contactName    String?
@@ -238,6 +242,7 @@ model TournamentTeam {
   updatedAt      DateTime @updatedAt
 
   championship Championship     @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  game         Game?            @relation(fields: [gameId], references: [id], onDelete: SetNull)
   participants Participant[]
   feePayments  TeamFeePayment[]
 
@@ -260,10 +265,11 @@ model Game {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  championship Championship  @relation(fields: [championshipId], references: [id], onDelete: Cascade)
-  participants Participant[]
-  heats        Heat[]
-  matchPools   MatchPool[]
+  championship    Championship     @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  participants    Participant[]
+  heats           Heat[]
+  matchPools      MatchPool[]
+  tournamentTeams TournamentTeam[]
 
   @@index([championshipId])
   @@map("games")

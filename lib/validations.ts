@@ -169,11 +169,16 @@ export const paymentVerifySchema = z.object({
   reference: z.string().min(1),
 });
 
+// Gender is intentionally not collected here - it's derived server-side from
+// the selected game (a team registers for one specific game, so its gender
+// always matches that game's). Only name is required; everything else,
+// including the game itself, is optional so the public team_fee
+// self-registration flow (which doesn't pick a specific game) still works.
 export const tournamentTeamSchema = z.object({
   championshipId: z.string().uuid(),
+  gameId: z.string().uuid().nullable().optional(),
   name: z.string().min(1).max(200),
-  teamCode: z.string().min(1).max(50),
-  gender: genderSchema,
+  teamCode: z.string().max(50).nullable().optional(),
   teamColor: z.string().max(30).nullable().optional(),
   contactName: z.string().max(200).nullable().optional(),
   contactEmail: z.string().email().nullable().optional(),
@@ -181,6 +186,12 @@ export const tournamentTeamSchema = z.object({
   notes: z.string().max(1000).nullable().optional(),
 });
 export type TournamentTeamInput = z.infer<typeof tournamentTeamSchema>;
+
+// Dashboard team creation (TeamsPanel) requires picking a game, unlike the
+// public self-registration flow above.
+export const dashboardTournamentTeamSchema = tournamentTeamSchema.extend({
+  gameId: z.string().uuid("Select a game for this team"),
+});
 
 export const matchPoolSchema = z.object({
   gameId: z.string().uuid(),

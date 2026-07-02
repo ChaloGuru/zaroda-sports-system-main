@@ -138,8 +138,9 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
   const fixtureGames = (gamesData?.games ?? []).filter((g) => !g.isTimed);
 
   const { data: teamsData } = useQuery({
-    queryKey: ["tournament-teams", championshipId],
-    queryFn: () => apiGet<{ teams: TeamOption[] }>(`/api/tournament-teams?championshipId=${championshipId}`),
+    queryKey: ["tournament-teams", championshipId, gameId],
+    queryFn: () => apiGet<{ teams: TeamOption[] }>(`/api/tournament-teams?championshipId=${championshipId}&gameId=${gameId}`),
+    enabled: !!gameId,
   });
   const teams = teamsData?.teams ?? [];
 
