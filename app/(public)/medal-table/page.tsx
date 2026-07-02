@@ -18,8 +18,8 @@ interface ChampionshipOption {
 }
 
 interface MedalRow {
-  schoolId: string;
-  schoolName: string;
+  entityId: string;
+  entityName: string;
   gold: number;
   silver: number;
   bronze: number;
@@ -80,11 +80,11 @@ function MedalTableExplorer() {
               </TableHeader>
               <TableBody>
                 {(data?.medalTable ?? []).map((row) => (
-                  <TableRow key={row.schoolId}>
+                  <TableRow key={row.entityId}>
                     <TableCell>
                       <LaneChip value={row.position} rank={row.position} />
                     </TableCell>
-                    <TableCell className="font-medium">{row.schoolName}</TableCell>
+                    <TableCell className="font-medium">{row.entityName}</TableCell>
                     <TableCell className="font-mono tabular-nums text-[#C99A2E]">{row.gold}</TableCell>
                     <TableCell className="font-mono tabular-nums text-[#8A93A3]">{row.silver}</TableCell>
                     <TableCell className="font-mono tabular-nums text-[#A9682F]">{row.bronze}</TableCell>

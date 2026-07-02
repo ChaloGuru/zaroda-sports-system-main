@@ -38,10 +38,9 @@ export default async function LandingPage() {
           className="object-cover object-center"
         />
         {/* Navy wash - keeps the photo visible while still grounding the section in the brand color */}
-        <div className="absolute inset-0 bg-gradient-to-b from-navy/70 via-navy/30 to-background" />
-        {/* Glossy diagonal sheen for a glass-like highlight across the photo */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/15 to-transparent" />
-        <div className="absolute inset-x-0 top-0 h-2/3 bg-gradient-to-b from-white/15 via-white/0 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-navy/90 via-navy/70 to-navy/40" />
+        {/* Subtle diagonal sheen for a glass-like highlight across the photo */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent" />
 
         <div className="container relative flex flex-col items-center gap-6 py-24 text-center">
           <span className="rounded-full border border-white/30 bg-white/15 px-4 py-1 text-sm font-medium text-white backdrop-blur-sm">

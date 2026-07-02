@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { GenderBadge } from "@/components/ui/gender-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { LaneChip } from "@/components/ui/lane-chip";
@@ -44,7 +45,7 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
         &larr; {game.championship.name}
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Badge>{game.gender}</Badge>
+        <GenderBadge gender={game.gender} />
         <Badge variant="secondary">{game.schoolLevel.replace("_", " ")}</Badge>
         <Badge variant="outline">{game.isTimed ? "Timed event" : "Scored event"}</Badge>
       </div>

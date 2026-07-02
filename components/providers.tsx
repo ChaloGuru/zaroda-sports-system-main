@@ -4,6 +4,12 @@ import * as React from "react";
 import { SessionProvider } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
+import { ThemeProvider, useTheme } from "@/components/theme-provider";
+
+function ThemedToaster() {
+  const { theme } = useTheme();
+  return <Toaster theme={theme} richColors />;
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = React.useState(
@@ -16,21 +22,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <SessionProvider>
-      <QueryClientProvider client={queryClient}>
-        {children}
-        <Toaster
-          theme="dark"
-          richColors
-          toastOptions={{
-            style: {
-              background: "#161B22",
-              border: "1px solid #30363D",
-              color: "#E6EDF3",
-            },
-          }}
-        />
-      </QueryClientProvider>
-    </SessionProvider>
+    <ThemeProvider>
+      <SessionProvider>
+        <QueryClientProvider client={queryClient}>
+          {children}
+          <ThemedToaster />
+        </QueryClientProvider>
+      </SessionProvider>
+    </ThemeProvider>
   );
 }

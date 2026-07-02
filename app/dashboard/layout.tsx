@@ -5,6 +5,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/championships", label: "Championships", icon: "Trophy" },
   { href: "/dashboard/messages", label: "Messages", icon: "Inbox" },
   { href: "/dashboard/billing", label: "Billing", icon: "CreditCard" },
+  { href: "/dashboard/account", label: "Account", icon: "UserCog" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

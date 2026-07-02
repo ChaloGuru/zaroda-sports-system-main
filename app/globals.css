@@ -3,8 +3,59 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --color-background: 238 242 249;
+    --color-foreground: 15 30 61;
+    --color-navy: 10 22 51;
+    --color-navy-light: 27 87 184;
+    --color-navy-dark: 6 14 34;
+    --color-primary: 27 87 184;
+    --color-primary-foreground: 255 255 255;
+    --color-accent: 46 107 230;
+    --color-accent-foreground: 255 255 255;
+    --color-gold: 201 154 46;
+    --color-surface: 255 255 255;
+    --color-surface-raised: 247 249 253;
+    --color-surface-overlay: 234 241 255;
+    --color-card: 255 255 255;
+    --color-card-foreground: 15 30 61;
+    --color-border: 226 231 240;
+    --color-input: 226 231 240;
+    --color-muted: 90 107 135;
+    --color-ring: 46 107 230;
+    --color-destructive: 196 61 61;
+    --color-destructive-foreground: 255 255 255;
+  }
+
+  .dark {
+    --color-background: 10 15 28;
+    --color-foreground: 232 237 247;
+    --color-navy: 10 22 51;
+    --color-navy-light: 59 125 222;
+    --color-navy-dark: 6 14 34;
+    --color-primary: 59 130 246;
+    --color-primary-foreground: 255 255 255;
+    --color-accent: 96 165 250;
+    --color-accent-foreground: 10 15 28;
+    --color-gold: 224 178 62;
+    --color-surface: 16 24 43;
+    --color-surface-raised: 13 20 36;
+    --color-surface-overlay: 27 39 64;
+    --color-card: 16 24 43;
+    --color-card-foreground: 232 237 247;
+    --color-border: 36 49 79;
+    --color-input: 36 49 79;
+    --color-muted: 140 160 196;
+    --color-ring: 96 165 250;
+    --color-destructive: 239 68 68;
+    --color-destructive-foreground: 255 255 255;
+  }
+
   html {
     color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
   }
   body {
     @apply bg-background text-foreground antialiased font-sans;

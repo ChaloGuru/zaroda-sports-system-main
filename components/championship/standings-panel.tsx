@@ -45,7 +45,57 @@ interface GameStandings {
   standings: TeamStandingRow[];
 }
 
+interface OrganizationRankingRow {
+  name: string;
+  points: number;
+  position: number;
+}
+
 const SCHOOL_LEVEL_FILTERS = [{ value: "OVERALL", label: "Overall" }, ...GAME_SCHOOL_LEVELS];
+const GENDER_FILTERS = [
+  { value: "OVERALL", label: "Overall" },
+  { value: "BOYS", label: "Boys" },
+  { value: "GIRLS", label: "Girls" },
+];
+
+function OrganizationRankingsTable({ rows, isLoading }: { rows: OrganizationRankingRow[]; isLoading: boolean }) {
+  return (
+    <Card className="border-2 border-primary">
+      <CardHeader>
+        <CardTitle className="text-lg">Overall Organization Rankings</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>#</TableHead>
+              <TableHead>Organization / School / Team</TableHead>
+              <TableHead>Total Points</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.name}>
+                <TableCell>
+                  <LaneChip value={row.position} rank={row.position} />
+                </TableCell>
+                <TableCell className="font-medium">{row.name}</TableCell>
+                <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.points}</TableCell>
+              </TableRow>
+            ))}
+            {!isLoading && rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={3} className="text-center text-muted">
+                  No points recorded yet for this filter.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
 
 function TeamStandingsTable({ game }: { game: GameStandings }) {
   return (
@@ -96,21 +146,35 @@ function TeamStandingsTable({ game }: { game: GameStandings }) {
 
 function StandingsTable({ championshipId }: { championshipId: string }) {
   const [schoolLevel, setSchoolLevel] = React.useState("OVERALL");
+  const [gender, setGender] = React.useState("OVERALL");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["rankings", championshipId, schoolLevel],
+    queryKey: ["rankings", championshipId, schoolLevel, gender],
     queryFn: () =>
-      apiGet<{ standings: RankingRow[]; teamStandings: GameStandings[] }>(
-        `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}`,
+      apiGet<{ standings: RankingRow[]; teamStandings: GameStandings[]; organizationRankings: OrganizationRankingRow[] }>(
+        `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`,
       ),
   });
 
   const teamStandings = data?.teamStandings ?? [];
   const athleticsStandings = data?.standings ?? [];
+  const organizationRankings = data?.organizationRankings ?? [];
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-3">
+        <Select value={gender} onValueChange={setGender}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {GENDER_FILTERS.map((g) => (
+              <SelectItem key={g.value} value={g.value}>
+                {g.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={schoolLevel} onValueChange={setSchoolLevel}>
           <SelectTrigger className="w-56">
             <SelectValue />
@@ -126,6 +190,8 @@ function StandingsTable({ championshipId }: { championshipId: string }) {
       </div>
 
       {isLoading && <p className="text-muted">Loading standings...</p>}
+
+      {!isLoading && <OrganizationRankingsTable rows={organizationRankings} isLoading={isLoading} />}
 
       {!isLoading && teamStandings.length > 0 && (
         <div className="space-y-6">

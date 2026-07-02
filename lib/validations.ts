@@ -20,7 +20,7 @@ export const gameSchoolLevelSchema = z.enum(["PRIMARY", "JS", "SENIOR_SCHOOL", "
 export const genderSchema = z.enum(["BOYS", "GIRLS", "MIXED"]);
 export const participantStatusSchema = z.enum(["REGISTERED", "CONFIRMED_IN_CALL_ROOM", "DISQUALIFIED"]);
 
-const passwordSchema = z
+export const passwordSchema = z
   .string()
   .min(8, "Password must be at least 8 characters")
   .regex(/[A-Z]/, "Password must contain an uppercase letter")
@@ -50,6 +50,18 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
 const championshipFieldsSchema = z.object({
   name: z.string().min(3).max(200),

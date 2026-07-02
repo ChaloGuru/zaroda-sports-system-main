@@ -1,7 +1,16 @@
 import type { Config } from "tailwindcss";
 import defaultTheme from "tailwindcss/defaultTheme";
 
+// Every token below resolves to a CSS variable holding space-separated R G B
+// components (not a hex string) so Tailwind's `<alpha-value>` placeholder can
+// inject opacity modifiers like `bg-primary/10` - see the `--background` etc.
+// custom properties in app/globals.css for the actual light/dark values.
+function withOpacity(variable: string) {
+  return `rgb(var(${variable}) / <alpha-value>)`;
+}
+
 const config: Config = {
+  darkMode: ["class"],
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -20,40 +29,40 @@ const config: Config = {
         mono: ["var(--font-mono)", ...defaultTheme.fontFamily.mono],
       },
       colors: {
-        background: "#EEF2F9",
-        foreground: "#0F1E3D",
+        background: withOpacity("--color-background"),
+        foreground: withOpacity("--color-foreground"),
         navy: {
-          DEFAULT: "#0A1633",
-          light: "#1B57B8",
-          dark: "#060E22",
+          DEFAULT: withOpacity("--color-navy"),
+          light: withOpacity("--color-navy-light"),
+          dark: withOpacity("--color-navy-dark"),
         },
         primary: {
-          DEFAULT: "#1B57B8",
-          foreground: "#FFFFFF",
+          DEFAULT: withOpacity("--color-primary"),
+          foreground: withOpacity("--color-primary-foreground"),
         },
         accent: {
-          DEFAULT: "#2E6BE6",
-          foreground: "#FFFFFF",
+          DEFAULT: withOpacity("--color-accent"),
+          foreground: withOpacity("--color-accent-foreground"),
         },
         gold: {
-          DEFAULT: "#C99A2E",
+          DEFAULT: withOpacity("--color-gold"),
         },
         surface: {
-          DEFAULT: "#FFFFFF",
-          raised: "#F7F9FD",
-          overlay: "#EAF1FF",
+          DEFAULT: withOpacity("--color-surface"),
+          raised: withOpacity("--color-surface-raised"),
+          overlay: withOpacity("--color-surface-overlay"),
         },
         card: {
-          DEFAULT: "#FFFFFF",
-          foreground: "#0F1E3D",
+          DEFAULT: withOpacity("--color-card"),
+          foreground: withOpacity("--color-card-foreground"),
         },
-        border: "#E2E7F0",
-        input: "#E2E7F0",
-        muted: "#5A6B87",
-        ring: "#2E6BE6",
+        border: withOpacity("--color-border"),
+        input: withOpacity("--color-input"),
+        muted: withOpacity("--color-muted"),
+        ring: withOpacity("--color-ring"),
         destructive: {
-          DEFAULT: "#C43D3D",
-          foreground: "#FFFFFF",
+          DEFAULT: withOpacity("--color-destructive"),
+          foreground: withOpacity("--color-destructive-foreground"),
         },
       },
       borderRadius: {

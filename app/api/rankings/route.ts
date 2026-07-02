@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthContext, isSuperAdmin, hasRole, toErrorResponse } from "@/lib/authorize";
 import { pointsForPosition } from "@/lib/scoring";
 import { computeChampionshipTeamStandings } from "@/lib/team-standings";
+import { computeOrganizationRankings } from "@/lib/organization-rankings";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const championshipId = searchParams.get("championshipId");
     const schoolLevelParam = searchParams.get("schoolLevel"); // PRIMARY_JS | SENIOR_SCHOOL | TERTIARY | null=OVERALL
+    const genderParam = searchParams.get("gender"); // BOYS | GIRLS | null=OVERALL
     if (!championshipId) return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
 
     const championship = await prisma.championship.findUnique({ where: { id: championshipId } });
@@ -111,7 +113,12 @@ export async function GET(request: Request) {
       (g) => !schoolLevelParam || schoolLevelParam === "OVERALL" || g.schoolLevel === schoolLevelParam,
     );
 
-    return NextResponse.json({ standings, teamStandings });
+    const organizationRankings = await computeOrganizationRankings(championshipId, {
+      gender: genderParam as "BOYS" | "GIRLS" | "OVERALL" | undefined,
+      schoolLevel: schoolLevelParam ?? undefined,
+    });
+
+    return NextResponse.json({ standings, teamStandings, organizationRankings });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

@@ -14,8 +14,10 @@ import {
   ScrollText,
   Inbox,
   CreditCard,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 export type IconName =
@@ -26,7 +28,8 @@ export type IconName =
   | "Megaphone"
   | "ScrollText"
   | "Inbox"
-  | "CreditCard";
+  | "CreditCard"
+  | "UserCog";
 
 // Server Component layouts (admin/dashboard) can't pass icon component
 // references as props into this Client Component - functions aren't
@@ -41,6 +44,7 @@ const ICONS: Record<IconName, LucideIcon> = {
   ScrollText,
   Inbox,
   CreditCard,
+  UserCog,
 };
 
 export interface NavItem {
@@ -86,13 +90,16 @@ export function AppShell({
             );
           })}
         </nav>
-        <button
-          type="button"
-          onClick={() => signOut({ callbackUrl: "/" })}
-          className="flex items-center gap-3 border-t border-border px-6 py-4 text-sm font-medium text-muted hover:text-foreground"
-        >
-          <LogOut className="h-4 w-4" /> Sign out
-        </button>
+        <div className="flex items-center justify-between border-t border-border px-6 py-4">
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="flex items-center gap-3 text-sm font-medium text-muted hover:text-foreground"
+          >
+            <LogOut className="h-4 w-4" /> Sign out
+          </button>
+          <ThemeToggle />
+        </div>
       </aside>
 
       <div className="flex flex-1 flex-col">
@@ -101,9 +108,12 @@ export function AppShell({
             <span className="flex items-center gap-2 font-heading font-extrabold text-foreground">
               <Image src="/images/logo.png" alt="Zaroda Sports" width={144} height={96} className="h-9 w-auto" /> {title}
             </span>
-            <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className="text-sm text-muted">
-              Sign out
-            </button>
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className="text-sm text-muted">
+                Sign out
+              </button>
+            </div>
           </div>
           <nav className="flex gap-1 overflow-x-auto px-3 pb-3">
             {navItems.map((item) => {

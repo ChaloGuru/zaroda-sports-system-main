@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { GenderBadge } from "@/components/ui/gender-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { gameCreateSchema, type GameCreateInput } from "@/lib/validations";
@@ -261,9 +262,12 @@ export function GamesPanel({
         {(data?.games ?? []).map((game) => (
           <div key={game.id} className="flex items-center justify-between rounded-md border border-border p-3">
             <div>
-              <p className="font-medium text-foreground">{game.name}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-medium text-foreground">{game.name}</p>
+                <GenderBadge gender={game.gender} />
+              </div>
               <p className="text-sm text-muted">
-                {game.gender} - {gameSchoolLevelLabel(game.schoolLevel)}
+                {gameSchoolLevelLabel(game.schoolLevel)}
                 {game.sport ? ` - ${sportLabel(game.sport)}` : ""} -{" "}
                 {game._count.participants} participants
               </p>

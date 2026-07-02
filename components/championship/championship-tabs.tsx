@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { GenderBadge } from "@/components/ui/gender-badge";
 import { StandingsPanel } from "@/components/championship/standings-panel";
 
 interface GameSummary {
@@ -46,7 +47,7 @@ export function ChampionshipTabs({
               <Card className="h-full transition-colors hover:border-primary/50">
                 <CardHeader>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{game.gender}</Badge>
+                    <GenderBadge gender={game.gender} />
                     <Badge variant="outline">{game.isTimed ? "Timed" : "Scored"}</Badge>
                   </div>
                   <CardTitle className="mt-2">{game.name}</CardTitle>
