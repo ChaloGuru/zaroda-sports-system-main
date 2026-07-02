@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatKes } from "@/lib/utils";
+
+export const metadata: Metadata = {
+  title: "Pricing | Zaroda Sports Management System",
+  description:
+    "Simple per-level pricing in KES for Kenyan school championships - Base level is free; Zone through National levels unlock the full platform for a flat fee.",
+};
 
 const ESSENTIAL_TIERS = [
   { level: "Base", priceKes: 0 },

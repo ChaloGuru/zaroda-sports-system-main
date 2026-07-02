@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { Trophy, Medal, Timer, ShieldCheck, ArrowRight, Users } from "lucide-react";
@@ -6,6 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { prisma } from "@/lib/prisma";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  title: "Zaroda Sports Management System | Championship & Athletics Management for Kenyan Schools",
+  description:
+    "Run school championships and athletics meets from registration to final rankings - built for Kenyan zones, sub-counties, counties, and national tournaments.",
+};
 
 async function getStats() {
   const [tenants, championships, participants] = await Promise.all([
