@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Trophy, Medal, Timer, ShieldCheck, ArrowRight, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,8 +21,19 @@ export default async function LandingPage() {
 
   return (
     <div>
-      <section className="border-b border-border bg-gradient-to-b from-navy-dark to-background">
-        <div className="container flex flex-col items-center gap-6 py-24 text-center">
+      <section className="relative overflow-hidden border-b border-border">
+        <Image
+          src="/images/hero.png"
+          alt="Young athletes in Zaroda Sports jerseys competing in basketball and football"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-navy-dark/95 via-navy-dark/85 to-background" />
+        <div className="absolute inset-0 bg-navy-dark/40" />
+
+        <div className="container relative flex flex-col items-center gap-6 py-24 text-center">
           <span className="rounded-full border border-gold/40 bg-gold/10 px-4 py-1 text-sm font-medium text-gold">
             Built for Kenyan school &amp; open championships
           </span>
