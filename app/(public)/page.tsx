@@ -30,17 +30,20 @@ export default async function LandingPage() {
           sizes="100vw"
           className="object-cover object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-navy-dark/95 via-navy-dark/85 to-background" />
-        <div className="absolute inset-0 bg-navy-dark/40" />
+        {/* Light navy wash - keeps the photo visible while still grounding the section in the brand color */}
+        <div className="absolute inset-0 bg-gradient-to-b from-navy-light/55 via-navy-light/25 to-background" />
+        {/* Glossy diagonal sheen for a glass-like highlight across the photo */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/15 to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-2/3 bg-gradient-to-b from-white/15 via-white/0 to-transparent" />
 
         <div className="container relative flex flex-col items-center gap-6 py-24 text-center">
-          <span className="rounded-full border border-gold/40 bg-gold/10 px-4 py-1 text-sm font-medium text-gold">
+          <span className="rounded-full border border-gold/40 bg-gold/10 px-4 py-1 text-sm font-medium text-gold backdrop-blur-sm">
             Built for Kenyan school &amp; open championships
           </span>
-          <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
+          <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-foreground drop-shadow-[0_2px_16px_rgba(6,15,46,0.9)] sm:text-6xl">
             Run your championship from bib numbers to final rankings
           </h1>
-          <p className="max-w-2xl text-lg text-muted">
+          <p className="max-w-2xl text-lg text-foreground/90 drop-shadow-[0_2px_10px_rgba(6,15,46,0.9)]">
             Zaroda Sports Management System handles registration, call-room check-ins, live results capture, and
             public standings for athletics, ball games, music, and other competitions - starting completely free.
           </p>
