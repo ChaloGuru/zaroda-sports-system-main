@@ -95,6 +95,10 @@ export function RoleManager() {
             <Label>Email</Label>
             <Input
               type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="official@example.com"
@@ -110,6 +114,10 @@ export function RoleManager() {
               <Label>Password (new accounts only)</Label>
               <Input
                 type="password"
+                autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />

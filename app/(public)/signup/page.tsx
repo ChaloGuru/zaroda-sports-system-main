@@ -127,7 +127,16 @@ export default function SignupPage() {
 
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" className="mt-1.5" {...register("email")} />
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="mt-1.5"
+                {...register("email")}
+              />
               {errors.email && <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>}
             </div>
 
@@ -184,12 +193,30 @@ export default function SignupPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" className="mt-1.5" {...register("password")} />
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="new-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="mt-1.5"
+                  {...register("password")}
+                />
                 {errors.password && <p className="mt-1 text-sm text-red-400">{errors.password.message}</p>}
               </div>
               <div>
                 <Label htmlFor="confirmPassword">Confirm password</Label>
-                <Input id="confirmPassword" type="password" className="mt-1.5" {...register("confirmPassword")} />
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="mt-1.5"
+                  {...register("confirmPassword")}
+                />
                 {errors.confirmPassword && <p className="mt-1 text-sm text-red-400">{errors.confirmPassword.message}</p>}
               </div>
             </div>

@@ -51,12 +51,30 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" className="mt-1.5" {...register("email")} />
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="mt-1.5"
+                {...register("email")}
+              />
               {errors.email && <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>}
             </div>
             <div>
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" className="mt-1.5" {...register("password")} />
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="mt-1.5"
+                {...register("password")}
+              />
               {errors.password && <p className="mt-1 text-sm text-red-400">{errors.password.message}</p>}
             </div>
             <Button type="submit" className="w-full" size="lg" disabled={submitting}>
