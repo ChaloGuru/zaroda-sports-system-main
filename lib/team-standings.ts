@@ -3,6 +3,8 @@ import { computeStandings, type BallSport, type MatchResult, type StandingRow } 
 
 export interface TeamStandingRow extends StandingRow {
   teamName: string;
+  /** Set at team registration (TeamsPanel) - rendered as a color accent on standings rows for at-a-glance identification. */
+  teamColor: string | null;
 }
 
 export interface GameStandings {
@@ -25,7 +27,7 @@ export async function computeChampionshipTeamStandings(championshipId: string): 
     where: { championshipId, isTimed: false, sport: { not: null } },
     include: {
       matchPools: true,
-      tournamentTeams: { select: { id: true, name: true } },
+      tournamentTeams: { select: { id: true, name: true, teamColor: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -38,11 +40,7 @@ export async function computeChampionshipTeamStandings(championshipId: string): 
       gender: game.gender,
       schoolLevel: game.schoolLevel,
       sport: game.sport as BallSport,
-      standings: computeGameStandings(
-        game.tournamentTeams.map((t) => ({ id: t.id, name: t.name })),
-        game.matchPools,
-        game.sport as BallSport,
-      ),
+      standings: computeGameStandings(game.tournamentTeams, game.matchPools, game.sport as BallSport),
     }));
 }
 
@@ -51,20 +49,16 @@ export async function computeSingleGameStandings(gameId: string): Promise<TeamSt
     where: { id: gameId },
     include: {
       matchPools: true,
-      tournamentTeams: { select: { id: true, name: true } },
+      tournamentTeams: { select: { id: true, name: true, teamColor: true } },
     },
   });
   if (!game || game.isTimed || !game.sport) return null;
 
-  return computeGameStandings(
-    game.tournamentTeams.map((t) => ({ id: t.id, name: t.name })),
-    game.matchPools,
-    game.sport,
-  );
+  return computeGameStandings(game.tournamentTeams, game.matchPools, game.sport);
 }
 
 function computeGameStandings(
-  teams: Array<{ id: string; name: string }>,
+  teams: Array<{ id: string; name: string; teamColor: string | null }>,
   matchPools: Array<{ teamAId: string; teamBId: string; teamAScore: number | null; teamBScore: number | null }>,
   sport: BallSport,
 ): TeamStandingRow[] {
@@ -78,8 +72,12 @@ function computeGameStandings(
     }));
 
   const teamIds = teams.map((t) => t.id);
-  const nameById = new Map(teams.map((t) => [t.id, t.name]));
+  const teamById = new Map(teams.map((t) => [t.id, t]));
   const standings = computeStandings(teamIds, results, sport);
 
-  return standings.map((row) => ({ ...row, teamName: nameById.get(row.teamId) ?? "Unknown team" }));
+  return standings.map((row) => ({
+    ...row,
+    teamName: teamById.get(row.teamId)?.name ?? "Unknown team",
+    teamColor: teamById.get(row.teamId)?.teamColor ?? null,
+  }));
 }

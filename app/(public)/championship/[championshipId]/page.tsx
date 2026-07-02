@@ -20,6 +20,21 @@ export default async function ChampionshipPage({ params }: { params: { champions
 
   if (!championship || !championship.isPublished) notFound();
 
+  // A registered organization gets one TournamentTeam row per game it enters
+  // (see the bulk "Add organizations" flow in TeamsPanel), so the raw list
+  // here can have the same org appearing a dozen-plus times. The public
+  // "Teams / Schools" tab is a roster of participating organizations, not a
+  // per-game entry list, so it's deduplicated by name before rendering.
+  const uniqueTeams = Array.from(
+    championship.tournamentTeams
+      .reduce((byName, team) => {
+        const key = team.name.trim().toLowerCase();
+        if (!byName.has(key)) byName.set(key, team);
+        return byName;
+      }, new Map<string, (typeof championship.tournamentTeams)[number]>())
+      .values(),
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <div className="container py-16">
       <div className="flex flex-wrap items-center gap-2">
@@ -52,7 +67,7 @@ export default async function ChampionshipPage({ params }: { params: { champions
           schoolLevel: g.schoolLevel,
           isTimed: g.isTimed,
         }))}
-        teams={championship.tournamentTeams.map((t) => ({ id: t.id, name: t.name, teamCode: t.teamCode }))}
+        teams={uniqueTeams.map((t) => ({ id: t.id, name: t.name, teamCode: t.teamCode }))}
       />
     </div>
   );

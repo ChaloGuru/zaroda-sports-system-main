@@ -237,6 +237,15 @@ export const generateFixturesSchema = z.object({
 });
 export type GenerateFixturesInput = z.infer<typeof generateFixturesSchema>;
 
+// Automatic pool -> knockout progression: takes the top N teams (by current
+// pool standings) from every pool in the game and schedules a knockout-stage
+// round robin among just the advancers.
+export const advanceTopTeamsSchema = z.object({
+  gameId: z.string().uuid(),
+  topPerPool: z.number().int().min(1).max(4).default(1),
+});
+export type AdvanceTopTeamsInput = z.infer<typeof advanceTopTeamsSchema>;
+
 // Bulk-registers a list of participating organizations/schools as a team in
 // every game the championship already has (e.g. 15 schools x 16 games ->
 // 240 teams in one action), instead of creating each org/game combination

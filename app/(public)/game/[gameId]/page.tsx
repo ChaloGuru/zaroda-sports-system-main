@@ -133,11 +133,24 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                   </TableHeader>
                   <TableBody>
                     {standings.map((row, index) => (
-                      <TableRow key={row.teamId}>
+                      <TableRow
+                        key={row.teamId}
+                        style={row.teamColor ? { borderLeft: `4px solid ${row.teamColor}` } : undefined}
+                      >
                         <TableCell>
                           <LaneChip value={index + 1} rank={index + 1} />
                         </TableCell>
-                        <TableCell className="font-medium">{row.teamName}</TableCell>
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-2">
+                            {row.teamColor && (
+                              <span
+                                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                                style={{ backgroundColor: row.teamColor }}
+                              />
+                            )}
+                            {row.teamName}
+                          </span>
+                        </TableCell>
                         <TableCell className="font-mono tabular-nums">{row.played}</TableCell>
                         <TableCell className="font-mono tabular-nums">{row.won}</TableCell>
                         <TableCell className="font-mono tabular-nums">{row.drawn}</TableCell>

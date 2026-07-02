@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Shuffle, Trash2 } from "lucide-react";
+import { Plus, Shuffle, Trash2, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,7 @@ interface TeamOption {
   name: string;
   gender: string;
   poolId: string | null;
+  teamColor: string | null;
 }
 
 interface PoolOption {
@@ -173,12 +174,14 @@ function StandingsTable({
   standings,
   sport,
   teamNameById,
+  teamColorById,
 }: {
   title: string;
   description?: string;
   standings: StandingRow[];
   sport: BallSport;
   teamNameById: Map<string, string>;
+  teamColorById: Map<string, string | null>;
 }) {
   return (
     <Card>
@@ -203,12 +206,24 @@ function StandingsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {standings.map((row, index) => (
-              <TableRow key={row.teamId}>
+            {standings.map((row, index) => {
+              const teamColor = teamColorById.get(row.teamId);
+              return (
+              <TableRow key={row.teamId} style={teamColor ? { borderLeft: `4px solid ${teamColor}` } : undefined}>
                 <TableCell>
                   <LaneChip value={index + 1} rank={index + 1} />
                 </TableCell>
-                <TableCell className="font-medium">{teamNameById.get(row.teamId) ?? "Unknown team"}</TableCell>
+                <TableCell className="font-medium">
+                  <span className="flex items-center gap-2">
+                    {teamColor && (
+                      <span
+                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                        style={{ backgroundColor: teamColor }}
+                      />
+                    )}
+                    {teamNameById.get(row.teamId) ?? "Unknown team"}
+                  </span>
+                </TableCell>
                 <TableCell className="font-mono tabular-nums">{row.played}</TableCell>
                 <TableCell className="font-mono tabular-nums">{row.won}</TableCell>
                 <TableCell className="font-mono tabular-nums">{row.drawn}</TableCell>
@@ -218,7 +233,8 @@ function StandingsTable({
                 <TableCell className="font-mono tabular-nums">{row.gd}</TableCell>
                 <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.points}</TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             {standings.length === 0 && (
               <TableRow>
                 <TableCell colSpan={10} className="text-center text-muted">No fixtures played yet.</TableCell>
@@ -356,6 +372,7 @@ function PoolSection({
       .map((f) => ({ teamAId: f.teamAId, teamBId: f.teamBId, teamAScore: f.teamAScore as number, teamBScore: f.teamBScore as number }));
     return computeStandings(teams.map((t) => t.id), results, sport);
   }, [fixtures, teams, sport]);
+  const teamColorById = React.useMemo(() => new Map(teams.map((t) => [t.id, t.teamColor])), [teams]);
 
   return (
     <Card>
@@ -386,7 +403,13 @@ function PoolSection({
           emptyMessage="No fixtures yet in this pool - generate a round robin or add one manually above."
         />
         {sport && (
-          <StandingsTable title={`${pool.name} standings`} standings={standings} sport={sport} teamNameById={teamNameById} />
+          <StandingsTable
+            title={`${pool.name} standings`}
+            standings={standings}
+            sport={sport}
+            teamNameById={teamNameById}
+            teamColorById={teamColorById}
+          />
         )}
       </CardContent>
     </Card>
@@ -397,6 +420,7 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
   const queryClient = useQueryClient();
   const [gameId, setGameId] = React.useState<string>("");
   const [newPoolName, setNewPoolName] = React.useState("");
+  const [topPerPool, setTopPerPool] = React.useState("1");
 
   const { data: gamesData } = useQuery({
     queryKey: ["games", championshipId],
@@ -485,6 +509,23 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to generate fixtures"),
   });
 
+  const advanceMutation = useMutation({
+    mutationFn: () =>
+      apiPost<{ created: number; advanced: number }>("/api/match-pools/advance", {
+        gameId,
+        topPerPool: Number(topPerPool),
+      }),
+    onSuccess: (result) => {
+      toast.success(
+        result.created > 0
+          ? `Advanced ${result.advanced} team${result.advanced === 1 ? "" : "s"} - ${result.created} knockout fixture${result.created === 1 ? "" : "s"} scheduled`
+          : "Knockout fixtures for these advancers already exist",
+      );
+      refetchAll();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to advance teams"),
+  });
+
   const teamNameById = React.useMemo(() => {
     const map = new Map<string, string>();
     for (const t of teams) map.set(t.id, t.name);
@@ -494,6 +535,8 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
     }
     return map;
   }, [teams, fixtures]);
+
+  const teamColorById = React.useMemo(() => new Map(teams.map((t) => [t.id, t.teamColor])), [teams]);
 
   function standingsFor(teamIds: string[]): StandingRow[] {
     if (!selectedGame?.sport || teamIds.length === 0) return [];
@@ -662,11 +705,26 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
               <CardTitle>{pools.length > 0 ? "Knockout Stage" : "Fixtures"}</CardTitle>
               <CardDescription>
                 {pools.length > 0
-                  ? "Manually pair teams that progress from pool play - semis, final, playoffs - or schedule fixtures for teams not yet placed in a pool."
+                  ? "Teams progress from pool play automatically - or pair them manually for extra playoffs."
                   : "Add fixtures manually, or generate a full round robin below."}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {pools.length > 0 && (
+                <>
+                  <Select value={topPerPool} onValueChange={setTopPerPool}>
+                    <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Top 1 per pool</SelectItem>
+                      <SelectItem value="2">Top 2 per pool</SelectItem>
+                      <SelectItem value="3">Top 3 per pool</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" onClick={() => advanceMutation.mutate()} disabled={advanceMutation.isPending}>
+                    <ArrowUpRight className="h-4 w-4" /> {advanceMutation.isPending ? "Advancing..." : "Advance to knockout"}
+                  </Button>
+                </>
+              )}
               <Button
                 size="sm"
                 variant="secondary"
@@ -706,6 +764,7 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
                 standings={combinedStandings}
                 sport={selectedGame.sport as BallSport}
                 teamNameById={teamNameById}
+                teamColorById={teamColorById}
               />
             )}
           </CardContent>

@@ -33,6 +33,14 @@ export function ChampionshipManager({
   const router = useRouter();
   const [publishing, setPublishing] = React.useState(false);
 
+  // Participant rows (individual competitors) only ever get created for
+  // ATHLETICS/MUSIC games; ball-games/indoor-games (BALL_GAMES, OTHER_GAMES)
+  // run entirely on TournamentTeam + MatchPool fixtures instead - see
+  // lib/team-standings.ts. Hiding the tab that doesn't apply avoids admins
+  // registering data in the wrong place for this championship's category.
+  const showsParticipants = category === "ATHLETICS" || category === "MUSIC";
+  const showsTeams = category === "BALL_GAMES" || category === "OTHER_GAMES";
+
   async function togglePublish() {
     setPublishing(true);
     try {
@@ -61,8 +69,8 @@ export function ChampionshipManager({
       <Tabs defaultValue="games">
         <TabsList className="flex-wrap">
           <TabsTrigger value="games">Games</TabsTrigger>
-          <TabsTrigger value="participants">Participants</TabsTrigger>
-          <TabsTrigger value="teams">Teams</TabsTrigger>
+          {showsParticipants && <TabsTrigger value="participants">Participants</TabsTrigger>}
+          {showsTeams && <TabsTrigger value="teams">Teams</TabsTrigger>}
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="call-room">Call Room</TabsTrigger>
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
@@ -76,17 +84,21 @@ export function ChampionshipManager({
           </PanelErrorBoundary>
         </TabsContent>
 
-        <TabsContent value="participants">
-          <PanelErrorBoundary fallbackTitle="Participants panel failed to load">
-            <ParticipantsPanel championshipId={championshipId} />
-          </PanelErrorBoundary>
-        </TabsContent>
+        {showsParticipants && (
+          <TabsContent value="participants">
+            <PanelErrorBoundary fallbackTitle="Participants panel failed to load">
+              <ParticipantsPanel championshipId={championshipId} />
+            </PanelErrorBoundary>
+          </TabsContent>
+        )}
 
-        <TabsContent value="teams">
-          <PanelErrorBoundary fallbackTitle="Teams panel failed to load">
-            <TeamsPanel championshipId={championshipId} />
-          </PanelErrorBoundary>
-        </TabsContent>
+        {showsTeams && (
+          <TabsContent value="teams">
+            <PanelErrorBoundary fallbackTitle="Teams panel failed to load">
+              <TeamsPanel championshipId={championshipId} />
+            </PanelErrorBoundary>
+          </TabsContent>
+        )}
 
         <TabsContent value="fixtures">
           <PanelErrorBoundary fallbackTitle="Fixtures panel failed to load">

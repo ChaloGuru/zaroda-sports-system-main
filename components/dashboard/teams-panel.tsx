@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { GenderBadge } from "@/components/ui/gender-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -226,7 +225,27 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
                 </div>
                 <div>
                   <Label htmlFor="team-color">Team color (optional)</Label>
-                  <Input id="team-color" className="mt-1.5" {...register("teamColor")} />
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <Input
+                      id="team-color"
+                      type="color"
+                      className="h-10 w-14 cursor-pointer p-1"
+                      {...register("teamColor")}
+                    />
+                    {watch("teamColor") && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setValue("teamColor", "")}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    Shown as a color accent on standings tables - helps a team's row stand out at a glance.
+                  </p>
                 </div>
               </div>
 
@@ -275,7 +294,13 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {team.teamColor && <Badge variant="secondary">{team.teamColor}</Badge>}
+              {team.teamColor && (
+                <span
+                  className="h-5 w-5 rounded-full border border-border"
+                  style={{ backgroundColor: team.teamColor }}
+                  title={team.teamColor}
+                />
+              )}
               <Button size="icon" variant="ghost" onClick={() => openEdit(team)}>
                 <Pencil className="h-4 w-4" />
               </Button>
