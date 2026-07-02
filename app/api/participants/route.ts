@@ -5,6 +5,8 @@ import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { participantCreateSchema } from "@/lib/validations";
 import { assignNextBibNumber, parseTimeToSeconds } from "@/lib/scoring";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

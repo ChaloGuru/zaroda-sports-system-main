@@ -4,6 +4,8 @@ import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { bulkTournamentTeamsSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Registers each given organization/school name as a team in every game the
  * championship already has, so a tenant only has to type each school's name

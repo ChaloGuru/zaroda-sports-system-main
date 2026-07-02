@@ -11,6 +11,8 @@ import {
 } from "@/lib/authorize";
 import { championshipUpdateSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 async function loadChampionship(id: string) {
   return prisma.championship.findUnique({
     where: { id },

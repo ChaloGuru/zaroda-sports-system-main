@@ -4,6 +4,8 @@ import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { tournamentTeamSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 const tournamentTeamUpdateSchema = tournamentTeamSchema.partial();
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {

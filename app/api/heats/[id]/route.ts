@@ -6,6 +6,8 @@ import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { timeInputSchema } from "@/lib/validations";
 import { parseTimeToSeconds } from "@/lib/scoring";
 
+export const dynamic = "force-dynamic";
+
 const heatResultsSchema = z.object({
   results: z
     .array(

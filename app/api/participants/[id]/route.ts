@@ -6,6 +6,8 @@ import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { participantStatusSchema, timeInputSchema, genderSchema } from "@/lib/validations";
 import { parseTimeToSeconds } from "@/lib/scoring";
 
+export const dynamic = "force-dynamic";
+
 const participantUpdateSchema = z.object({
   firstName: z.string().min(1).max(100).optional(),
   lastName: z.string().min(1).max(100).optional(),

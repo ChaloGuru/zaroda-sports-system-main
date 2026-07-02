@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { contactFormSchema } from "@/lib/validations";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Public contact form. Rate-limited by IP; stored as an unrouted
  * AdminMessage-style broadcast is unnecessary here so we log it via the

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireTenantAccess, requireRole, toErrorResponse } from "@/lib/authorize";
 
+export const dynamic = "force-dynamic";
+
 const tenantUpdateSchema = z.object({
   organizationName: z.string().min(2).max(200).optional(),
   contactName: z.string().min(2).max(200).optional(),

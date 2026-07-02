@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole, toErrorResponse } from "@/lib/authorize";
 
+export const dynamic = "force-dynamic";
+
 /** Super-admin-only: list all tenants across the platform. */
 export async function GET() {
   try {

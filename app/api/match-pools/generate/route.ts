@@ -5,6 +5,8 @@ import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { generateFixturesSchema } from "@/lib/validations";
 import { generateRoundRobinSchedule } from "@/lib/scoring";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Schedules a full bye-aware round robin (see lib/scoring.ts) for either one
  * pool's teams, or - when poolId is omitted - every team registered for the

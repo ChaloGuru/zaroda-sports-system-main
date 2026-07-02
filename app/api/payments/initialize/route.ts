@@ -5,6 +5,8 @@ import { paymentInitializeSchema } from "@/lib/validations";
 import { initializePaystackTransaction, kesToKobo, generatePaymentReference } from "@/lib/paystack";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Initializes a Paystack transaction for either a tenant Essential-tier
  * subscription purchase, or an open-tournament team's entry-fee payment.

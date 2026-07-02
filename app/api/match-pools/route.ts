@@ -5,6 +5,8 @@ import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { matchPoolSchema } from "@/lib/validations";
 import { resolveTeamNames } from "@/lib/match-pool-teams";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

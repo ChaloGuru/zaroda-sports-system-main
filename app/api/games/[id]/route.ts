@@ -4,6 +4,8 @@ import { withAudit } from "@/lib/audit";
 import { getAuthContext, isSuperAdmin, hasRole, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { gameCreateSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 async function loadGame(id: string) {
   return prisma.game.findUnique({
     where: { id },

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { signupSchema } from "@/lib/validations";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   try {
     const ip = getClientIp(request);

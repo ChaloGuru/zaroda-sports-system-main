@@ -4,6 +4,8 @@ import { withAudit } from "@/lib/audit";
 import { requireAuth, isSuperAdmin, toErrorResponse, AuthorizationError } from "@/lib/authorize";
 import { adminMessageSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const ctx = await requireAuth();

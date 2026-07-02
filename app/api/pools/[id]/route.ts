@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 
+export const dynamic = "force-dynamic";
+
 const poolUpdateSchema = z.object({ name: z.string().min(1).max(100) });
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {

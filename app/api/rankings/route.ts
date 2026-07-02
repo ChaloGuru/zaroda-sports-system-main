@@ -4,6 +4,8 @@ import { getAuthContext, isSuperAdmin, hasRole, toErrorResponse } from "@/lib/au
 import { pointsForPosition } from "@/lib/scoring";
 import { computeChampionshipTeamStandings } from "@/lib/team-standings";
 
+export const dynamic = "force-dynamic";
+
 interface RankingRow {
   entityId: string;
   entityName: string;

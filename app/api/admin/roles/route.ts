@@ -5,6 +5,8 @@ import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { roleAssignmentSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Creates (or reuses) a User account and assigns them a championship-scoped
  * role (TOURNAMENT_ADMIN/SCOREKEEPER/OFFICIAL). Callable by SUPER_ADMIN or

@@ -5,6 +5,8 @@ import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { bibRangeSchema } from "@/lib/validations";
 import { validateBibRangeNoOverlap } from "@/lib/scoring";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

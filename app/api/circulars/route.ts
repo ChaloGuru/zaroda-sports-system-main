@@ -5,6 +5,8 @@ import { withAudit } from "@/lib/audit";
 import { requireRole, toErrorResponse } from "@/lib/authorize";
 import { circularSchema, levelSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

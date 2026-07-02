@@ -12,6 +12,8 @@ import {
 import { championshipCreateSchema } from "@/lib/validations";
 import { PRIMARY_JS_BALL_GAMES_TEMPLATE } from "@/lib/default-games";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Public callers only ever see published championships. Authenticated
  * tenant owners additionally see their own tenant's unpublished ones; super

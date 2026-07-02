@@ -5,6 +5,8 @@ import { withAudit } from "@/lib/audit";
 import { requireRole, toErrorResponse } from "@/lib/authorize";
 import { circularSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
     const ctx = await requireRole(["SUPER_ADMIN"]);

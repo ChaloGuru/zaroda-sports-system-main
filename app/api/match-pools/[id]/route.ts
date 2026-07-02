@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 
+export const dynamic = "force-dynamic";
+
 const matchPoolUpdateSchema = z.object({
   teamAScore: z.number().int().min(0).nullable().optional(),
   teamBScore: z.number().int().min(0).nullable().optional(),

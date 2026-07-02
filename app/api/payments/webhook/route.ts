@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { verifyPaystackWebhookSignature } from "@/lib/paystack";
 import { verifyAndRecordPayment } from "@/lib/payment-verification";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Reliable backstop for the browser-redirect verify flow in
  * app/api/payments/verify/route.ts - that route only fires if the customer's

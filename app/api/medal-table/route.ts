@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getAuthContext, isSuperAdmin, hasRole, toErrorResponse } from "@/lib/authorize";
 import { computeChampionshipTeamStandings } from "@/lib/team-standings";
 
+export const dynamic = "force-dynamic";
+
 interface MedalRow {
   entityId: string;
   entityName: string;

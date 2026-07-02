@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, toErrorResponse, AuthorizationError } from "@/lib/authorize";
 
+export const dynamic = "force-dynamic";
+
 /** Convenience endpoint: the signed-in tenant owner's own tenant + active subscriptions. */
 export async function GET() {
   try {

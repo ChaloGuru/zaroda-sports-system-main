@@ -5,6 +5,8 @@ import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { seedLanes, DEFAULT_LANE_PRIORITY } from "@/lib/scoring";
 
+export const dynamic = "force-dynamic";
+
 const heatCreateSchema = z.object({
   gameId: z.string().uuid(),
   heatNumber: z.number().int().positive(),

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole, toErrorResponse } from "@/lib/authorize";
 
+export const dynamic = "force-dynamic";
+
 /** Read-only, super-admin-only view of the audit trail (§3 AuditLog). */
 export async function GET(request: Request) {
   try {

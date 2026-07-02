@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 
+export const dynamic = "force-dynamic";
+
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
   try {
     const existing = await prisma.schoolBibRange.findUnique({ where: { id: params.id } });

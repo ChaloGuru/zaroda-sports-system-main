@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, toErrorResponse } from "@/lib/authorize";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const ctx = await requireAuth();

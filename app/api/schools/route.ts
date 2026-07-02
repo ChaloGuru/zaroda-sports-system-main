@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, toErrorResponse } from "@/lib/authorize";
 
+export const dynamic = "force-dynamic";
+
 const schoolCreateSchema = z.object({
   name: z.string().min(2).max(200),
   zone: z.string().min(1).max(100),

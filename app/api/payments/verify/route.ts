@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { verifyAndRecordPayment } from "@/lib/payment-verification";
 import { paymentVerifySchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
   const reference = searchParams.get("reference");
