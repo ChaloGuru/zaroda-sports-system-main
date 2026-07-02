@@ -66,6 +66,8 @@ export type ChampionshipCreateInput = z.infer<typeof championshipCreateSchema>;
 export const championshipUpdateSchema = championshipFieldsSchema.partial();
 export type ChampionshipUpdateInput = z.infer<typeof championshipUpdateSchema>;
 
+export const ballSportSchema = z.enum(["FOOTBALL", "BASKETBALL", "VOLLEYBALL", "HANDBALL", "RUGBY", "NETBALL"]);
+
 export const gameCreateSchema = z.object({
   championshipId: z.string().uuid(),
   name: z.string().min(2).max(200),
@@ -73,6 +75,7 @@ export const gameCreateSchema = z.object({
   gender: genderSchema,
   schoolLevel: gameSchoolLevelSchema,
   isTimed: z.boolean(),
+  sport: ballSportSchema.nullable().optional(),
   maxQualifiers: z.number().int().min(1).max(50).default(5),
   raceType: z.string().max(100).nullable().optional(),
   scheduledDate: z.coerce.date().nullable().optional(),

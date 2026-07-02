@@ -10,6 +10,7 @@ import { PanelErrorBoundary } from "@/components/error-boundary";
 import { GamesPanel } from "@/components/dashboard/games-panel";
 import { ParticipantsPanel } from "@/components/dashboard/participants-panel";
 import { TeamsPanel } from "@/components/dashboard/teams-panel";
+import { FixturesPanel } from "@/components/dashboard/fixtures-panel";
 import { CallRoomPanel } from "@/components/dashboard/call-room-panel";
 import { BibRangesPanel } from "@/components/dashboard/bib-ranges-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
@@ -61,6 +62,7 @@ export function ChampionshipManager({
           <TabsTrigger value="games">Games</TabsTrigger>
           <TabsTrigger value="participants">Participants</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
+          <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="call-room">Call Room</TabsTrigger>
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
@@ -81,6 +83,12 @@ export function ChampionshipManager({
         <TabsContent value="teams">
           <PanelErrorBoundary fallbackTitle="Teams panel failed to load">
             <TeamsPanel championshipId={championshipId} />
+          </PanelErrorBoundary>
+        </TabsContent>
+
+        <TabsContent value="fixtures">
+          <PanelErrorBoundary fallbackTitle="Fixtures panel failed to load">
+            <FixturesPanel championshipId={championshipId} />
           </PanelErrorBoundary>
         </TabsContent>
 

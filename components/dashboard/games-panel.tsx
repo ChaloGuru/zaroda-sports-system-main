@@ -24,12 +24,14 @@ interface GameRow {
   gender: string;
   schoolLevel: string;
   isTimed: boolean;
+  sport: string | null;
   maxQualifiers: number;
   _count: { participants: number; heats: number; matchPools: number };
 }
 
 const GENDERS = ["BOYS", "GIRLS", "MIXED"];
 const CATEGORIES = ["BALL_GAMES", "ATHLETICS", "MUSIC", "OTHER_GAMES"];
+const BALL_SPORTS = ["FOOTBALL", "BASKETBALL", "VOLLEYBALL", "HANDBALL", "RUGBY", "NETBALL"];
 
 // A championship's schoolLevel is a single pricing tier (Primary/JS bundled,
 // Senior School, or Tertiary). Only a PRIMARY_JS championship needs a
@@ -70,9 +72,11 @@ export function GamesPanel({
       gender: "BOYS",
       schoolLevel: needsLevelChoice ? "PRIMARY" : (championshipSchoolLevel as GameCreateInput["schoolLevel"]),
       isTimed: category === "ATHLETICS",
+      sport: category === "BALL_GAMES" ? "FOOTBALL" : null,
       maxQualifiers: 5,
     },
   });
+  const isBallGames = watch("category") === "BALL_GAMES";
 
   const createMutation = useMutation({
     mutationFn: (values: GameCreateInput) => apiPost("/api/games", values),
@@ -134,7 +138,15 @@ export function GamesPanel({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Category</Label>
-                  <Select value={watch("category")} onValueChange={(v) => setValue("category", v as GameCreateInput["category"])}>
+                  <Select
+                    value={watch("category")}
+                    onValueChange={(v) => {
+                      const nextCategory = v as GameCreateInput["category"];
+                      setValue("category", nextCategory);
+                      setValue("isTimed", nextCategory === "ATHLETICS");
+                      setValue("sport", nextCategory === "BALL_GAMES" ? "FOOTBALL" : null);
+                    }}
+                  >
                     <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CATEGORIES.map((c) => (
@@ -143,15 +155,29 @@ export function GamesPanel({
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label htmlFor="maxQualifiers">Max qualifiers</Label>
-                  <Input
-                    id="maxQualifiers"
-                    type="number"
-                    className="mt-1.5"
-                    {...register("maxQualifiers", { valueAsNumber: true })}
-                  />
-                </div>
+                {isBallGames ? (
+                  <div>
+                    <Label>Sport</Label>
+                    <Select value={watch("sport") ?? "FOOTBALL"} onValueChange={(v) => setValue("sport", v as GameCreateInput["sport"])}>
+                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {BALL_SPORTS.map((s) => (
+                          <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div>
+                    <Label htmlFor="maxQualifiers">Max qualifiers</Label>
+                    <Input
+                      id="maxQualifiers"
+                      type="number"
+                      className="mt-1.5"
+                      {...register("maxQualifiers", { valueAsNumber: true })}
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-sm text-foreground">
@@ -173,7 +199,9 @@ export function GamesPanel({
             <div>
               <p className="font-medium text-foreground">{game.name}</p>
               <p className="text-sm text-muted">
-                {game.gender} - {gameSchoolLevelLabel(game.schoolLevel)} - {game._count.participants} participants
+                {game.gender} - {gameSchoolLevelLabel(game.schoolLevel)}
+                {game.sport ? ` - ${game.sport.charAt(0) + game.sport.slice(1).toLowerCase()}` : ""} -{" "}
+                {game._count.participants} participants
               </p>
             </div>
             <Badge variant={game.isTimed ? "secondary" : "outline"}>{game.isTimed ? "Timed" : "Scored"}</Badge>

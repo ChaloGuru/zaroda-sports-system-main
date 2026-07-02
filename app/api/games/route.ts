@@ -44,6 +44,7 @@ export async function POST(request: Request) {
             gender: input.gender,
             schoolLevel: input.schoolLevel,
             isTimed: input.isTimed,
+            sport: input.sport ?? null,
             maxQualifiers: input.maxQualifiers,
             raceType: input.raceType ?? null,
             scheduledDate: input.scheduledDate ?? null,

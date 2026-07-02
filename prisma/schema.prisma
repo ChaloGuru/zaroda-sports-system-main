@@ -31,6 +31,17 @@ enum GameCategory {
   OTHER_GAMES
 }
 
+// Matches lib/scoring.ts's BallSport union exactly - drives which
+// win/draw/loss points config computeStandings applies to a game's fixtures.
+enum BallSport {
+  FOOTBALL
+  BASKETBALL
+  VOLLEYBALL
+  HANDBALL
+  RUGBY
+  NETBALL
+}
+
 enum Level {
   BASE
   ZONE
@@ -242,6 +253,7 @@ model Game {
   gender         Gender
   schoolLevel    SchoolLevel
   isTimed        Boolean
+  sport          BallSport?
   maxQualifiers  Int          @default(5)
   raceType       String?
   scheduledDate  DateTime?
