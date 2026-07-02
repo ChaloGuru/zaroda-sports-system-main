@@ -128,11 +128,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  roles              UserRole[]
-  tenant              Tenant?
-  createdChampionships Championship[]        @relation("ChampionshipCreatedBy")
-  sentMessages         AdminMessage[]        @relation("MessageSender")
-  receivedMessages     AdminMessage[]        @relation("MessageRecipient")
+  roles                UserRole[]
+  tenant               Tenant?
+  createdChampionships Championship[] @relation("ChampionshipCreatedBy")
+  sentMessages         AdminMessage[] @relation("MessageSender")
+  receivedMessages     AdminMessage[] @relation("MessageRecipient")
   notifications        Notification[]
   auditLogs            AuditLog[]
 
@@ -156,24 +156,24 @@ model UserRole {
 }
 
 model Tenant {
-  id               String      @id @default(uuid())
+  id               String       @id @default(uuid())
   organizationName String
   contactName      String
-  email            String      @unique
+  email            String       @unique
   phone            String
   accountType      AccountType
   county           String
   subcounty        String
   gameCategory     GameCategory
-  userId           String      @unique
-  lastActiveAt     DateTime    @default(now())
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  userId           String       @unique
+  lastActiveAt     DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
-  user                    User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  championships           Championship[]
-  subscriptions           ChampionshipSubscription[]
-  paymentTransactions     PaymentTransaction[]
+  user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  championships       Championship[]
+  subscriptions       ChampionshipSubscription[]
+  paymentTransactions PaymentTransaction[]
 
   @@map("tenants")
 }
@@ -198,15 +198,15 @@ model Championship {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  tenant        Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  creator       User                       @relation("ChampionshipCreatedBy", fields: [createdBy], references: [id])
-  userRoles     UserRole[]
-  games         Game[]
-  participants  Participant[]
+  tenant          Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  creator         User                       @relation("ChampionshipCreatedBy", fields: [createdBy], references: [id])
+  userRoles       UserRole[]
+  games           Game[]
+  participants    Participant[]
   tournamentTeams TournamentTeam[]
-  bibRanges     SchoolBibRange[]
-  subscriptions ChampionshipSubscription[]
-  fees          ChampionshipFee[]
+  bibRanges       SchoolBibRange[]
+  subscriptions   ChampionshipSubscription[]
+  fees            ChampionshipFee[]
   teamFeePayments TeamFeePayment[]
 
   @@index([tenantId])
@@ -307,31 +307,31 @@ model Game {
 }
 
 model Participant {
-  id             String            @id @default(uuid())
-  championshipId String
-  gameId         String
-  schoolId       String?
+  id               String            @id @default(uuid())
+  championshipId   String
+  gameId           String
+  schoolId         String?
   tournamentTeamId String?
-  firstName      String
-  lastName       String
-  gender         Gender
-  dateOfBirth    DateTime?
-  bibNumber      Int
-  laneNumber     Int?
-  personalBest   Decimal?          @db.Decimal(10, 3)
-  timeTaken      Decimal?          @db.Decimal(10, 3)
-  position       Int?
-  score          Decimal?          @db.Decimal(10, 3)
-  isQualified    Boolean           @default(false)
-  status         ParticipantStatus @default(REGISTERED)
-  notes          String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  firstName        String
+  lastName         String
+  gender           Gender
+  dateOfBirth      DateTime?
+  bibNumber        Int
+  laneNumber       Int?
+  personalBest     Decimal?          @db.Decimal(10, 3)
+  timeTaken        Decimal?          @db.Decimal(10, 3)
+  position         Int?
+  score            Decimal?          @db.Decimal(10, 3)
+  isQualified      Boolean           @default(false)
+  status           ParticipantStatus @default(REGISTERED)
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
-  championship    Championship    @relation(fields: [championshipId], references: [id], onDelete: Cascade)
-  game            Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  school          School?         @relation(fields: [schoolId], references: [id])
-  tournamentTeam  TournamentTeam? @relation(fields: [tournamentTeamId], references: [id])
+  championship       Championship      @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  game               Game              @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  school             School?           @relation(fields: [schoolId], references: [id])
+  tournamentTeam     TournamentTeam?   @relation(fields: [tournamentTeamId], references: [id])
   heatParticipations HeatParticipant[]
 
   @@unique([championshipId, bibNumber])
@@ -342,11 +342,11 @@ model Participant {
 }
 
 model Heat {
-  id        String   @id @default(uuid())
-  gameId    String
+  id         String   @id @default(uuid())
+  gameId     String
   heatNumber Int
-  heatType  String   @default("heat")
-  createdAt DateTime @default(now())
+  heatType   String   @default("heat")
+  createdAt  DateTime @default(now())
 
   game         Game              @relation(fields: [gameId], references: [id], onDelete: Cascade)
   participants HeatParticipant[]
@@ -455,9 +455,9 @@ model ChampionshipSubscription {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  plan         SubscriptionPlan  @relation(fields: [planId], references: [id])
-  championship Championship?     @relation(fields: [championshipId], references: [id])
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan @relation(fields: [planId], references: [id])
+  championship Championship?    @relation(fields: [championshipId], references: [id])
 
   @@index([tenantId])
   @@index([championshipId])
@@ -500,21 +500,21 @@ model ChampionshipFee {
 }
 
 model TeamFeePayment {
-  id                String             @id @default(uuid())
+  id                String            @id @default(uuid())
   teamId            String
   feeId             String
   championshipId    String
   amountKes         Int
-  status            TeamPaymentStatus  @default(PENDING)
+  status            TeamPaymentStatus @default(PENDING)
   paystackReference String?
   paidAt            DateTime?
   notes             String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
-  team         TournamentTeam   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  fee          ChampionshipFee  @relation(fields: [feeId], references: [id], onDelete: Cascade)
-  championship Championship     @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  team         TournamentTeam  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  fee          ChampionshipFee @relation(fields: [feeId], references: [id], onDelete: Cascade)
+  championship Championship    @relation(fields: [championshipId], references: [id], onDelete: Cascade)
 
   @@index([teamId])
   @@index([championshipId])
@@ -526,30 +526,30 @@ model TeamFeePayment {
 // ─────────────────────────────────────────────────────────────────────────
 
 model Circular {
-  id            String   @id @default(uuid())
-  title         String
-  content       String
-  senderName    String
-  senderRole    String   @default("National Admin")
-  targetLevel   Level    @default(NATIONAL)
-  isPublished   Boolean  @default(true)
-  documentUrl   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  senderName  String
+  senderRole  String   @default("National Admin")
+  targetLevel Level    @default(NATIONAL)
+  isPublished Boolean  @default(true)
+  documentUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("circulars")
 }
 
 model AdminMessage {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   senderId    String
   recipientId String?
   parentId    String?
   subject     String
   body        String
-  isBroadcast Boolean  @default(false)
+  isBroadcast Boolean   @default(false)
   readAt      DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   sender    User           @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   recipient User?          @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
@@ -580,14 +580,14 @@ model Notification {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid())
-  changedBy  String?
-  changedAt  DateTime @default(now())
-  operation  AuditOp
-  tableName  String
-  recordId   String
-  oldData    Json?
-  newData    Json?
+  id        String   @id @default(uuid())
+  changedBy String?
+  changedAt DateTime @default(now())
+  operation AuditOp
+  tableName String
+  recordId  String
+  oldData   Json?
+  newData   Json?
 
   changer User? @relation(fields: [changedBy], references: [id], onDelete: SetNull)
 
