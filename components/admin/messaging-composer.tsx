@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SanitizedHtml } from "@/components/sanitized-html";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { FileText, X } from "lucide-react";
+import { ApiError, apiGet, apiPost } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
 
 const LEVELS = ["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL"];
@@ -32,11 +33,42 @@ function CircularComposer() {
     senderName: "National Admin",
     targetLevel: "NATIONAL",
   });
+  const [documentUrl, setDocumentUrl] = React.useState<string | null>(null);
+  const [fileName, setFileName] = React.useState<string | null>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { data } = useQuery({
     queryKey: ["admin-circulars"],
     queryFn: () => apiGet<{ circulars: CircularRow[] }>("/api/circulars"),
   });
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch("/api/circulars/upload", { method: "POST", body });
+      const json = await response.json();
+      if (!response.ok) throw new ApiError(json.error ?? "Upload failed", response.status);
+      setDocumentUrl(json.url);
+      setFileName(file.name);
+      toast.success("PDF attached");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload PDF");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function removeAttachment() {
+    setDocumentUrl(null);
+    setFileName(null);
+  }
 
   const sendMutation = useMutation({
     mutationFn: () =>
@@ -47,10 +79,12 @@ function CircularComposer() {
         senderRole: "National Admin",
         targetLevel: form.targetLevel,
         isPublished: true,
+        documentUrl: documentUrl ?? undefined,
       }),
     onSuccess: () => {
       toast.success("Circular published");
       setForm({ title: "", content: "", senderName: "National Admin", targetLevel: "NATIONAL" });
+      removeAttachment();
       queryClient.invalidateQueries({ queryKey: ["admin-circulars"] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to publish circular"),
@@ -92,9 +126,25 @@ function CircularComposer() {
             </Select>
           </div>
         </div>
+        <div className="space-y-2">
+          <Label>Attachment (PDF, optional)</Label>
+          {fileName ? (
+            <div className="flex items-center justify-between rounded-md border border-border p-2 text-sm">
+              <span className="flex items-center gap-2 text-foreground">
+                <FileText className="h-4 w-4 text-primary" /> {fileName}
+              </span>
+              <Button type="button" variant="ghost" size="icon" onClick={removeAttachment}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Input ref={fileInputRef} type="file" accept="application/pdf" onChange={handleFileChange} disabled={uploading} />
+          )}
+          {uploading && <p className="text-xs text-muted">Uploading...</p>}
+        </div>
         <Button
           onClick={() => sendMutation.mutate()}
-          disabled={!form.title || !form.content || sendMutation.isPending}
+          disabled={!form.title || !form.content || uploading || sendMutation.isPending}
         >
           {sendMutation.isPending ? "Publishing..." : "Publish Circular"}
         </Button>

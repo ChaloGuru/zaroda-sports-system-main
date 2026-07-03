@@ -68,6 +68,10 @@ export async function requireTenantAccess(tenantId: string): Promise<AuthContext
  * championship's tenant, or holds one of `roles` scoped to this championship
  * via UserRole.championshipId. This is the primary check for
  * TOURNAMENT_ADMIN/SCOREKEEPER/OFFICIAL-level writes (§4.3).
+ *
+ * Championship-scoped roles expire once the championship ends (with a
+ * one-day grace period so officials can still submit results on the final
+ * day) - they aren't standing access, just for the duration of the event.
  */
 export async function requireChampionshipAccess(
   championshipId: string,
@@ -77,7 +81,17 @@ export async function requireChampionshipAccess(
   if (isSuperAdmin(ctx)) return ctx;
 
   const scopedRole = ctx.roles.find((r) => r.championshipId === championshipId && roles.includes(r.role));
-  if (scopedRole) return ctx;
+  if (scopedRole) {
+    const championship = await prisma.championship.findUnique({
+      where: { id: championshipId },
+      select: { endDate: true },
+    });
+    if (championship) {
+      const expiresAt = new Date(championship.endDate);
+      expiresAt.setDate(expiresAt.getDate() + 1);
+      if (new Date() < expiresAt) return ctx;
+    }
+  }
 
   if (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId) {
     const championship = await prisma.championship.findUnique({
@@ -87,7 +101,11 @@ export async function requireChampionshipAccess(
     if (championship?.tenantId === ctx.tenantId) return ctx;
   }
 
-  throw new AuthorizationError("You do not have access to this championship");
+  throw new AuthorizationError(
+    scopedRole
+      ? "Your role for this championship has expired now that the championship has ended"
+      : "You do not have access to this championship",
+  );
 }
 
 /**

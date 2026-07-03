@@ -1,17 +1,64 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const findFirstMock = vi.fn();
+const championshipFindUniqueMock = vi.fn();
+const getServerSessionMock = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     championshipSubscription: {
       findFirst: (...args: unknown[]) => findFirstMock(...args),
     },
+    championship: {
+      findUnique: (...args: unknown[]) => championshipFindUniqueMock(...args),
+    },
   },
 }));
 
-// Imported after the mock so authorize.ts picks up the mocked prisma client.
-const { requireActiveSubscriptionForLevel, AuthorizationError } = await import("@/lib/authorize");
+vi.mock("next-auth", () => ({
+  getServerSession: (...args: unknown[]) => getServerSessionMock(...args),
+}));
+
+vi.mock("@/lib/auth", () => ({ authOptions: {} }));
+
+// Imported after the mocks so authorize.ts picks up the mocked prisma client / session.
+const { requireActiveSubscriptionForLevel, requireChampionshipAccess, AuthorizationError } = await import(
+  "@/lib/authorize"
+);
+
+function mockSession(roles: Array<{ role: string; championshipId: string | null }>) {
+  getServerSessionMock.mockResolvedValue({
+    user: { id: "user-1", email: "official@example.com", tenantId: null, roles },
+  });
+}
+
+describe("requireChampionshipAccess (championship-scoped role expiry)", () => {
+  beforeEach(() => {
+    championshipFindUniqueMock.mockReset();
+    getServerSessionMock.mockReset();
+  });
+
+  it("grants access while the championship is ongoing", async () => {
+    mockSession([{ role: "SCOREKEEPER", championshipId: "champ-1" }]);
+    championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() + 86_400_000) });
+
+    await expect(requireChampionshipAccess("champ-1", ["SCOREKEEPER"])).resolves.toMatchObject({ userId: "user-1" });
+  });
+
+  it("grants access on the day the championship ends (grace period)", async () => {
+    mockSession([{ role: "SCOREKEEPER", championshipId: "champ-1" }]);
+    championshipFindUniqueMock.mockResolvedValue({ endDate: new Date() });
+
+    await expect(requireChampionshipAccess("champ-1", ["SCOREKEEPER"])).resolves.toMatchObject({ userId: "user-1" });
+  });
+
+  it("denies access once the grace period after the championship's end date has passed", async () => {
+    mockSession([{ role: "SCOREKEEPER", championshipId: "champ-1" }]);
+    championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() - 3 * 86_400_000) });
+
+    await expect(requireChampionshipAccess("champ-1", ["SCOREKEEPER"])).rejects.toThrow(/expired/);
+  });
+});
 
 describe("requireActiveSubscriptionForLevel", () => {
   beforeEach(() => {
