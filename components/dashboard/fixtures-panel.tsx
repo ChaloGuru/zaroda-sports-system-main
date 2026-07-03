@@ -638,12 +638,19 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
   // pairings (semis/final crossing pools) or, when no pools exist at all,
   // every fixture for the game.
   const unassignedFixtures = fixtures.filter((f) => f.poolId === null);
-  // Rounds where every fixture has a decisive winner and there's more than
-  // one match - i.e. a next round can actually be auto-paired from them.
-  const advanceableRounds = Array.from(new Set(unassignedFixtures.map((f) => f.roundName))).filter((roundName) => {
-    const roundFixtures = unassignedFixtures.filter((f) => f.roundName === roundName);
-    return roundFixtures.length >= 2 && roundFixtures.every((f) => f.winnerId !== null);
-  });
+  // Every knockout round with more than one match, annotated with why it
+  // can or can't be advanced yet - a round with a single tied/undecided
+  // match should say so rather than just silently not appearing anywhere.
+  const roundStatuses = Array.from(new Set(unassignedFixtures.map((f) => f.roundName)))
+    .map((roundName) => {
+      const roundFixtures = unassignedFixtures.filter((f) => f.roundName === roundName);
+      const undecided = roundFixtures.filter((f) => f.winnerId === null);
+      const tied = undecided.filter((f) => f.teamAScore !== null && f.teamBScore !== null);
+      return { roundName, matchCount: roundFixtures.length, undecidedCount: undecided.length, tiedCount: tied.length };
+    })
+    .filter((r) => r.matchCount >= 2);
+  const advanceableRounds = roundStatuses.filter((r) => r.undecidedCount === 0).map((r) => r.roundName);
+  const blockedRounds = roundStatuses.filter((r) => r.undecidedCount > 0);
 
   // Combined standings across every team in the game - shown when no pools
   // have been created yet (preserves the original simple flat-pool workflow).
@@ -893,6 +900,18 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {blockedRounds.length > 0 && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700">
+                {blockedRounds.map((r) => (
+                  <p key={r.roundName}>
+                    <span className="font-medium">{r.roundName}</span> can&apos;t advance yet -{" "}
+                    {r.tiedCount > 0
+                      ? `${r.tiedCount} match${r.tiedCount === 1 ? "" : "es"} ended in a tie and need${r.tiedCount === 1 ? "s" : ""} a decisive score (e.g. penalties) before winners can be determined.`
+                      : `${r.undecidedCount} match${r.undecidedCount === 1 ? "" : "es"} still ${r.undecidedCount === 1 ? "hasn't" : "haven't"} had a score entered.`}
+                  </p>
+                ))}
+              </div>
+            )}
             {fixturesLoading && <p className="text-muted">Loading fixtures...</p>}
             {!fixturesLoading && (
               <FixturesTable
