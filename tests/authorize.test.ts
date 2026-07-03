@@ -22,9 +22,8 @@ vi.mock("next-auth", () => ({
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 
 // Imported after the mocks so authorize.ts picks up the mocked prisma client / session.
-const { requireActiveSubscriptionForLevel, requireChampionshipAccess, AuthorizationError } = await import(
-  "@/lib/authorize"
-);
+const { requireActiveSubscriptionForLevel, requireChampionshipAccess, isGeographicallyRestricted, assertWithinGeographicScope, AuthorizationError } =
+  await import("@/lib/authorize");
 
 function mockSession(roles: Array<{ role: string; championshipId: string | null }>) {
   getServerSessionMock.mockResolvedValue({
@@ -57,6 +56,34 @@ describe("requireChampionshipAccess (championship-scoped role expiry)", () => {
     championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() - 3 * 86_400_000) });
 
     await expect(requireChampionshipAccess("champ-1", ["SCOREKEEPER"])).rejects.toThrow(/expired/);
+  });
+});
+
+describe("geographic scope for lower-level championships", () => {
+  it("restricts BASE/ZONE/SUB_COUNTY/COUNTY levels but not REGIONAL/NATIONAL", () => {
+    expect(isGeographicallyRestricted("BASE")).toBe(true);
+    expect(isGeographicallyRestricted("ZONE")).toBe(true);
+    expect(isGeographicallyRestricted("SUB_COUNTY")).toBe(true);
+    expect(isGeographicallyRestricted("COUNTY")).toBe(true);
+    expect(isGeographicallyRestricted("REGIONAL")).toBe(false);
+    expect(isGeographicallyRestricted("NATIONAL")).toBe(false);
+  });
+
+  it("allows a registrant whose county matches the championship's county", () => {
+    expect(() => assertWithinGeographicScope("Kisumu", "Kisumu")).not.toThrow();
+  });
+
+  it("is case/whitespace-insensitive when comparing counties", () => {
+    expect(() => assertWithinGeographicScope("Kisumu", "  kisumu  ")).not.toThrow();
+  });
+
+  it("rejects a registrant from a different county", () => {
+    expect(() => assertWithinGeographicScope("Kisumu", "Nairobi")).toThrow(AuthorizationError);
+  });
+
+  it("requires a county to be set at all", () => {
+    expect(() => assertWithinGeographicScope("Kisumu", null)).toThrow(AuthorizationError);
+    expect(() => assertWithinGeographicScope("Kisumu", undefined)).toThrow(AuthorizationError);
   });
 });
 

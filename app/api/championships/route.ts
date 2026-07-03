@@ -11,6 +11,7 @@ import {
 } from "@/lib/authorize";
 import { championshipCreateSchema } from "@/lib/validations";
 import { PRIMARY_JS_BALL_GAMES_TEMPLATE } from "@/lib/default-games";
+import { withLevelInName } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
         tx.championship.create({
           data: {
             tenantId: effectiveTenantId,
-            name: input.name,
+            name: withLevelInName(input.name, input.level),
             level: input.level,
             schoolLevel: input.schoolLevel,
             category: input.category,

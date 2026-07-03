@@ -10,6 +10,7 @@ import {
   AuthorizationError,
 } from "@/lib/authorize";
 import { championshipUpdateSchema } from "@/lib/validations";
+import { LEVEL_LABELS, withLevelInName } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -55,8 +56,15 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const body: unknown = await request.json();
     const input = championshipUpdateSchema.parse(body);
 
-    if (input.level && input.level !== existing.level && !isSuperAdmin(ctx)) {
-      await requireActiveSubscriptionForLevel(existing.tenantId, input.level);
+    if (input.level && input.level !== existing.level) {
+      if (!isSuperAdmin(ctx)) {
+        await requireActiveSubscriptionForLevel(existing.tenantId, input.level);
+      }
+      const oldLabel = LEVEL_LABELS[existing.level];
+      const baseName = (input.name ?? existing.name).replace(new RegExp(`\\s*-\\s*${oldLabel}$`, "i"), "");
+      input.name = withLevelInName(baseName, input.level);
+    } else if (input.name) {
+      input.name = withLevelInName(input.name, existing.level);
     }
 
     const updated = await withAudit({

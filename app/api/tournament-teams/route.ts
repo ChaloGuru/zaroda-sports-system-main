@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, requireChampionshipAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { tournamentTeamSchema, dashboardTournamentTeamSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +40,10 @@ export async function POST(request: Request) {
     const championship = await prisma.championship.findUnique({ where: { id: input.championshipId } });
     if (!championship) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
 
+    if (isGeographicallyRestricted(championship.level)) {
+      assertWithinGeographicScope(championship.county, input.county);
+    }
+
     let gender: "BOYS" | "GIRLS" | "MIXED" = "MIXED";
     if (input.gameId) {
       const game = await prisma.game.findUnique({ where: { id: input.gameId } });
@@ -71,6 +75,7 @@ export async function POST(request: Request) {
             contactEmail: input.contactEmail ?? null,
             contactPhone: input.contactPhone ?? null,
             notes: input.notes ?? null,
+            county: input.county ?? null,
           },
         }),
       recordId: (result) => result.id,

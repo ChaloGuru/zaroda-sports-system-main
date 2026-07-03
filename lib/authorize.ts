@@ -133,6 +133,39 @@ export async function requireActiveSubscriptionForLevel(tenantId: string, level:
   }
 }
 
+/**
+ * Anti-abuse for the free BASE tier (and the ZONE/SUB_COUNTY/COUNTY paid
+ * tiers below REGIONAL/NATIONAL): a tenant could otherwise create a
+ * BASE-level championship for free and register schools/teams from anywhere
+ * in the country, getting national-scale reach without ever paying for a
+ * higher level. Since Championship only records a single `county` (no
+ * zone/sub-county/region breakdown), the enforceable rule with today's data
+ * is: BASE/ZONE/SUB_COUNTY/COUNTY-level championships may only register
+ * schools/teams whose own (self-reported) county matches the championship's
+ * county. REGIONAL and NATIONAL are unrestricted.
+ */
+const GEOGRAPHICALLY_RESTRICTED_LEVELS: Level[] = ["BASE", "ZONE", "SUB_COUNTY", "COUNTY"];
+
+export function isGeographicallyRestricted(level: Level): boolean {
+  return GEOGRAPHICALLY_RESTRICTED_LEVELS.includes(level);
+}
+
+/** Throws unless `entityCounty` matches the championship's county (case/whitespace-insensitive). */
+export function assertWithinGeographicScope(championshipCounty: string, entityCounty: string | null | undefined): void {
+  if (!entityCounty || !entityCounty.trim()) {
+    throw new AuthorizationError(
+      "A county is required to register into this championship - please set the school/team's county.",
+      400,
+    );
+  }
+  if (entityCounty.trim().toLowerCase() !== championshipCounty.trim().toLowerCase()) {
+    throw new AuthorizationError(
+      `This championship is scoped to ${championshipCounty} County. Registering an institution from another county requires upgrading the championship to REGIONAL or NATIONAL level.`,
+      403,
+    );
+  }
+}
+
 /** Maps a thrown error (AuthorizationError or otherwise) to a JSON API response body + status. */
 export function toErrorResponse(error: unknown): { body: { error: string }; status: number } {
   if (error instanceof AuthorizationError) {

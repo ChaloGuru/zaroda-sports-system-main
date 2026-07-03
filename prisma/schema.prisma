@@ -271,6 +271,10 @@ model TournamentTeam {
   contactEmail   String?
   contactPhone   String?
   notes          String?
+  // Self-reported county of the registering institution/organization - used
+  // to enforce the championship's geographic scope (see requireGeographicScope
+  // in lib/authorize.ts) for BASE/ZONE/SUB_COUNTY/COUNTY-level championships.
+  county         String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

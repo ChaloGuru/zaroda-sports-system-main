@@ -33,6 +33,7 @@ interface TeamRow {
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  county: string | null;
 }
 
 function emptyDefaults(championshipId: string): TournamentTeamInput {
@@ -86,6 +87,7 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
       contactName: team.contactName,
       contactEmail: team.contactEmail,
       contactPhone: team.contactPhone,
+      county: team.county,
     });
     setOpen(true);
   }
@@ -264,6 +266,15 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
                 <Label htmlFor="contactEmail">Contact email (optional)</Label>
                 <Input id="contactEmail" type="email" className="mt-1.5" {...register("contactEmail")} />
                 {errors.contactEmail && <p className="mt-1 text-sm text-red-400">{errors.contactEmail.message}</p>}
+              </div>
+
+              <div>
+                <Label htmlFor="county">County</Label>
+                <Input id="county" className="mt-1.5" {...register("county")} placeholder="e.g. Kisumu" />
+                <p className="mt-1 text-xs text-muted">
+                  Required for championships below Regional/National level - used to confirm the team is within the
+                  championship's geographic scope.
+                </p>
               </div>
 
               <Button type="submit" className="w-full" disabled={saveMutation.isPending}>

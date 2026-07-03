@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { requireChampionshipAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { participantCreateSchema } from "@/lib/validations";
 import { assignNextBibNumber, parseTimeToSeconds } from "@/lib/scoring";
 
@@ -34,6 +34,17 @@ export async function POST(request: Request) {
     const body: unknown = await request.json();
     const input = participantCreateSchema.parse(body);
     const ctx = await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+
+    if (input.schoolId) {
+      const championship = await prisma.championship.findUnique({
+        where: { id: input.championshipId },
+        select: { level: true, county: true },
+      });
+      if (championship && isGeographicallyRestricted(championship.level)) {
+        const school = await prisma.school.findUnique({ where: { id: input.schoolId }, select: { county: true } });
+        assertWithinGeographicScope(championship.county, school?.county);
+      }
+    }
 
     let bibNumber = input.bibNumber ?? null;
     if (!bibNumber) {
