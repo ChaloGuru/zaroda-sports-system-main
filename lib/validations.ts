@@ -249,6 +249,14 @@ export const advanceTopTeamsSchema = z.object({
 });
 export type AdvanceTopTeamsInput = z.infer<typeof advanceTopTeamsSchema>;
 
+// Advances the winners of a completed knockout round into an automatically
+// paired next round (Round 1 -> Round 2 -> Semifinal -> Final, etc).
+export const advanceRoundSchema = z.object({
+  gameId: z.string().uuid(),
+  roundName: z.string().min(1).max(100),
+});
+export type AdvanceRoundInput = z.infer<typeof advanceRoundSchema>;
+
 // Bulk-registers a list of participating organizations/schools as a team in
 // every game the championship already has (e.g. 15 schools x 16 games ->
 // 240 teams in one action), instead of creating each org/game combination

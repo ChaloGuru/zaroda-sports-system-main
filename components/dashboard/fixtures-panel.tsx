@@ -597,6 +597,21 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to advance teams"),
   });
 
+  const [roundToAdvance, setRoundToAdvance] = React.useState("");
+  const advanceRoundMutation = useMutation({
+    mutationFn: (roundName: string) => apiPost<{ created: number; roundName: string }>("/api/match-pools/advance-round", { gameId, roundName }),
+    onSuccess: (result) => {
+      toast.success(
+        result.created > 0
+          ? `${result.created} ${result.roundName} fixture${result.created === 1 ? "" : "s"} created from the winners`
+          : `${result.roundName} fixtures already exist for these winners`,
+      );
+      setRoundToAdvance("");
+      refetchAll();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to advance winners"),
+  });
+
   const teamNameById = React.useMemo(() => {
     const map = new Map<string, string>();
     for (const t of teams) map.set(t.id, t.name);
@@ -623,6 +638,12 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
   // pairings (semis/final crossing pools) or, when no pools exist at all,
   // every fixture for the game.
   const unassignedFixtures = fixtures.filter((f) => f.poolId === null);
+  // Rounds where every fixture has a decisive winner and there's more than
+  // one match - i.e. a next round can actually be auto-paired from them.
+  const advanceableRounds = Array.from(new Set(unassignedFixtures.map((f) => f.roundName))).filter((roundName) => {
+    const roundFixtures = unassignedFixtures.filter((f) => f.roundName === roundName);
+    return roundFixtures.length >= 2 && roundFixtures.every((f) => f.winnerId !== null);
+  });
 
   // Combined standings across every team in the game - shown when no pools
   // have been created yet (preserves the original simple flat-pool workflow).
@@ -811,6 +832,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                 {pools.length > 0
                   ? "Teams progress from pool play automatically - or pair them manually for extra playoffs."
                   : "Add fixtures manually, or generate a full round robin below."}
+                {" "}Once every match in a round has a winner, use "Advance winners" to auto-create the next round's pairings.
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -826,6 +848,25 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                   </Select>
                   <Button size="sm" onClick={() => advanceMutation.mutate()} disabled={advanceMutation.isPending}>
                     <ArrowUpRight className="h-4 w-4" /> {advanceMutation.isPending ? "Advancing..." : "Advance to knockout"}
+                  </Button>
+                </>
+              )}
+              {advanceableRounds.length > 0 && (
+                <>
+                  <Select value={roundToAdvance} onValueChange={setRoundToAdvance}>
+                    <SelectTrigger className="w-48"><SelectValue placeholder="Advance which round?" /></SelectTrigger>
+                    <SelectContent>
+                      {advanceableRounds.map((roundName) => (
+                        <SelectItem key={roundName} value={roundName}>{roundName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    disabled={!roundToAdvance || advanceRoundMutation.isPending}
+                    onClick={() => advanceRoundMutation.mutate(roundToAdvance)}
+                  >
+                    <ArrowUpRight className="h-4 w-4" /> {advanceRoundMutation.isPending ? "Advancing..." : "Advance winners"}
                   </Button>
                 </>
               )}
