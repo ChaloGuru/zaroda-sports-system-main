@@ -13,10 +13,12 @@ import { downloadGameStandingsPdf, type GameStandingsPdfRow } from "@/lib/export
 export function GameResultsActions({
   gameId,
   gameName,
+  championshipName,
   standings,
 }: {
   gameId: string;
   gameName: string;
+  championshipName: string;
   /** Omitted for timed/individual events, which have results rather than team standings. */
   standings?: GameStandingsPdfRow[];
 }) {
@@ -27,7 +29,7 @@ export function GameResultsActions({
     if (!standings) return;
     setDownloading(true);
     try {
-      await downloadGameStandingsPdf(gameName, standings);
+      await downloadGameStandingsPdf(championshipName, gameName, standings);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to download standings");
     } finally {

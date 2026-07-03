@@ -25,3 +25,21 @@ export async function addPdfLogoHeader(doc: jsPDF): Promise<number> {
   doc.addImage(dataUrl, "PNG", 14, 8, 30, 20);
   return 34;
 }
+
+/**
+ * Stamps "Powered by Zaroda Solutions" centered at the bottom of every page
+ * in the document. Call this last, right before doc.save(), since it needs
+ * the final page count.
+ */
+export function addPdfFooter(doc: jsPDF): void {
+  const pageCount = doc.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(140);
+    doc.text("Powered by Zaroda Solutions", pageWidth / 2, pageHeight - 8, { align: "center" });
+  }
+}

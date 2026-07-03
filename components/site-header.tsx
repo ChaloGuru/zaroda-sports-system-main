@@ -105,6 +105,7 @@ export function SiteHeader() {
                   href={link.href}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => setOpen(false)}
                   className="flex items-center gap-1 rounded-md bg-primary/10 px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/20"
                 >
                   {link.label}
@@ -124,19 +125,26 @@ export function SiteHeader() {
             <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
               {status === "authenticated" ? (
                 <>
-                  <Button variant="secondary" size="sm" asChild>
+                  <Button variant="secondary" size="sm" asChild onClick={() => setOpen(false)}>
                     <Link href={isSuperAdmin ? "/admin" : "/dashboard"}>{isSuperAdmin ? "Admin" : "Dashboard"}</Link>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setOpen(false);
+                      signOut({ callbackUrl: "/" });
+                    }}
+                  >
                     Sign out
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" size="sm" asChild>
+                  <Button variant="ghost" size="sm" asChild onClick={() => setOpen(false)}>
                     <Link href="/login">Log in</Link>
                   </Button>
-                  <Button size="sm" asChild>
+                  <Button size="sm" asChild onClick={() => setOpen(false)}>
                     <Link href="/signup">Sign up free</Link>
                   </Button>
                 </>

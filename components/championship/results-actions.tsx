@@ -22,7 +22,7 @@ export function ResultsActions({ championshipId, championshipName }: { champions
       const { organizationRankings } = await apiGet<{ organizationRankings: OrganizationRankingPdfRow[] }>(
         `/api/rankings?championshipId=${championshipId}&schoolLevel=OVERALL&gender=OVERALL`,
       );
-      await downloadOrganizationRankingsPdf(championshipName, organizationRankings);
+      await downloadOrganizationRankingsPdf(championshipName, organizationRankings, "Overall");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to download rankings");
     } finally {

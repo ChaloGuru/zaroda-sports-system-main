@@ -10,7 +10,7 @@ import { PrintButton } from "@/components/ui/print-button";
 import { ShareButton } from "@/components/ui/share-button";
 import { apiGet } from "@/lib/api-client";
 import { GAME_SCHOOL_LEVELS } from "@/lib/school-levels";
-import { addPdfLogoHeader } from "@/lib/pdf-logo";
+import { addPdfLogoHeader, addPdfFooter } from "@/lib/pdf-logo";
 import { buildResultsShareMessage } from "@/lib/share-message";
 import { downloadOrganizationRankingsPdf, type OrganizationRankingPdfRow } from "@/lib/export-organization-rankings-pdf";
 
@@ -49,6 +49,7 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
         head: [["Position", "Institution", "Boys Total", "Girls Total", "Grand Total"]],
         body: standings.map((row) => [row.position, row.schoolName, row.boysTotal, row.girlsTotal, row.grandTotal]),
       });
+      addPdfFooter(doc);
       doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-standings.pdf`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to export standings");
@@ -61,9 +62,10 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
     setExportingRankings(true);
     try {
       const { organizationRankings } = await apiGet<{ organizationRankings: OrganizationRankingPdfRow[] }>(
-        `/api/rankings?championshipId=${championshipId}&schoolLevel=OVERALL&gender=OVERALL`,
+        `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=OVERALL`,
       );
-      await downloadOrganizationRankingsPdf(championshipName, organizationRankings);
+      const filterLabel = schoolLevel === "OVERALL" ? "Overall" : schoolLevel.replace("_", " ");
+      await downloadOrganizationRankingsPdf(championshipName, organizationRankings, filterLabel);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to export rankings");
     } finally {

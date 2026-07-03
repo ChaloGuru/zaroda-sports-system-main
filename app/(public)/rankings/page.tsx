@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FinishLineRule } from "@/components/ui/finish-line-rule";
 import { PanelErrorBoundary } from "@/components/error-boundary";
 import { StandingsPanel } from "@/components/championship/standings-panel";
-import { ResultsActions } from "@/components/championship/results-actions";
 import { apiGet } from "@/lib/api-client";
 
 interface ChampionshipOption {
@@ -39,11 +38,10 @@ function RankingsExplorer() {
             ))}
           </SelectContent>
         </Select>
-        {selected && <ResultsActions championshipId={selected.id} championshipName={selected.name} />}
       </div>
 
       {!championshipId && <p className="text-muted">Select a championship to view its standings.</p>}
-      {championshipId && <StandingsPanel championshipId={championshipId} />}
+      {championshipId && selected && <StandingsPanel championshipId={championshipId} championshipName={selected.name} />}
     </div>
   );
 }

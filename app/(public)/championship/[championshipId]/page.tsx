@@ -59,6 +59,7 @@ export default async function ChampionshipPage({ params }: { params: { champions
 
       <ChampionshipTabs
         championshipId={championship.id}
+        championshipName={championship.name}
         games={championship.games.map((g) => ({
           id: g.id,
           name: g.name,

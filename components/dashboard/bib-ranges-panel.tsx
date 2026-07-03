@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
-import { addPdfLogoHeader } from "@/lib/pdf-logo";
+import { addPdfLogoHeader, addPdfFooter } from "@/lib/pdf-logo";
 
 interface SchoolOption {
   id: string;
@@ -26,7 +26,7 @@ interface RangeRow {
   school: { name: string };
 }
 
-export function BibRangesPanel({ championshipId }: { championshipId: string }) {
+export function BibRangesPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   const queryClient = useQueryClient();
   const [schoolId, setSchoolId] = React.useState("");
   const [rangeStart, setRangeStart] = React.useState("");
@@ -86,13 +86,14 @@ export function BibRangesPanel({ championshipId }: { championshipId: string }) {
     const doc = new jsPDF();
     const contentY = await addPdfLogoHeader(doc);
     doc.setFontSize(14);
-    doc.text("Bib Range Allocation Checklist", 14, contentY + 6);
+    doc.text(`${championshipName} - Bib Range Allocation Checklist`, 14, contentY + 6);
     autoTable(doc, {
       startY: contentY + 12,
       head: [["School", "Range Start", "Range End", "Allocated"]],
       body: (rangesData?.ranges ?? []).map((r) => [r.school.name, r.rangeStart, r.rangeEnd, r.rangeEnd - r.rangeStart + 1]),
     });
-    doc.save("bib-range-checklist.pdf");
+    addPdfFooter(doc);
+    doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-bib-range-checklist.pdf`);
   }
 
   return (

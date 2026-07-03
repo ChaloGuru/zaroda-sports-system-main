@@ -2,13 +2,20 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { FileDown } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { PrintButton } from "@/components/ui/print-button";
+import { ShareButton } from "@/components/ui/share-button";
 import { LaneChip } from "@/components/ui/lane-chip";
 import { PanelErrorBoundary } from "@/components/error-boundary";
 import { apiGet } from "@/lib/api-client";
 import { GAME_SCHOOL_LEVELS } from "@/lib/school-levels";
+import { buildResultsShareMessage } from "@/lib/share-message";
+import { downloadOrganizationRankingsPdf } from "@/lib/export-organization-rankings-pdf";
 
 interface RankingRow {
   schoolId: string;
@@ -158,9 +165,10 @@ function TeamStandingsTable({ game }: { game: GameStandings }) {
   );
 }
 
-function StandingsTable({ championshipId }: { championshipId: string }) {
+function StandingsTable({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   const [schoolLevel, setSchoolLevel] = React.useState("OVERALL");
   const [gender, setGender] = React.useState("OVERALL");
+  const [downloading, setDownloading] = React.useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["rankings", championshipId, schoolLevel, gender],
@@ -174,33 +182,62 @@ function StandingsTable({ championshipId }: { championshipId: string }) {
   const athleticsStandings = data?.standings ?? [];
   const organizationRankings = data?.organizationRankings ?? [];
 
+  const genderLabel = GENDER_FILTERS.find((g) => g.value === gender)?.label ?? "Overall";
+  const schoolLevelLabel = SCHOOL_LEVEL_FILTERS.find((l) => l.value === schoolLevel)?.label ?? "Overall";
+  const filterLabel = gender === "OVERALL" && schoolLevel === "OVERALL" ? "Overall" : `${genderLabel} - ${schoolLevelLabel}`;
+  const url = typeof window !== "undefined" ? `${window.location.origin}/rankings?championshipId=${championshipId}` : "";
+
+  async function download() {
+    setDownloading(true);
+    try {
+      await downloadOrganizationRankingsPdf(championshipName, organizationRankings, filterLabel);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to download rankings");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap justify-end gap-3">
-        <Select value={gender} onValueChange={setGender}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {GENDER_FILTERS.map((g) => (
-              <SelectItem key={g.value} value={g.value}>
-                {g.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={schoolLevel} onValueChange={setSchoolLevel}>
-          <SelectTrigger className="w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SCHOOL_LEVEL_FILTERS.map((level) => (
-              <SelectItem key={level.value} value={level.value}>
-                {level.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="no-print flex flex-wrap items-center gap-2">
+          <PrintButton />
+          <Button variant="outline" size="sm" onClick={download} disabled={downloading || organizationRankings.length === 0}>
+            <FileDown className="h-4 w-4" /> {downloading ? "Downloading..." : "Download PDF"}
+          </Button>
+          <ShareButton
+            title={championshipName}
+            message={buildResultsShareMessage(championshipName, url)}
+            url={url}
+          />
+        </div>
+        <div className="flex flex-wrap justify-end gap-3">
+          <Select value={gender} onValueChange={setGender}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {GENDER_FILTERS.map((g) => (
+                <SelectItem key={g.value} value={g.value}>
+                  {g.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={schoolLevel} onValueChange={setSchoolLevel}>
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SCHOOL_LEVEL_FILTERS.map((level) => (
+                <SelectItem key={level.value} value={level.value}>
+                  {level.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {isLoading && <p className="text-muted">Loading standings...</p>}
@@ -260,10 +297,10 @@ function StandingsTable({ championshipId }: { championshipId: string }) {
   );
 }
 
-export function StandingsPanel({ championshipId }: { championshipId: string }) {
+export function StandingsPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   return (
     <PanelErrorBoundary fallbackTitle="Standings failed to load">
-      <StandingsTable championshipId={championshipId} />
+      <StandingsTable championshipId={championshipId} championshipName={championshipName} />
     </PanelErrorBoundary>
   );
 }

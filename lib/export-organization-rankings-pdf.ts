@@ -1,4 +1,4 @@
-import { addPdfLogoHeader } from "./pdf-logo";
+import { addPdfLogoHeader, addPdfFooter } from "./pdf-logo";
 
 export interface OrganizationRankingPdfRow {
   position: number;
@@ -10,17 +10,20 @@ export interface OrganizationRankingPdfRow {
 export async function downloadOrganizationRankingsPdf(
   championshipName: string,
   rows: OrganizationRankingPdfRow[],
+  /** e.g. "Boys - Senior School" or "Overall" - the standings filter that was applied when exporting. */
+  filterLabel: string = "Overall",
 ): Promise<void> {
   const { default: jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF();
   const contentY = await addPdfLogoHeader(doc);
   doc.setFontSize(14);
-  doc.text(`${championshipName} - Overall Organization Rankings`, 14, contentY + 6);
+  doc.text(`${championshipName} - Overall Organization Rankings (${filterLabel})`, 14, contentY + 6);
   autoTable(doc, {
     startY: contentY + 12,
     head: [["Position", "Organization / School / Team", "Total Points"]],
     body: rows.map((row) => [row.position, row.name, row.points]),
   });
+  addPdfFooter(doc);
   doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-rankings.pdf`);
 }

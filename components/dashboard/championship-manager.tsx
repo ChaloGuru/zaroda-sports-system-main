@@ -114,7 +114,7 @@ export function ChampionshipManager({
 
         <TabsContent value="bib-ranges">
           <PanelErrorBoundary fallbackTitle="Bib ranges panel failed to load">
-            <BibRangesPanel championshipId={championshipId} />
+            <BibRangesPanel championshipId={championshipId} championshipName={name} />
           </PanelErrorBoundary>
         </TabsContent>
 

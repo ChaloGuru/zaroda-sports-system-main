@@ -56,6 +56,7 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
         <GameResultsActions
           gameId={game.id}
           gameName={game.name}
+          championshipName={game.championship.name}
           standings={standings ?? undefined}
         />
       </div>

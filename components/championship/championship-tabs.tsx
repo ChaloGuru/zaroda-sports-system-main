@@ -24,10 +24,12 @@ interface TeamSummary {
 
 export function ChampionshipTabs({
   championshipId,
+  championshipName,
   games,
   teams,
 }: {
   championshipId: string;
+  championshipName: string;
   games: GameSummary[];
   teams: TeamSummary[];
 }) {
@@ -59,7 +61,7 @@ export function ChampionshipTabs({
       </TabsContent>
 
       <TabsContent value="standings">
-        <StandingsPanel championshipId={championshipId} />
+        <StandingsPanel championshipId={championshipId} championshipName={championshipName} />
       </TabsContent>
 
       <TabsContent value="teams">
