@@ -7,6 +7,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { LaneChip } from "@/components/ui/lane-chip";
 import { prisma } from "@/lib/prisma";
 import { formatSecondsToTime, SPORT_CONFIGS } from "@/lib/scoring";
+import { formatDate } from "@/lib/utils";
 import { resolveTeamNames } from "@/lib/match-pool-teams";
 import { computeSingleGameStandings } from "@/lib/team-standings";
 
@@ -16,7 +17,7 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
   const game = await prisma.game.findUnique({
     where: { id: params.gameId },
     include: {
-      championship: { select: { id: true, name: true, isPublished: true } },
+      championship: { select: { id: true, name: true, isPublished: true, startDate: true, endDate: true } },
       participants: {
         orderBy: [{ position: "asc" }, { bibNumber: "asc" }],
         include: { school: { select: { name: true } }, tournamentTeam: { select: { name: true } } },
@@ -38,6 +39,7 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
 
   const teamNames = await resolveTeamNames(game.matchPools.flatMap((mp) => [mp.teamAId, mp.teamBId]));
   const standings = await computeSingleGameStandings(game.id);
+  const isMultiDay = game.championship.startDate.getTime() !== game.championship.endDate.getTime();
 
   return (
     <div className="container py-16">
@@ -176,6 +178,7 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                 <TableHeader>
                   <TableRow>
                     <TableHead>Round</TableHead>
+                    {isMultiDay && <TableHead>Day</TableHead>}
                     <TableHead>Match</TableHead>
                     <TableHead>Score</TableHead>
                   </TableRow>
@@ -184,6 +187,9 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                   {game.matchPools.map((mp) => (
                     <TableRow key={mp.id}>
                       <TableCell>{mp.roundName}</TableCell>
+                      {isMultiDay && (
+                        <TableCell className="text-muted">{mp.matchDate ? formatDate(mp.matchDate) : "TBC"}</TableCell>
+                      )}
                       <TableCell>
                         {teamNames.get(mp.teamAId) ?? "Unknown team"} vs {teamNames.get(mp.teamBId) ?? "Unknown team"}
                       </TableCell>

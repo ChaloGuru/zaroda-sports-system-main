@@ -4,6 +4,7 @@ import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { advanceTopTeamsSchema } from "@/lib/validations";
 import { computeStandings, generateRoundRobinSchedule, type MatchResult } from "@/lib/scoring";
+import { distributeMatchDatesFromEnd } from "@/lib/match-day";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,10 @@ export async function POST(request: Request) {
     const body: unknown = await request.json();
     const input = advanceTopTeamsSchema.parse(body);
 
-    const game = await prisma.game.findUnique({ where: { id: input.gameId } });
+    const game = await prisma.game.findUnique({
+      where: { id: input.gameId },
+      include: { championship: { select: { startDate: true, endDate: true } } },
+    });
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     if (!game.sport) return NextResponse.json({ error: "This game has no sport set - standings can't be computed" }, { status: 400 });
 
@@ -63,6 +67,7 @@ export async function POST(request: Request) {
     const existingPairs = new Set(existing.map((mp) => [mp.teamAId, mp.teamBId].sort().join("::")));
 
     const schedule = generateRoundRobinSchedule(advancingTeamIds);
+    const matchDates = distributeMatchDatesFromEnd(game.championship.startDate, game.championship.endDate, schedule.length);
     const rowsToCreate = schedule.flatMap((round) =>
       round.pairs
         .filter(([a, b]) => !existingPairs.has([a, b].sort().join("::")))
@@ -70,6 +75,7 @@ export async function POST(request: Request) {
           gameId: input.gameId,
           poolId: null,
           roundName: `Knockout Stage - Round ${round.round}`,
+          matchDate: matchDates[round.round - 1] ?? null,
           teamAId,
           teamBId,
         })),

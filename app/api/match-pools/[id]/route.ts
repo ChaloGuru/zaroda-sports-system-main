@@ -7,6 +7,7 @@ import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 export const dynamic = "force-dynamic";
 
 const matchPoolUpdateSchema = z.object({
+  matchDate: z.coerce.date().nullable().optional(),
   teamAScore: z.number().int().min(0).nullable().optional(),
   teamBScore: z.number().int().min(0).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
@@ -39,7 +40,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       mutate: (tx) =>
         tx.matchPool.update({
           where: { id: params.id },
-          data: { teamAScore: input.teamAScore, teamBScore: input.teamBScore, notes: input.notes, winnerId },
+          data: {
+            teamAScore: input.teamAScore,
+            teamBScore: input.teamBScore,
+            notes: input.notes,
+            winnerId,
+            ...(input.matchDate !== undefined ? { matchDate: input.matchDate } : {}),
+          },
         }),
       recordId: () => params.id,
       newData: input,

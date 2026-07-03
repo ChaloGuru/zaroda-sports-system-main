@@ -265,6 +265,9 @@ export const matchPoolSchema = z.object({
   // null for knockout-stage fixtures that cross pool boundaries.
   poolId: z.string().uuid().nullable().optional(),
   roundName: z.string().max(100).default("Round 1"),
+  // Which calendar day this fixture is played on - only meaningful for
+  // championships spanning more than one day; left unset otherwise.
+  matchDate: z.coerce.date().nullable().optional(),
   teamAId: z.string().uuid(),
   teamBId: z.string().uuid(),
   teamAScore: z.number().int().min(0).nullable().optional(),

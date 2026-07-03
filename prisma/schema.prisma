@@ -378,22 +378,27 @@ model HeatParticipant {
 // on competition type; stored as plain UUID columns (no FK enforced across two
 // possible parent tables) and resolved in application code by championship type.
 model MatchPool {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   gameId     String
   // Set when this fixture was auto-generated as part of a pool's round
   // robin; null for manually-added fixtures (i.e. the knockout stage).
   // Lets the UI robustly separate "Pool Stage" from "Knockout Stage"
   // fixtures without guessing from the free-text roundName.
   poolId     String?
-  roundName  String   @default("Round 1")
+  roundName  String    @default("Round 1")
+  // Which calendar day this fixture is played on - only meaningful once a
+  // championship spans more than one day (Championship.startDate !=
+  // endDate); left null for single-day championships and for fixtures not
+  // yet scheduled to a specific day.
+  matchDate  DateTime?
   teamAId    String
   teamBId    String
   teamAScore Int?
   teamBScore Int?
   winnerId   String?
   notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   game Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
   pool Pool? @relation(fields: [poolId], references: [id], onDelete: SetNull)

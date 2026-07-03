@@ -56,6 +56,7 @@ export async function POST(request: Request) {
             gameId: input.gameId,
             poolId: input.poolId ?? null,
             roundName: input.roundName,
+            matchDate: input.matchDate ?? null,
             teamAId: input.teamAId,
             teamBId: input.teamBId,
             teamAScore: input.teamAScore ?? null,

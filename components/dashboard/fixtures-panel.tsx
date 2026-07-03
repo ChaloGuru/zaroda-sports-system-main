@@ -41,6 +41,7 @@ interface MatchPoolRow {
   id: string;
   poolId: string | null;
   roundName: string;
+  matchDate: string | null;
   teamAId: string;
   teamBId: string;
   teamAName: string;
@@ -83,9 +84,10 @@ function sportLabel(sport: string): string {
     .join(" ");
 }
 
-function FixtureRow({ fixture, onChanged }: { fixture: MatchPoolRow; onChanged: () => void }) {
+function FixtureRow({ fixture, onChanged, showMatchDay }: { fixture: MatchPoolRow; onChanged: () => void; showMatchDay: boolean }) {
   const [scoreA, setScoreA] = React.useState(fixture.teamAScore?.toString() ?? "");
   const [scoreB, setScoreB] = React.useState(fixture.teamBScore?.toString() ?? "");
+  const [matchDate, setMatchDate] = React.useState(fixture.matchDate ? fixture.matchDate.slice(0, 10) : "");
   const [saving, setSaving] = React.useState(false);
 
   async function saveScores() {
@@ -94,6 +96,7 @@ function FixtureRow({ fixture, onChanged }: { fixture: MatchPoolRow; onChanged: 
       await apiPatch(`/api/match-pools/${fixture.id}`, {
         teamAScore: scoreA === "" ? null : Number(scoreA),
         teamBScore: scoreB === "" ? null : Number(scoreB),
+        matchDate: matchDate === "" ? null : matchDate,
       });
       toast.success("Score saved");
       onChanged();
@@ -117,6 +120,16 @@ function FixtureRow({ fixture, onChanged }: { fixture: MatchPoolRow; onChanged: 
   return (
     <TableRow>
       <TableCell className="text-muted">{fixture.roundName}</TableCell>
+      {showMatchDay && (
+        <TableCell>
+          <Input
+            type="date"
+            className="h-8 w-36 font-mono tabular-nums"
+            value={matchDate}
+            onChange={(e) => setMatchDate(e.target.value)}
+          />
+        </TableCell>
+      )}
       <TableCell className={fixture.winnerId === fixture.teamAId ? "font-semibold text-primary" : ""}>{fixture.teamAName}</TableCell>
       <TableCell>
         <Input type="number" min={0} className="h-8 w-16 font-mono tabular-nums" value={scoreA} onChange={(e) => setScoreA(e.target.value)} />
@@ -143,13 +156,24 @@ function FixtureRow({ fixture, onChanged }: { fixture: MatchPoolRow; onChanged: 
   );
 }
 
-function FixturesTable({ fixtures, onChanged, emptyMessage }: { fixtures: MatchPoolRow[]; onChanged: () => void; emptyMessage: string }) {
+function FixturesTable({
+  fixtures,
+  onChanged,
+  emptyMessage,
+  showMatchDay,
+}: {
+  fixtures: MatchPoolRow[];
+  onChanged: () => void;
+  emptyMessage: string;
+  showMatchDay: boolean;
+}) {
   if (fixtures.length === 0) return <p className="text-muted">{emptyMessage}</p>;
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Round</TableHead>
+          {showMatchDay && <TableHead>Day</TableHead>}
           <TableHead>Team A</TableHead>
           <TableHead />
           <TableHead />
@@ -161,7 +185,7 @@ function FixturesTable({ fixtures, onChanged, emptyMessage }: { fixtures: MatchP
       </TableHeader>
       <TableBody>
         {fixtures.map((f) => (
-          <FixtureRow key={f.id} fixture={f} onChanged={onChanged} />
+          <FixtureRow key={f.id} fixture={f} onChanged={onChanged} showMatchDay={showMatchDay} />
         ))}
       </TableBody>
     </Table>
@@ -255,6 +279,9 @@ function AddFixtureDialog({
   gameId,
   onAdded,
   roundPresets,
+  showMatchDay,
+  minDate,
+  maxDate,
 }: {
   triggerLabel?: string;
   title: string;
@@ -263,14 +290,19 @@ function AddFixtureDialog({
   gameId: string;
   onAdded: () => void;
   roundPresets?: string[];
+  showMatchDay?: boolean;
+  minDate?: string;
+  maxDate?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [teamAId, setTeamAId] = React.useState("");
   const [teamBId, setTeamBId] = React.useState("");
   const [roundName, setRoundName] = React.useState("Round 1");
+  const [matchDate, setMatchDate] = React.useState("");
 
   const addMutation = useMutation({
-    mutationFn: () => apiPost("/api/match-pools", { gameId, poolId, roundName, teamAId, teamBId }),
+    mutationFn: () =>
+      apiPost("/api/match-pools", { gameId, poolId, roundName, teamAId, teamBId, matchDate: matchDate || null }),
     onSuccess: () => {
       toast.success("Fixture added");
       onAdded();
@@ -278,6 +310,7 @@ function AddFixtureDialog({
       setTeamAId("");
       setTeamBId("");
       setRoundName("Round 1");
+      setMatchDate("");
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to add fixture"),
   });
@@ -307,6 +340,19 @@ function AddFixtureDialog({
               </div>
             )}
           </div>
+          {showMatchDay && (
+            <div>
+              <Label>Match day</Label>
+              <Input
+                type="date"
+                className="mt-1.5"
+                value={matchDate}
+                min={minDate}
+                max={maxDate}
+                onChange={(e) => setMatchDate(e.target.value)}
+              />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Team A</Label>
@@ -354,6 +400,9 @@ function PoolSection({
   onChanged,
   onGenerate,
   generating,
+  showMatchDay,
+  minDate,
+  maxDate,
 }: {
   pool: PoolOption;
   teams: TeamOption[];
@@ -364,6 +413,9 @@ function PoolSection({
   onChanged: () => void;
   onGenerate: () => void;
   generating: boolean;
+  showMatchDay: boolean;
+  minDate?: string;
+  maxDate?: string;
 }) {
   const standings = React.useMemo(() => {
     if (!sport) return [];
@@ -393,6 +445,9 @@ function PoolSection({
             poolId={pool.id}
             gameId={gameId}
             onAdded={onChanged}
+            showMatchDay={showMatchDay}
+            minDate={minDate}
+            maxDate={maxDate}
           />
         </div>
       </CardHeader>
@@ -401,6 +456,7 @@ function PoolSection({
           fixtures={fixtures}
           onChanged={onChanged}
           emptyMessage="No fixtures yet in this pool - generate a round robin or add one manually above."
+          showMatchDay={showMatchDay}
         />
         {sport && (
           <StandingsTable
@@ -421,6 +477,14 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
   const [gameId, setGameId] = React.useState<string>("");
   const [newPoolName, setNewPoolName] = React.useState("");
   const [topPerPool, setTopPerPool] = React.useState("1");
+
+  const { data: championshipData } = useQuery({
+    queryKey: ["championship", championshipId],
+    queryFn: () => apiGet<{ championship: { startDate: string; endDate: string } }>(`/api/championships/${championshipId}`),
+  });
+  const championshipStart = championshipData?.championship.startDate.slice(0, 10);
+  const championshipEnd = championshipData?.championship.endDate.slice(0, 10);
+  const isMultiDay = !!championshipStart && !!championshipEnd && championshipStart !== championshipEnd;
 
   const { data: gamesData } = useQuery({
     queryKey: ["games", championshipId],
@@ -695,6 +759,9 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
           onChanged={refetchAll}
           onGenerate={() => generateMutation.mutate(pool.id)}
           generating={generateMutation.isPending}
+          showMatchDay={isMultiDay}
+          minDate={championshipStart}
+          maxDate={championshipEnd}
         />
       ))}
 
@@ -741,6 +808,9 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
                 gameId={gameId}
                 onAdded={refetchAll}
                 roundPresets={pools.length > 0 ? KNOCKOUT_ROUND_PRESETS : undefined}
+                showMatchDay={isMultiDay}
+                minDate={championshipStart}
+                maxDate={championshipEnd}
               />
             </div>
           </CardHeader>
@@ -755,6 +825,7 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
                     ? "No knockout fixtures yet. Once pool standings show who's progressing, add the semi-final/final pairings here."
                     : "No fixtures yet. Add one manually or generate a round robin above."
                 }
+                showMatchDay={isMultiDay}
               />
             )}
             {pools.length === 0 && selectedGame?.sport && (

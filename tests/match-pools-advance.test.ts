@@ -37,6 +37,10 @@ function req(body: unknown): Request {
   });
 }
 
+// Single-day championship by default, so distributeMatchDatesFromEnd yields
+// null and existing assertions don't need to account for a matchDate.
+const SINGLE_DAY_CHAMPIONSHIP = { startDate: new Date("2026-07-10"), endDate: new Date("2026-07-10") };
+
 const GAME_ID = "11111111-1111-1111-1111-111111111111";
 const POOL_A = "22222222-2222-2222-2222-222222222222";
 const POOL_B = "33333333-3333-3333-3333-333333333333";
@@ -53,7 +57,12 @@ describe("POST /api/match-pools/advance", () => {
   });
 
   it("advances the top team from each pool and schedules a knockout fixture between them", async () => {
-    gameFindUnique.mockResolvedValue({ id: GAME_ID, championshipId: "champ-1", sport: "FOOTBALL" });
+    gameFindUnique.mockResolvedValue({
+      id: GAME_ID,
+      championshipId: "champ-1",
+      sport: "FOOTBALL",
+      championship: SINGLE_DAY_CHAMPIONSHIP,
+    });
     poolFindMany.mockResolvedValue([
       { id: POOL_A, teams: [{ id: TEAM_A1 }, { id: TEAM_A2 }] },
       { id: POOL_B, teams: [{ id: TEAM_B1 }, { id: TEAM_B2 }] },
@@ -86,7 +95,12 @@ describe("POST /api/match-pools/advance", () => {
   });
 
   it("does not re-create a knockout fixture that already exists between the advancing teams", async () => {
-    gameFindUnique.mockResolvedValue({ id: GAME_ID, championshipId: "champ-1", sport: "FOOTBALL" });
+    gameFindUnique.mockResolvedValue({
+      id: GAME_ID,
+      championshipId: "champ-1",
+      sport: "FOOTBALL",
+      championship: SINGLE_DAY_CHAMPIONSHIP,
+    });
     poolFindMany.mockResolvedValue([
       { id: POOL_A, teams: [{ id: TEAM_A1 }] },
       { id: POOL_B, teams: [{ id: TEAM_B1 }] },
@@ -104,7 +118,12 @@ describe("POST /api/match-pools/advance", () => {
   });
 
   it("rejects when the game has no pools", async () => {
-    gameFindUnique.mockResolvedValue({ id: GAME_ID, championshipId: "champ-1", sport: "FOOTBALL" });
+    gameFindUnique.mockResolvedValue({
+      id: GAME_ID,
+      championshipId: "champ-1",
+      sport: "FOOTBALL",
+      championship: SINGLE_DAY_CHAMPIONSHIP,
+    });
     poolFindMany.mockResolvedValue([]);
 
     const response = await POST(req({ gameId: GAME_ID, topPerPool: 1 }));
@@ -123,7 +142,12 @@ describe("POST /api/match-pools/advance", () => {
   });
 
   it("rejects when fewer than two teams would advance", async () => {
-    gameFindUnique.mockResolvedValue({ id: GAME_ID, championshipId: "champ-1", sport: "FOOTBALL" });
+    gameFindUnique.mockResolvedValue({
+      id: GAME_ID,
+      championshipId: "champ-1",
+      sport: "FOOTBALL",
+      championship: SINGLE_DAY_CHAMPIONSHIP,
+    });
     poolFindMany.mockResolvedValue([{ id: POOL_A, teams: [{ id: TEAM_A1 }] }]);
     matchPoolFindMany.mockResolvedValueOnce([]);
 
