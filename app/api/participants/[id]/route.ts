@@ -20,6 +20,8 @@ const participantUpdateSchema = z.object({
   laneNumber: z.number().int().positive().nullable().optional(),
   isQualified: z.boolean().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  jerseyNumber: z.number().int().positive().nullable().optional(),
+  playingPosition: z.string().max(50).nullable().optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
@@ -52,6 +54,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (input.laneNumber !== undefined) data.laneNumber = input.laneNumber;
     if (input.isQualified !== undefined) data.isQualified = input.isQualified;
     if (input.notes !== undefined) data.notes = input.notes;
+    if (input.jerseyNumber !== undefined) data.jerseyNumber = input.jerseyNumber;
+    if (input.playingPosition !== undefined) data.playingPosition = input.playingPosition;
 
     const updated = await withAudit({
       actorId: ctx.userId,

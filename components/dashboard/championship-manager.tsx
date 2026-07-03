@@ -95,7 +95,7 @@ export function ChampionshipManager({
         {showsTeams && (
           <TabsContent value="teams">
             <PanelErrorBoundary fallbackTitle="Teams panel failed to load">
-              <TeamsPanel championshipId={championshipId} />
+              <TeamsPanel championshipId={championshipId} championshipName={name} />
             </PanelErrorBoundary>
           </TabsContent>
         )}

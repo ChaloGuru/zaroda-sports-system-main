@@ -123,6 +123,8 @@ export const participantCreateSchema = z.object({
   bibNumber: z.number().int().positive().optional(),
   personalBest: z.string().max(20).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  jerseyNumber: z.number().int().positive().nullable().optional(),
+  playingPosition: z.string().max(50).nullable().optional(),
 });
 export type ParticipantCreateInput = z.infer<typeof participantCreateSchema>;
 

@@ -12,12 +12,17 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const gameId = searchParams.get("gameId");
     const championshipId = searchParams.get("championshipId");
-    if (!gameId && !championshipId) {
-      return NextResponse.json({ error: "gameId or championshipId is required" }, { status: 400 });
+    const tournamentTeamId = searchParams.get("tournamentTeamId");
+    if (!gameId && !championshipId && !tournamentTeamId) {
+      return NextResponse.json({ error: "gameId, championshipId, or tournamentTeamId is required" }, { status: 400 });
     }
 
     const participants = await prisma.participant.findMany({
-      where: { ...(gameId ? { gameId } : {}), ...(championshipId ? { championshipId } : {}) },
+      where: {
+        ...(gameId ? { gameId } : {}),
+        ...(championshipId ? { championshipId } : {}),
+        ...(tournamentTeamId ? { tournamentTeamId } : {}),
+      },
       orderBy: { bibNumber: "asc" },
       include: { school: { select: { name: true } }, tournamentTeam: { select: { name: true } } },
     });
@@ -47,10 +52,7 @@ export async function POST(request: Request) {
     }
 
     let bibNumber = input.bibNumber ?? null;
-    if (!bibNumber) {
-      if (!input.schoolId) {
-        throw new Error("bibNumber must be provided directly when a participant has no schoolId (e.g. open-tournament entries)");
-      }
+    if (!bibNumber && input.schoolId) {
       const range = await prisma.schoolBibRange.findUnique({
         where: { championshipId_schoolId: { championshipId: input.championshipId, schoolId: input.schoolId } },
       });
@@ -63,6 +65,18 @@ export async function POST(request: Request) {
         range ? { schoolId: range.schoolId, rangeStart: range.rangeStart, rangeEnd: range.rangeEnd } : undefined,
         existing.map((p) => p.bibNumber),
       );
+    } else if (!bibNumber && input.tournamentTeamId) {
+      // Ball-game roster entries have no school bib range to draw from - bibNumber
+      // is purely an internal identifier here (jerseyNumber is what's shown to
+      // people), so just take the next unused number championship-wide.
+      const highest = await prisma.participant.findFirst({
+        where: { championshipId: input.championshipId },
+        orderBy: { bibNumber: "desc" },
+        select: { bibNumber: true },
+      });
+      bibNumber = (highest?.bibNumber ?? 0) + 1;
+    } else if (!bibNumber) {
+      throw new Error("bibNumber must be provided directly when a participant has no schoolId or tournamentTeamId (e.g. open-tournament entries)");
     }
 
     const personalBest = input.personalBest ? parseTimeToSeconds(input.personalBest) : null;
@@ -85,6 +99,8 @@ export async function POST(request: Request) {
             bibNumber: bibNumber as number,
             personalBest,
             notes: input.notes ?? null,
+            jerseyNumber: input.jerseyNumber ?? null,
+            playingPosition: input.playingPosition ?? null,
           },
         }),
       recordId: (result) => result.id,

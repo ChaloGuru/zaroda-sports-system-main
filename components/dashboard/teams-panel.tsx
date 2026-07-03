@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { GenderBadge } from "@/components/ui/gender-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { TeamRosterDialog } from "@/components/dashboard/team-roster-dialog";
 import { dashboardTournamentTeamSchema, type TournamentTeamInput } from "@/lib/validations";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 
@@ -40,7 +41,7 @@ function emptyDefaults(championshipId: string): TournamentTeamInput {
   return { championshipId, gameId: "", name: "" };
 }
 
-export function TeamsPanel({ championshipId }: { championshipId: string }) {
+export function TeamsPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -310,6 +311,16 @@ export function TeamsPanel({ championshipId }: { championshipId: string }) {
                   className="h-5 w-5 rounded-full border border-border"
                   style={{ backgroundColor: team.teamColor }}
                   title={team.teamColor}
+                />
+              )}
+              {team.gameId && (
+                <TeamRosterDialog
+                  championshipId={championshipId}
+                  championshipName={championshipName}
+                  teamId={team.id}
+                  teamName={team.name}
+                  gameId={team.gameId}
+                  gender={team.gender}
                 />
               )}
               <Button size="icon" variant="ghost" onClick={() => openEdit(team)}>

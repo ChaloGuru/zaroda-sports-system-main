@@ -334,6 +334,11 @@ model Participant {
   isQualified      Boolean           @default(false)
   status           ParticipantStatus @default(REGISTERED)
   notes            String?
+  // Ball-game team roster fields - a squad player's shirt number (unique
+  // only within the team, unlike bibNumber which is unique championship-wide)
+  // and playing position (e.g. "Striker", "Goalkeeper"). Both optional.
+  jerseyNumber     Int?
+  playingPosition  String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
