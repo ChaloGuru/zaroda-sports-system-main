@@ -22,7 +22,6 @@ const SECTIONS: GuideSection[] = [
     body: [
       "From your dashboard, choose \"New championship\" and set its name, category (Athletics, Ball Games, Music, or Other Games), school level, county, location, and dates.",
       "Base level is always free. Zone, Sub-County, County, Regional, and National levels require a one-time payment per championship - see Pricing for rates.",
-      "The championship's level is automatically included in its name so it's always clear to the public which tier an event is running at.",
     ],
   },
   {
@@ -30,7 +29,6 @@ const SECTIONS: GuideSection[] = [
     body: [
       "For Athletics/Music events, add participating schools and their athletes under the Participants tab.",
       "For Ball Games/Other Games, register competing organizations as teams under the Teams tab - you can add several at once with \"Bulk add organizations\".",
-      "Championships below Regional/National level can only register schools/teams from the same county as the championship, to keep lower tiers scoped to their actual geographic level.",
     ],
   },
   {
@@ -59,13 +57,6 @@ const SECTIONS: GuideSection[] = [
     title: "7. Circulars and announcements",
     body: [
       "Check the Circulars page for official announcements, which can include a downloadable PDF attachment alongside the written notice.",
-    ],
-  },
-  {
-    title: "8. Billing and subscriptions",
-    body: [
-      "Your Billing page shows active subscriptions and payment history. Payments are processed securely via Paystack.",
-      "Super admins can create or upgrade championships at any level free of charge.",
     ],
   },
 ];
