@@ -5,6 +5,7 @@ import { GenderBadge } from "@/components/ui/gender-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { LaneChip } from "@/components/ui/lane-chip";
+import { GameResultsActions } from "@/components/championship/game-results-actions";
 import { prisma } from "@/lib/prisma";
 import { formatSecondsToTime, SPORT_CONFIGS } from "@/lib/scoring";
 import { formatDate } from "@/lib/utils";
@@ -46,10 +47,17 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
       <Link href={`/championship/${game.championship.id}`} className="text-sm text-primary hover:underline">
         &larr; {game.championship.name}
       </Link>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <GenderBadge gender={game.gender} />
-        <Badge variant="secondary">{game.schoolLevel.replace("_", " ")}</Badge>
-        <Badge variant="outline">{game.isTimed ? "Timed event" : "Scored event"}</Badge>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <GenderBadge gender={game.gender} />
+          <Badge variant="secondary">{game.schoolLevel.replace("_", " ")}</Badge>
+          <Badge variant="outline">{game.isTimed ? "Timed event" : "Scored event"}</Badge>
+        </div>
+        <GameResultsActions
+          gameId={game.id}
+          gameName={game.name}
+          standings={standings ?? undefined}
+        />
       </div>
       <h1 className="mt-3 text-3xl font-bold text-foreground">{game.name}</h1>
 
