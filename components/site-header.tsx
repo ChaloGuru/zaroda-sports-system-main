@@ -19,6 +19,7 @@ const NAV_LINKS = [
   { href: "/medal-table", label: "Medal Table" },
   { href: "/circulars", label: "Circulars" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/guide", label: "User Guide" },
   { href: ZARODA_SCHOOL_URL, label: "Zaroda School", external: true },
 ];
 
