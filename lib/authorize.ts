@@ -64,6 +64,37 @@ export async function requireTenantAccess(tenantId: string): Promise<AuthContext
 }
 
 /**
+ * All non-owner, championship-scoped roles that can legitimately reach a
+ * championship's dashboard page in some capacity. Kept as one list so page
+ * guards (e.g. app/dashboard/championships/[id]/page.tsx) can't silently
+ * fall out of sync with new roles added to requireChampionshipAccess/
+ * requireTeamAccess - each new operational role must be added here too.
+ */
+export const CHAMPIONSHIP_OPERATIONAL_ROLES: Role[] = [
+  "TOURNAMENT_ADMIN",
+  "SCOREKEEPER",
+  "OFFICIAL",
+  "GAME_COORDINATOR",
+  "CHIEF_CALLROOM_MANAGER",
+  "CHIEF_TRACK_JUDGE",
+  "CHIEF_FIELD_JUDGE",
+  "CHIEF_RECORDER",
+  "TEAM_MANAGER",
+];
+
+/** Championship-scoped roles expire once the event ends, with a one-day grace period. */
+async function isChampionshipRoleActive(championshipId: string): Promise<boolean> {
+  const championship = await prisma.championship.findUnique({
+    where: { id: championshipId },
+    select: { endDate: true },
+  });
+  if (!championship) return false;
+  const expiresAt = new Date(championship.endDate);
+  expiresAt.setDate(expiresAt.getDate() + 1);
+  return new Date() < expiresAt;
+}
+
+/**
  * Throws unless the caller is SUPER_ADMIN, the TENANT_OWNER of the
  * championship's tenant, or holds one of `roles` scoped to this championship
  * via UserRole.championshipId. This is the primary check for
@@ -81,17 +112,7 @@ export async function requireChampionshipAccess(
   if (isSuperAdmin(ctx)) return ctx;
 
   const scopedRole = ctx.roles.find((r) => r.championshipId === championshipId && roles.includes(r.role));
-  if (scopedRole) {
-    const championship = await prisma.championship.findUnique({
-      where: { id: championshipId },
-      select: { endDate: true },
-    });
-    if (championship) {
-      const expiresAt = new Date(championship.endDate);
-      expiresAt.setDate(expiresAt.getDate() + 1);
-      if (new Date() < expiresAt) return ctx;
-    }
-  }
+  if (scopedRole && (await isChampionshipRoleActive(championshipId))) return ctx;
 
   if (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId) {
     const championship = await prisma.championship.findUnique({
@@ -106,6 +127,39 @@ export async function requireChampionshipAccess(
       ? "Your role for this championship has expired now that the championship has ended"
       : "You do not have access to this championship",
   );
+}
+
+/**
+ * Throws unless the caller can manage the given team: SUPER_ADMIN, the
+ * TENANT_OWNER of the championship's tenant, a championship-scoped
+ * TOURNAMENT_ADMIN, or a TEAM_MANAGER whose UserRole.organizationName
+ * matches this team's name (case/whitespace-insensitive). Team managers
+ * only ever get to add/edit/delete their own organization's team rows -
+ * never anyone else's, and never anything outside the Teams surface.
+ */
+export async function requireTeamAccess(championshipId: string, teamName: string): Promise<AuthContext> {
+  const ctx = await requireAuth();
+  if (isSuperAdmin(ctx)) return ctx;
+
+  const normalizedTeamName = teamName.trim().toLowerCase();
+
+  const scopedRole = ctx.roles.find(
+    (r) =>
+      r.championshipId === championshipId &&
+      (r.role === "TOURNAMENT_ADMIN" ||
+        (r.role === "TEAM_MANAGER" && r.organizationName?.trim().toLowerCase() === normalizedTeamName)),
+  );
+  if (scopedRole && (await isChampionshipRoleActive(championshipId))) return ctx;
+
+  if (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId) {
+    const championship = await prisma.championship.findUnique({
+      where: { id: championshipId },
+      select: { tenantId: true },
+    });
+    if (championship?.tenantId === ctx.tenantId) return ctx;
+  }
+
+  throw new AuthorizationError("You do not have access to manage this team");
 }
 
 /**

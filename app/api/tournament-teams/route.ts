@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, requireChampionshipAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { tournamentTeamSchema, dashboardTournamentTeamSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     if (ctx) {
-      await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN"]);
+      await requireTeamAccess(input.championshipId, input.name);
     }
     // else: unauthenticated public self-registration (open-tournament teams paying their own entry fee)
 

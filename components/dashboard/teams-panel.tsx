@@ -37,11 +37,20 @@ interface TeamRow {
   county: string | null;
 }
 
-function emptyDefaults(championshipId: string): TournamentTeamInput {
-  return { championshipId, gameId: "", name: "" };
+function emptyDefaults(championshipId: string, restrictToOrganizationName?: string | null): TournamentTeamInput {
+  return { championshipId, gameId: "", name: restrictToOrganizationName ?? "" };
 }
 
-export function TeamsPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
+export function TeamsPanel({
+  championshipId,
+  championshipName,
+  restrictToOrganizationName,
+}: {
+  championshipId: string;
+  championshipName: string;
+  /** Team Manager view - only this organization's teams are shown/editable. */
+  restrictToOrganizationName?: string | null;
+}) {
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -58,6 +67,9 @@ export function TeamsPanel({ championshipId, championshipName }: { championshipI
     queryKey: ["tournament-teams", championshipId],
     queryFn: () => apiGet<{ teams: TeamRow[] }>(`/api/tournament-teams?championshipId=${championshipId}`),
   });
+  const visibleTeams = restrictToOrganizationName
+    ? (data?.teams ?? []).filter((t) => t.name.trim().toLowerCase() === restrictToOrganizationName.trim().toLowerCase())
+    : (data?.teams ?? []);
 
   const {
     register,
@@ -68,12 +80,12 @@ export function TeamsPanel({ championshipId, championshipName }: { championshipI
     formState: { errors },
   } = useForm<TournamentTeamInput>({
     resolver: zodResolver(dashboardTournamentTeamSchema),
-    defaultValues: emptyDefaults(championshipId),
+    defaultValues: emptyDefaults(championshipId, restrictToOrganizationName),
   });
 
   function openCreate() {
     setEditingId(null);
-    reset(emptyDefaults(championshipId));
+    reset(emptyDefaults(championshipId, restrictToOrganizationName));
     setOpen(true);
   }
 
@@ -159,37 +171,39 @@ export function TeamsPanel({ championshipId, championshipName }: { championshipI
           <CardDescription>Teams register for a specific game - gender comes from the game, not asked separately.</CardDescription>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="secondary" disabled={games.length === 0}>
-                <Users className="h-4 w-4" /> Add organizations
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add participating organizations</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="bulk-orgs">One organization/school name per line</Label>
-                  <Textarea
-                    id="bulk-orgs"
-                    className="mt-1.5 min-h-[160px]"
-                    placeholder={"Manyonge Primary\nOruba Primary\nSt. Mary's Primary"}
-                    value={bulkText}
-                    onChange={(e) => setBulkText(e.target.value)}
-                  />
-                  <p className="mt-1.5 text-xs text-muted">
-                    Creates a team for each organization in every one of this championship&apos;s {games.length} game
-                    {games.length === 1 ? "" : "s"}. Already-existing organization/game combinations are skipped.
-                  </p>
-                </div>
-                <Button className="w-full" disabled={bulkMutation.isPending} onClick={submitBulk}>
-                  {bulkMutation.isPending ? "Adding..." : "Add organizations"}
+          {!restrictToOrganizationName && (
+            <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="secondary" disabled={games.length === 0}>
+                  <Users className="h-4 w-4" /> Add organizations
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add participating organizations</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="bulk-orgs">One organization/school name per line</Label>
+                    <Textarea
+                      id="bulk-orgs"
+                      className="mt-1.5 min-h-[160px]"
+                      placeholder={"Manyonge Primary\nOruba Primary\nSt. Mary's Primary"}
+                      value={bulkText}
+                      onChange={(e) => setBulkText(e.target.value)}
+                    />
+                    <p className="mt-1.5 text-xs text-muted">
+                      Creates a team for each organization in every one of this championship&apos;s {games.length} game
+                      {games.length === 1 ? "" : "s"}. Already-existing organization/game combinations are skipped.
+                    </p>
+                  </div>
+                  <Button className="w-full" disabled={bulkMutation.isPending} onClick={submitBulk}>
+                    {bulkMutation.isPending ? "Adding..." : "Add organizations"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
 
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -204,8 +218,11 @@ export function TeamsPanel({ championshipId, championshipName }: { championshipI
               <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
               <div>
                 <Label htmlFor="team-name">Name</Label>
-                <Input id="team-name" className="mt-1.5" {...register("name")} />
+                <Input id="team-name" className="mt-1.5" disabled={!!restrictToOrganizationName} {...register("name")} />
                 {errors.name && <p className="mt-1 text-sm text-red-400">{errors.name.message}</p>}
+                {restrictToOrganizationName && (
+                  <p className="mt-1 text-xs text-muted">Team managers register under their assigned organization name only.</p>
+                )}
               </div>
 
               <div>
@@ -291,8 +308,8 @@ export function TeamsPanel({ championshipId, championshipName }: { championshipI
           <p className="text-muted">Add a game in the Games tab first - teams register for a specific game.</p>
         )}
         {isLoading && <p className="text-muted">Loading teams...</p>}
-        {!isLoading && games.length > 0 && (data?.teams ?? []).length === 0 && <p className="text-muted">No teams yet. Add your first team.</p>}
-        {(data?.teams ?? []).map((team) => (
+        {!isLoading && games.length > 0 && visibleTeams.length === 0 && <p className="text-muted">No teams yet. Add your first team.</p>}
+        {visibleTeams.map((team) => (
           <div key={team.id} className="flex items-center justify-between rounded-md border border-border p-3">
             <div>
               <div className="flex items-center gap-2">

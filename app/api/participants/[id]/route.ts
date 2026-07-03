@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { requireChampionshipAccess, requireTeamAccess, toErrorResponse } from "@/lib/authorize";
 import { participantStatusSchema, timeInputSchema, genderSchema } from "@/lib/validations";
 import { parseTimeToSeconds } from "@/lib/scoring";
 
@@ -29,15 +29,26 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const existing = await prisma.participant.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Participant not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(existing.championshipId, [
-      "TOURNAMENT_ADMIN",
-      "SCOREKEEPER",
-      "OFFICIAL",
-      "CHIEF_CALLROOM_MANAGER",
-      "CHIEF_TRACK_JUDGE",
-      "CHIEF_FIELD_JUDGE",
-      "CHIEF_RECORDER",
-    ]);
+    let ctx;
+    try {
+      ctx = await requireChampionshipAccess(existing.championshipId, [
+        "TOURNAMENT_ADMIN",
+        "SCOREKEEPER",
+        "OFFICIAL",
+        "CHIEF_CALLROOM_MANAGER",
+        "CHIEF_TRACK_JUDGE",
+        "CHIEF_FIELD_JUDGE",
+        "CHIEF_RECORDER",
+      ]);
+    } catch (accessError) {
+      if (!existing.tournamentTeamId) throw accessError;
+      const team = await prisma.tournamentTeam.findUnique({
+        where: { id: existing.tournamentTeamId },
+        select: { name: true },
+      });
+      if (!team) throw accessError;
+      ctx = await requireTeamAccess(existing.championshipId, team.name);
+    }
 
     const body: unknown = await request.json();
     const input = participantUpdateSchema.parse(body);
@@ -82,7 +93,18 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     const existing = await prisma.participant.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Participant not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN"]);
+    let ctx;
+    try {
+      ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN"]);
+    } catch (accessError) {
+      if (!existing.tournamentTeamId) throw accessError;
+      const team = await prisma.tournamentTeam.findUnique({
+        where: { id: existing.tournamentTeamId },
+        select: { name: true },
+      });
+      if (!team) throw accessError;
+      ctx = await requireTeamAccess(existing.championshipId, team.name);
+    }
 
     await withAudit({
       actorId: ctx.userId,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
+import { requireChampionshipAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { participantCreateSchema } from "@/lib/validations";
 import { assignNextBibNumber, parseTimeToSeconds } from "@/lib/scoring";
 
@@ -38,7 +38,20 @@ export async function POST(request: Request) {
   try {
     const body: unknown = await request.json();
     const input = participantCreateSchema.parse(body);
-    const ctx = await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+
+    let ctx;
+    if (input.tournamentTeamId) {
+      const team = await prisma.tournamentTeam.findUnique({
+        where: { id: input.tournamentTeamId },
+        select: { name: true, championshipId: true },
+      });
+      if (!team || team.championshipId !== input.championshipId) {
+        return NextResponse.json({ error: "Team not found in this championship" }, { status: 404 });
+      }
+      ctx = await requireTeamAccess(input.championshipId, team.name);
+    } else {
+      ctx = await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+    }
 
     if (input.schoolId) {
       const championship = await prisma.championship.findUnique({

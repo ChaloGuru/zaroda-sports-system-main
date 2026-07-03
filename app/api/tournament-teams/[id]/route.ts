@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { requireTeamAccess, isSuperAdmin, hasRole, toErrorResponse } from "@/lib/authorize";
 import { tournamentTeamSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +13,21 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const existing = await prisma.tournamentTeam.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Team not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN"]);
+    const ctx = await requireTeamAccess(existing.championshipId, existing.name);
 
     const body: unknown = await request.json();
     const input = tournamentTeamUpdateSchema.parse(body);
+
+    // A team manager (as opposed to a full tournament admin/owner) can rename
+    // their own team's details but not re-point the "name" identity itself -
+    // that's the field requireTeamAccess actually authorizes against.
+    const isFullAdmin =
+      isSuperAdmin(ctx) ||
+      hasRole(ctx, "TENANT_OWNER") ||
+      ctx.roles.some((r) => r.championshipId === existing.championshipId && r.role === "TOURNAMENT_ADMIN");
+    if (!isFullAdmin && input.name && input.name.trim().toLowerCase() !== existing.name.trim().toLowerCase()) {
+      return NextResponse.json({ error: "Team managers cannot rename their organization" }, { status: 403 });
+    }
 
     const updated = await withAudit({
       actorId: ctx.userId,
@@ -47,7 +58,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     const existing = await prisma.tournamentTeam.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Team not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN"]);
+    const ctx = await requireTeamAccess(existing.championshipId, existing.name);
 
     await withAudit({
       actorId: ctx.userId,

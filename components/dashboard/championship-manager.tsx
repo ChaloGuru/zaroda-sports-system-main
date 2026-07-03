@@ -23,12 +23,15 @@ export function ChampionshipManager({
   category,
   schoolLevel,
   isPublished,
+  restrictToOrganizationName,
 }: {
   championshipId: string;
   name: string;
   category: string;
   schoolLevel: string;
   isPublished: boolean;
+  /** Set when the viewer is a Team Manager - shows only their own organization's teams, nothing else. */
+  restrictToOrganizationName?: string | null;
 }) {
   const router = useRouter();
   const [publishing, setPublishing] = React.useState(false);
@@ -52,6 +55,24 @@ export function ChampionshipManager({
     } finally {
       setPublishing(false);
     }
+  }
+
+  if (restrictToOrganizationName) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{name}</h1>
+          <p className="text-muted">Managing {restrictToOrganizationName}&apos;s team registrations only.</p>
+        </div>
+        <PanelErrorBoundary fallbackTitle="Teams panel failed to load">
+          <TeamsPanel
+            championshipId={championshipId}
+            championshipName={name}
+            restrictToOrganizationName={restrictToOrganizationName}
+          />
+        </PanelErrorBoundary>
+      </div>
+    );
   }
 
   return (

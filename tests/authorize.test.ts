@@ -22,12 +22,25 @@ vi.mock("next-auth", () => ({
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 
 // Imported after the mocks so authorize.ts picks up the mocked prisma client / session.
-const { requireActiveSubscriptionForLevel, requireChampionshipAccess, isGeographicallyRestricted, assertWithinGeographicScope, AuthorizationError } =
-  await import("@/lib/authorize");
+const {
+  requireActiveSubscriptionForLevel,
+  requireChampionshipAccess,
+  requireTeamAccess,
+  isGeographicallyRestricted,
+  assertWithinGeographicScope,
+  AuthorizationError,
+} = await import("@/lib/authorize");
 
-function mockSession(roles: Array<{ role: string; championshipId: string | null }>) {
+function mockSession(
+  roles: Array<{ role: string; championshipId: string | null; organizationName?: string | null }>,
+) {
   getServerSessionMock.mockResolvedValue({
-    user: { id: "user-1", email: "official@example.com", tenantId: null, roles },
+    user: {
+      id: "user-1",
+      email: "official@example.com",
+      tenantId: null,
+      roles: roles.map((r) => ({ organizationName: null, ...r })),
+    },
   });
 }
 
@@ -56,6 +69,48 @@ describe("requireChampionshipAccess (championship-scoped role expiry)", () => {
     championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() - 3 * 86_400_000) });
 
     await expect(requireChampionshipAccess("champ-1", ["SCOREKEEPER"])).rejects.toThrow(/expired/);
+  });
+});
+
+describe("requireTeamAccess (Team Manager scoping)", () => {
+  beforeEach(() => {
+    championshipFindUniqueMock.mockReset();
+    getServerSessionMock.mockReset();
+  });
+
+  it("grants a Team Manager access to their own organization's team", async () => {
+    mockSession([{ role: "TEAM_MANAGER", championshipId: "champ-1", organizationName: "Manyonge Primary" }]);
+    championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() + 86_400_000) });
+
+    await expect(requireTeamAccess("champ-1", "Manyonge Primary")).resolves.toMatchObject({ userId: "user-1" });
+  });
+
+  it("is case/whitespace-insensitive when matching the organization name", async () => {
+    mockSession([{ role: "TEAM_MANAGER", championshipId: "champ-1", organizationName: "  manyonge primary  " }]);
+    championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() + 86_400_000) });
+
+    await expect(requireTeamAccess("champ-1", "Manyonge Primary")).resolves.toMatchObject({ userId: "user-1" });
+  });
+
+  it("denies a Team Manager access to a different organization's team", async () => {
+    mockSession([{ role: "TEAM_MANAGER", championshipId: "champ-1", organizationName: "Manyonge Primary" }]);
+    championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() + 86_400_000) });
+
+    await expect(requireTeamAccess("champ-1", "Oruba Primary")).rejects.toThrow(AuthorizationError);
+  });
+
+  it("denies access once the Team Manager role has expired with the championship", async () => {
+    mockSession([{ role: "TEAM_MANAGER", championshipId: "champ-1", organizationName: "Manyonge Primary" }]);
+    championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() - 3 * 86_400_000) });
+
+    await expect(requireTeamAccess("champ-1", "Manyonge Primary")).rejects.toThrow(AuthorizationError);
+  });
+
+  it("grants a championship-scoped TOURNAMENT_ADMIN access to any team", async () => {
+    mockSession([{ role: "TOURNAMENT_ADMIN", championshipId: "champ-1" }]);
+    championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() + 86_400_000) });
+
+    await expect(requireTeamAccess("champ-1", "Any Team Name")).resolves.toMatchObject({ userId: "user-1" });
   });
 });
 

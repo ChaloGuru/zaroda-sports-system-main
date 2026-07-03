@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { getAuthContext, isSuperAdmin, hasRole } from "@/lib/authorize";
+import { getAuthContext, isSuperAdmin, hasRole, CHAMPIONSHIP_OPERATIONAL_ROLES } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { ChampionshipManager } from "@/components/dashboard/championship-manager";
 
@@ -10,16 +10,19 @@ export default async function DashboardChampionshipDetailPage({ params }: { para
   const championship = await prisma.championship.findUnique({ where: { id: params.id } });
   if (!championship) notFound();
 
-  const scopedToChampionship = ctx.roles.some(
-    (r) =>
-      r.championshipId === championship.id &&
-      (r.role === "TOURNAMENT_ADMIN" || r.role === "SCOREKEEPER" || r.role === "OFFICIAL"),
+  const scopedRoles = ctx.roles.filter(
+    (r) => r.championshipId === championship.id && CHAMPIONSHIP_OPERATIONAL_ROLES.includes(r.role),
   );
-  const owns =
-    isSuperAdmin(ctx) ||
-    (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === championship.tenantId) ||
-    scopedToChampionship;
+  const isFullAdmin = isSuperAdmin(ctx) || (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === championship.tenantId);
+  const owns = isFullAdmin || scopedRoles.length > 0;
   if (!owns) notFound();
+
+  // A user whose ONLY role here is Team Manager gets a cut-down view scoped
+  // to just their own organization's teams - not the full admin surface
+  // (Settings, Fixtures, Bib Ranges, other teams, etc).
+  const teamManagerRole = !isFullAdmin && scopedRoles.every((r) => r.role === "TEAM_MANAGER")
+    ? scopedRoles.find((r) => r.role === "TEAM_MANAGER")
+    : undefined;
 
   return (
     <ChampionshipManager
@@ -28,6 +31,7 @@ export default async function DashboardChampionshipDetailPage({ params }: { para
       category={championship.category}
       schoolLevel={championship.schoolLevel}
       isPublished={championship.isPublished}
+      restrictToOrganizationName={teamManagerRole?.organizationName ?? null}
     />
   );
 }

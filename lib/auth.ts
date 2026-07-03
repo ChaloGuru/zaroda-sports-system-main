@@ -7,6 +7,8 @@ import type { Role } from "@prisma/client";
 export interface SessionRole {
   role: Role;
   championshipId: string | null;
+  /** Only set for TEAM_MANAGER - the organization this role is scoped to. */
+  organizationName: string | null;
 }
 
 declare module "next-auth" {
@@ -63,7 +65,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           tenantId: user.tenant?.id ?? null,
-          roles: user.roles.map((r) => ({ role: r.role, championshipId: r.championshipId })),
+          roles: user.roles.map((r) => ({ role: r.role, championshipId: r.championshipId, organizationName: r.organizationName })),
         };
       },
     }),

@@ -43,7 +43,12 @@ export async function POST(request: Request) {
       tableName: "user_roles",
       mutate: (tx) =>
         tx.userRole.create({
-          data: { userId: userId as string, role: input.role, championshipId: input.championshipId },
+          data: {
+            userId: userId as string,
+            role: input.role,
+            championshipId: input.championshipId,
+            organizationName: input.role === "TEAM_MANAGER" ? input.organizationName : null,
+          },
         }),
       recordId: (result) => result.id,
       newData: input,

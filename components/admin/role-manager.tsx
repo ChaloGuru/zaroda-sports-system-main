@@ -22,6 +22,7 @@ interface ChampionshipOption {
 interface RoleRow {
   id: string;
   role: string;
+  organizationName: string | null;
   user: { id: string; name: string; email: string };
 }
 
@@ -34,12 +35,13 @@ const ASSIGNABLE_ROLES = [
   { value: "CHIEF_TRACK_JUDGE", label: "Chief Track Judge (Athletics)" },
   { value: "CHIEF_FIELD_JUDGE", label: "Chief Field Judge (Athletics)" },
   { value: "CHIEF_RECORDER", label: "Chief Recorder (Athletics)" },
+  { value: "TEAM_MANAGER", label: "Team Manager (single organization only)" },
 ];
 
 export function RoleManager() {
   const queryClient = useQueryClient();
   const [championshipId, setChampionshipId] = React.useState<string>("");
-  const [form, setForm] = React.useState({ email: "", name: "", password: "", role: "TOURNAMENT_ADMIN" });
+  const [form, setForm] = React.useState({ email: "", name: "", password: "", role: "TOURNAMENT_ADMIN", organizationName: "" });
 
   const { data: championshipsData } = useQuery({
     queryKey: ["admin-championships-picker"],
@@ -60,10 +62,11 @@ export function RoleManager() {
         email: form.email,
         name: form.name || undefined,
         password: form.password || undefined,
+        organizationName: form.role === "TEAM_MANAGER" ? form.organizationName : undefined,
       }),
     onSuccess: () => {
       toast.success("Role assigned");
-      setForm({ email: "", name: "", password: "", role: "TOURNAMENT_ADMIN" });
+      setForm({ email: "", name: "", password: "", role: "TOURNAMENT_ADMIN", organizationName: "" });
       queryClient.invalidateQueries({ queryKey: ["championship-roles", championshipId] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to assign role"),
@@ -146,9 +149,28 @@ export function RoleManager() {
             </Select>
           </div>
 
+          {form.role === "TEAM_MANAGER" && (
+            <div className="space-y-2">
+              <Label>Organization / team name</Label>
+              <Input
+                value={form.organizationName}
+                onChange={(e) => setForm({ ...form, organizationName: e.target.value })}
+                placeholder="Must match the team's registered name exactly"
+              />
+              <p className="text-xs text-muted">
+                Scopes this manager to only add/edit/delete their own organization's team rows - never anyone else's.
+              </p>
+            </div>
+          )}
+
           <Button
             onClick={() => assignMutation.mutate()}
-            disabled={!championshipId || !form.email || assignMutation.isPending}
+            disabled={
+              !championshipId ||
+              !form.email ||
+              (form.role === "TEAM_MANAGER" && !form.organizationName.trim()) ||
+              assignMutation.isPending
+            }
           >
             {assignMutation.isPending ? "Assigning..." : "Assign Role"}
           </Button>
@@ -168,7 +190,10 @@ export function RoleManager() {
               <div key={r.id} className="flex items-center justify-between rounded-md border border-border p-3">
                 <div>
                   <p className="text-sm font-medium text-foreground">{r.user.name}</p>
-                  <p className="text-xs text-muted">{r.user.email}</p>
+                  <p className="text-xs text-muted">
+                    {r.user.email}
+                    {r.organizationName ? ` - ${r.organizationName}` : ""}
+                  </p>
                 </div>
                 <Badge variant="secondary">{r.role.replace("_", " ")}</Badge>
               </div>

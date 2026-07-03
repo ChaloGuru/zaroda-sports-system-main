@@ -279,23 +279,32 @@ export const matchPoolSchema = z.object({
 });
 export type MatchPoolInput = z.infer<typeof matchPoolSchema>;
 
-export const roleAssignmentSchema = z.object({
-  userId: z.string().uuid().optional(),
-  email: optionalEmail,
-  name: z.string().max(200).optional(),
-  password: passwordSchema.optional(),
-  role: z.enum([
-    "TOURNAMENT_ADMIN",
-    "SCOREKEEPER",
-    "OFFICIAL",
-    "GAME_COORDINATOR",
-    "CHIEF_CALLROOM_MANAGER",
-    "CHIEF_TRACK_JUDGE",
-    "CHIEF_FIELD_JUDGE",
-    "CHIEF_RECORDER",
-  ]),
-  championshipId: z.string().uuid(),
-});
+export const roleAssignmentSchema = z
+  .object({
+    userId: z.string().uuid().optional(),
+    email: optionalEmail,
+    name: z.string().max(200).optional(),
+    password: passwordSchema.optional(),
+    role: z.enum([
+      "TOURNAMENT_ADMIN",
+      "SCOREKEEPER",
+      "OFFICIAL",
+      "GAME_COORDINATOR",
+      "CHIEF_CALLROOM_MANAGER",
+      "CHIEF_TRACK_JUDGE",
+      "CHIEF_FIELD_JUDGE",
+      "CHIEF_RECORDER",
+      "TEAM_MANAGER",
+    ]),
+    championshipId: z.string().uuid(),
+    // Required for TEAM_MANAGER only - the organization/team name this
+    // assignment is scoped to (matches TournamentTeam.name, trimmed/lowercased).
+    organizationName: z.string().min(1).max(200).optional(),
+  })
+  .refine((data) => data.role !== "TEAM_MANAGER" || !!data.organizationName?.trim(), {
+    message: "An organization name is required for the Team Manager role",
+    path: ["organizationName"],
+  });
 export type RoleAssignmentInput = z.infer<typeof roleAssignmentSchema>;
 
 export const championshipFeeSchema = z.object({

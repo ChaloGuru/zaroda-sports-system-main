@@ -22,6 +22,7 @@ enum Role {
   CHIEF_TRACK_JUDGE
   CHIEF_FIELD_JUDGE
   CHIEF_RECORDER
+  TEAM_MANAGER
 }
 
 enum AccountType {
@@ -149,6 +150,11 @@ model UserRole {
   userId         String
   role           Role
   championshipId String?
+  // Only set (and only meaningful) for TEAM_MANAGER - scopes the role to a
+  // single organization's team rows within the championship (matched by
+  // trimmed/lowercased TournamentTeam.name, the same org-identity convention
+  // used elsewhere - see lib/organization-rankings.ts).
+  organizationName String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
