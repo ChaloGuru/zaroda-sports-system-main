@@ -5,6 +5,7 @@ import {
   getAuthContext,
   isSuperAdmin,
   hasRole,
+  requireChampionshipAccess,
   requireActiveSubscriptionForLevel,
   toErrorResponse,
   AuthorizationError,
@@ -44,19 +45,24 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
-    const ctx = await getAuthContext();
-    if (!ctx) throw new AuthorizationError("Authentication required", 401);
-
     const existing = await prisma.championship.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
 
-    const owns = isSuperAdmin(ctx) || (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === existing.tenantId);
-    if (!owns) throw new AuthorizationError("You do not have access to this championship");
+    // Championship-scoped TOURNAMENT_ADMIN (assigned via Roles, not
+    // necessarily the tenant owner) can edit the championship they're
+    // running, not just SUPER_ADMIN/TENANT_OWNER.
+    const ctx = await requireChampionshipAccess(params.id, ["TOURNAMENT_ADMIN"]);
+    const isOwner = isSuperAdmin(ctx) || (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === existing.tenantId);
 
     const body: unknown = await request.json();
     const input = championshipUpdateSchema.parse(body);
 
     if (input.level && input.level !== existing.level) {
+      // Changing level affects billing - only the owner (or a super admin)
+      // decides that, not a hired tournament admin.
+      if (!isOwner) {
+        throw new AuthorizationError("Only the tenant owner or a super admin can change a championship's level");
+      }
       if (!isSuperAdmin(ctx)) {
         await requireActiveSubscriptionForLevel(existing.tenantId, input.level);
       }
@@ -86,14 +92,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
   try {
-    const ctx = await getAuthContext();
-    if (!ctx) throw new AuthorizationError("Authentication required", 401);
-
     const existing = await prisma.championship.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
 
-    const owns = isSuperAdmin(ctx) || (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === existing.tenantId);
-    if (!owns) throw new AuthorizationError("You do not have access to this championship");
+    const ctx = await requireChampionshipAccess(params.id, ["TOURNAMENT_ADMIN"]);
 
     await withAudit({
       actorId: ctx.userId,
