@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"]);
 
     const matchPool = await withAudit({
       actorId: ctx.userId,

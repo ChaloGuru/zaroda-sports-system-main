@@ -12,8 +12,11 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { LaneChip } from "@/components/ui/lane-chip";
+import { PrintButton } from "@/components/ui/print-button";
+import { ShareButton } from "@/components/ui/share-button";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { computeStandings, type BallSport, type MatchResult, type StandingRow } from "@/lib/scoring";
+import { buildResultsShareMessage } from "@/lib/share-message";
 
 interface GameOption {
   id: string;
@@ -472,7 +475,7 @@ function PoolSection({
   );
 }
 
-export function FixturesPanel({ championshipId }: { championshipId: string }) {
+export function FixturesPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   const queryClient = useQueryClient();
   const [gameId, setGameId] = React.useState<string>("");
   const [gameSearch, setGameSearch] = React.useState("");
@@ -625,12 +628,29 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
   // have been created yet (preserves the original simple flat-pool workflow).
   const combinedStandings = standingsFor(teams.map((t) => t.id));
 
+  const shareUrl =
+    typeof window !== "undefined"
+      ? selectedGame
+        ? `${window.location.origin}/game/${selectedGame.id}`
+        : `${window.location.origin}/championship/${championshipId}`
+      : "";
+
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle>Fixtures &amp; Pooling</CardTitle>
-          <CardDescription>Select a ball game/team event to manage its pools, fixtures, scores, and live standings.</CardDescription>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle>Fixtures &amp; Pooling</CardTitle>
+            <CardDescription>Select a ball game/team event to manage its pools, fixtures, scores, and live standings.</CardDescription>
+          </div>
+          <div className="no-print flex flex-wrap items-center gap-2">
+            <PrintButton />
+            <ShareButton
+              title={selectedGame ? selectedGame.name : championshipName}
+              message={buildResultsShareMessage(selectedGame ? selectedGame.name : championshipName, shareUrl)}
+              url={shareUrl}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-end gap-3">

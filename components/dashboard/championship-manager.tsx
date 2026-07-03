@@ -102,7 +102,7 @@ export function ChampionshipManager({
 
         <TabsContent value="fixtures">
           <PanelErrorBoundary fallbackTitle="Fixtures panel failed to load">
-            <FixturesPanel championshipId={championshipId} />
+            <FixturesPanel championshipId={championshipId} championshipName={name} />
           </PanelErrorBoundary>
         </TabsContent>
 

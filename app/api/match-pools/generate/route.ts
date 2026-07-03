@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     });
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"]);
 
     let poolName: string | null = null;
     if (input.poolId) {

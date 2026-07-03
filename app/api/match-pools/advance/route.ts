@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     if (!game.sport) return NextResponse.json({ error: "This game has no sport set - standings can't be computed" }, { status: 400 });
 
-    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"]);
 
     const pools = await prisma.pool.findMany({
       where: { gameId: input.gameId },

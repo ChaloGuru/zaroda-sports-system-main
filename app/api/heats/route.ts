@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     const game = await prisma.game.findUnique({ where: { id: input.gameId } });
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "CHIEF_CALLROOM_MANAGER"]);
 
     const participants = await prisma.participant.findMany({
       where: { id: { in: input.participantIds } },

@@ -27,7 +27,15 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const existing = await prisma.participant.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Participant not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "OFFICIAL"]);
+    const ctx = await requireChampionshipAccess(existing.championshipId, [
+      "TOURNAMENT_ADMIN",
+      "SCOREKEEPER",
+      "OFFICIAL",
+      "CHIEF_CALLROOM_MANAGER",
+      "CHIEF_TRACK_JUDGE",
+      "CHIEF_FIELD_JUDGE",
+      "CHIEF_RECORDER",
+    ]);
 
     const body: unknown = await request.json();
     const input = participantUpdateSchema.parse(body);

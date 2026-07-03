@@ -281,7 +281,16 @@ export const roleAssignmentSchema = z.object({
   email: optionalEmail,
   name: z.string().max(200).optional(),
   password: passwordSchema.optional(),
-  role: z.enum(["TOURNAMENT_ADMIN", "SCOREKEEPER", "OFFICIAL"]),
+  role: z.enum([
+    "TOURNAMENT_ADMIN",
+    "SCOREKEEPER",
+    "OFFICIAL",
+    "GAME_COORDINATOR",
+    "CHIEF_CALLROOM_MANAGER",
+    "CHIEF_TRACK_JUDGE",
+    "CHIEF_FIELD_JUDGE",
+    "CHIEF_RECORDER",
+  ]),
   championshipId: z.string().uuid(),
 });
 export type RoleAssignmentInput = z.infer<typeof roleAssignmentSchema>;

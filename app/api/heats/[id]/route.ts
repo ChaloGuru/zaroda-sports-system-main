@@ -26,7 +26,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const heat = await prisma.heat.findUnique({ where: { id: params.id }, include: { game: true } });
     if (!heat) return NextResponse.json({ error: "Heat not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(heat.game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+    const ctx = await requireChampionshipAccess(heat.game.championshipId, [
+      "TOURNAMENT_ADMIN",
+      "SCOREKEEPER",
+      "CHIEF_TRACK_JUDGE",
+      "CHIEF_RECORDER",
+    ]);
 
     const body: unknown = await request.json();
     const input = heatResultsSchema.parse(body);

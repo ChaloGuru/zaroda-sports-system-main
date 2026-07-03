@@ -29,6 +29,11 @@ const ASSIGNABLE_ROLES = [
   { value: "TOURNAMENT_ADMIN", label: "Tournament Admin" },
   { value: "SCOREKEEPER", label: "Scorekeeper" },
   { value: "OFFICIAL", label: "Official" },
+  { value: "GAME_COORDINATOR", label: "Game Coordinator (e.g. Football Coordinator)" },
+  { value: "CHIEF_CALLROOM_MANAGER", label: "Chief Callroom Manager (Athletics)" },
+  { value: "CHIEF_TRACK_JUDGE", label: "Chief Track Judge (Athletics)" },
+  { value: "CHIEF_FIELD_JUDGE", label: "Chief Field Judge (Athletics)" },
+  { value: "CHIEF_RECORDER", label: "Chief Recorder (Athletics)" },
 ];
 
 export function RoleManager() {
@@ -72,7 +77,8 @@ export function RoleManager() {
         <CardHeader>
           <CardTitle>Assign a championship-level role</CardTitle>
           <CardDescription>
-            Create level admins, scorekeepers, or officials scoped to a single championship.
+            Create level admins, scorekeepers, officials, ball-game coordinators, or athletics chief
+            officials (callroom, track, field, recorder), all scoped to a single championship.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
