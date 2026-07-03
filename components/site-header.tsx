@@ -44,7 +44,7 @@ export function SiteHeader() {
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-foreground"
+                className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary transition-colors hover:bg-primary/20"
               >
                 {link.label}
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -105,7 +105,7 @@ export function SiteHeader() {
                   href={link.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-muted hover:bg-surface-overlay hover:text-foreground"
+                  className="flex items-center gap-1 rounded-md bg-primary/10 px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/20"
                 >
                   {link.label}
                   <ExternalLink className="h-3.5 w-3.5" />

@@ -4,7 +4,6 @@ import Image from "next/image";
 import { Trophy, Medal, Timer, ShieldCheck, ArrowRight, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { prisma } from "@/lib/prisma";
 
 export const revalidate = 60;
 
@@ -14,18 +13,7 @@ export const metadata: Metadata = {
     "Run school championships and athletics meets from registration to final rankings - built for Kenyan zones, sub-counties, counties, and national tournaments.",
 };
 
-async function getStats() {
-  const [tenants, championships, participants] = await Promise.all([
-    prisma.tenant.count(),
-    prisma.championship.count({ where: { isPublished: true } }),
-    prisma.participant.count(),
-  ]);
-  return { tenants, championships, participants };
-}
-
-export default async function LandingPage() {
-  const stats = await getStats();
-
+export default function LandingPage() {
   return (
     <div>
       <section className="relative overflow-hidden border-b border-border">
@@ -63,20 +51,13 @@ export default async function LandingPage() {
               <Link href="/pricing">See Essential pricing</Link>
             </Button>
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-8 text-center">
-            <div>
-              <p className="font-mono text-3xl font-bold tabular-nums text-white">{stats.tenants}</p>
-              <p className="text-sm text-white/70">Organizations</p>
-            </div>
-            <div>
-              <p className="font-mono text-3xl font-bold tabular-nums text-white">{stats.championships}</p>
-              <p className="text-sm text-white/70">Championships</p>
-            </div>
-            <div>
-              <p className="font-mono text-3xl font-bold tabular-nums text-white">{stats.participants}</p>
-              <p className="text-sm text-white/70">Participants</p>
-            </div>
-          </div>
+          <Image
+            src="/images/logo.png"
+            alt="Zaroda Sports Management System"
+            width={216}
+            height={144}
+            className="mt-4 h-20 w-auto drop-shadow-[0_2px_16px_rgba(6,15,46,0.9)]"
+          />
         </div>
       </section>
 

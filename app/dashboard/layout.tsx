@@ -6,7 +6,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/messages", label: "Messages", icon: "Inbox" },
   { href: "/dashboard/billing", label: "Billing", icon: "CreditCard" },
   { href: "/dashboard/account", label: "Account", icon: "UserCog" },
-  { href: "https://zarodasolutions.app/", label: "Zaroda School", icon: "ExternalLink", external: true },
+  { href: "/rankings", label: "Public Rankings", icon: "ListOrdered", external: true },
+  { href: "https://zarodasolutions.app/", label: "Zaroda School", icon: "ExternalLink", external: true, accent: true },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

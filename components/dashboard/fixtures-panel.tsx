@@ -475,6 +475,7 @@ function PoolSection({
 export function FixturesPanel({ championshipId }: { championshipId: string }) {
   const queryClient = useQueryClient();
   const [gameId, setGameId] = React.useState<string>("");
+  const [gameSearch, setGameSearch] = React.useState("");
   const [newPoolName, setNewPoolName] = React.useState("");
   const [topPerPool, setTopPerPool] = React.useState("1");
 
@@ -491,6 +492,9 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
     queryFn: () => apiGet<{ games: GameOption[] }>(`/api/games?championshipId=${championshipId}`),
   });
   const fixtureGames = (gamesData?.games ?? []).filter((g) => !g.isTimed);
+  const searchedGames = gameSearch.trim()
+    ? fixtureGames.filter((g) => g.name.toLowerCase().includes(gameSearch.trim().toLowerCase()))
+    : fixtureGames;
   const selectedGame = fixtureGames.find((g) => g.id === gameId);
 
   const { data: teamsData } = useQuery({
@@ -630,14 +634,27 @@ export function FixturesPanel({ championshipId }: { championshipId: string }) {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-end gap-3">
+            <div className="w-56">
+              <Label htmlFor="fixtures-game-search">Search game</Label>
+              <Input
+                id="fixtures-game-search"
+                className="mt-1.5"
+                placeholder="Type to filter..."
+                value={gameSearch}
+                onChange={(e) => setGameSearch(e.target.value)}
+              />
+            </div>
             <div className="w-64">
               <Label>Game</Label>
               <Select value={gameId} onValueChange={setGameId}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select a game" /></SelectTrigger>
                 <SelectContent>
-                  {fixtureGames.map((g) => (
+                  {searchedGames.map((g) => (
                     <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
                   ))}
+                  {searchedGames.length === 0 && (
+                    <p className="px-2 py-1.5 text-sm text-muted">No games match &quot;{gameSearch}&quot;.</p>
+                  )}
                 </SelectContent>
               </Select>
               {fixtureGames.length === 0 && (

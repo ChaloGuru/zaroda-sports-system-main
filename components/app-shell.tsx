@@ -16,6 +16,7 @@ import {
   CreditCard,
   UserCog,
   ExternalLink,
+  ListOrdered,
   type LucideIcon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -31,7 +32,8 @@ export type IconName =
   | "Inbox"
   | "CreditCard"
   | "UserCog"
-  | "ExternalLink";
+  | "ExternalLink"
+  | "ListOrdered";
 
 // Server Component layouts (admin/dashboard) can't pass icon component
 // references as props into this Client Component - functions aren't
@@ -48,6 +50,7 @@ const ICONS: Record<IconName, LucideIcon> = {
   CreditCard,
   UserCog,
   ExternalLink,
+  ListOrdered,
 };
 
 export interface NavItem {
@@ -56,6 +59,8 @@ export interface NavItem {
   icon: IconName;
   /** Opens in a new tab instead of navigating the app - for links to sites outside Zaroda Sports. */
   external?: boolean;
+  /** Extra blue emphasis for a specific standout link (e.g. the Zaroda School marketing link). */
+  accent?: boolean;
 }
 
 export function AppShell({
@@ -87,7 +92,12 @@ export function AppShell({
                   href={item.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-md border-l-[3px] border-transparent pl-[9px] pr-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-overlay hover:text-foreground"
+                  className={cn(
+                    "flex items-center gap-3 rounded-md border-l-[3px] border-transparent pl-[9px] pr-3 py-2 text-sm font-medium transition-colors hover:bg-surface-overlay",
+                    item.accent
+                      ? "bg-primary/10 text-primary hover:text-primary"
+                      : "text-muted hover:text-foreground",
+                  )}
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
@@ -144,7 +154,10 @@ export function AppShell({
                     href={item.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-muted"
+                    className={cn(
+                      "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium",
+                      item.accent ? "bg-primary/10 text-primary" : "text-muted",
+                    )}
                   >
                     {item.label}
                   </a>
