@@ -92,3 +92,32 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json(body, { status });
   }
 }
+
+/**
+ * Super-admin-only: permanently removes a tenant and, via cascading foreign
+ * keys, every championship (and its games/participants/teams/fixtures),
+ * subscription, and payment transaction it owns. Not exposed to tenant
+ * owners themselves - this is a platform-level action, not a self-service one.
+ */
+export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+  try {
+    const ctx = await requireRole(["SUPER_ADMIN"]);
+
+    const existing = await prisma.tenant.findUnique({ where: { id: params.id } });
+    if (!existing) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
+    await withAudit({
+      actorId: ctx.userId,
+      operation: "DELETE",
+      tableName: "tenants",
+      oldData: existing,
+      mutate: (tx) => tx.tenant.delete({ where: { id: params.id } }),
+      recordId: () => params.id,
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const { body, status } = toErrorResponse(error);
+    return NextResponse.json(body, { status });
+  }
+}
