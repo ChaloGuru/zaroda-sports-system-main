@@ -16,6 +16,7 @@ import { BibRangesPanel } from "@/components/dashboard/bib-ranges-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { ChampionshipSettingsPanel } from "@/components/dashboard/championship-settings-panel";
 import { apiPatch } from "@/lib/api-client";
+import { useSetAppShellLabel } from "@/components/app-shell-context";
 
 export function ChampionshipManager({
   championshipId,
@@ -35,6 +36,7 @@ export function ChampionshipManager({
 }) {
   const router = useRouter();
   const [publishing, setPublishing] = React.useState(false);
+  useSetAppShellLabel(name);
 
   // Participant rows (individual competitors) only ever get created for
   // ATHLETICS/MUSIC games; ball-games/indoor-games (BALL_GAMES, OTHER_GAMES)

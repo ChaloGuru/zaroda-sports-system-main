@@ -38,7 +38,7 @@ interface TeamRow {
 }
 
 function emptyDefaults(championshipId: string, restrictToOrganizationName?: string | null): TournamentTeamInput {
-  return { championshipId, gameId: "", name: restrictToOrganizationName ?? "" };
+  return { championshipId, gameId: "", name: restrictToOrganizationName ?? "", county: "" };
 }
 
 export function TeamsPanel({
@@ -100,7 +100,7 @@ export function TeamsPanel({
       contactName: team.contactName,
       contactEmail: team.contactEmail,
       contactPhone: team.contactPhone,
-      county: team.county,
+      county: team.county ?? "",
     });
     setOpen(true);
   }
@@ -287,11 +287,12 @@ export function TeamsPanel({
               </div>
 
               <div>
-                <Label htmlFor="county">County</Label>
+                <Label htmlFor="county">County *</Label>
                 <Input id="county" className="mt-1.5" {...register("county")} placeholder="e.g. Kisumu" />
+                {errors.county && <p className="mt-1 text-sm text-red-400">{errors.county.message}</p>}
                 <p className="mt-1 text-xs text-muted">
-                  Required for championships below Regional/National level - used to confirm the team is within the
-                  championship's geographic scope.
+                  Used to confirm the team is within the championship's geographic scope for Base/Zone/Sub-County/County
+                  level events.
                 </p>
               </div>
 

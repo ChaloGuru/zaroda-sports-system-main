@@ -97,10 +97,11 @@ describe("gameCreateSchema", () => {
 describe("tournamentTeamSchema", () => {
   // Gender is intentionally absent - it's derived server-side from the
   // team's selected game, not collected on the form.
-  it("accepts a team payload with only name and championshipId", () => {
+  it("accepts a team payload with name, championshipId, and county", () => {
     const result = tournamentTeamSchema.safeParse({
       championshipId: "11111111-1111-1111-1111-111111111111",
       name: "Thunder FC",
+      county: "Kisumu",
     });
     expect(result.success).toBe(true);
   });
@@ -108,12 +109,30 @@ describe("tournamentTeamSchema", () => {
   it("rejects a team payload missing name", () => {
     const result = tournamentTeamSchema.safeParse({
       championshipId: "11111111-1111-1111-1111-111111111111",
+      county: "Kisumu",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a team payload missing county", () => {
+    const result = tournamentTeamSchema.safeParse({
+      championshipId: "11111111-1111-1111-1111-111111111111",
+      name: "Thunder FC",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty-string county", () => {
+    const result = tournamentTeamSchema.safeParse({
+      championshipId: "11111111-1111-1111-1111-111111111111",
+      name: "Thunder FC",
+      county: "",
     });
     expect(result.success).toBe(false);
   });
 
   it("dashboardTournamentTeamSchema requires a gameId, unlike the base schema", () => {
-    const payload = { championshipId: "11111111-1111-1111-1111-111111111111", name: "Thunder FC" };
+    const payload = { championshipId: "11111111-1111-1111-1111-111111111111", name: "Thunder FC", county: "Kisumu" };
     expect(tournamentTeamSchema.safeParse(payload).success).toBe(true);
     expect(dashboardTournamentTeamSchema.safeParse(payload).success).toBe(false);
     expect(
@@ -125,6 +144,7 @@ describe("tournamentTeamSchema", () => {
     const result = tournamentTeamSchema.safeParse({
       championshipId: "11111111-1111-1111-1111-111111111111",
       name: "Thunder FC",
+      county: "Kisumu",
       contactEmail: "",
     });
     expect(result.success).toBe(true);
@@ -134,9 +154,15 @@ describe("tournamentTeamSchema", () => {
     const result = tournamentTeamSchema.safeParse({
       championshipId: "11111111-1111-1111-1111-111111111111",
       name: "Thunder FC",
+      county: "Kisumu",
       contactEmail: "not-an-email",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("tournamentTeamSchema.partial() (used for PATCH) allows omitting county on edits", () => {
+    const result = tournamentTeamSchema.partial().safeParse({ name: "Thunder FC Renamed" });
+    expect(result.success).toBe(true);
   });
 });
 

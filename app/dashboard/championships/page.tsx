@@ -4,13 +4,20 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getAuthContext } from "@/lib/authorize";
+import { getAuthContext, isSuperAdmin } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 
 export default async function DashboardChampionshipsPage() {
   const ctx = await getAuthContext();
-  if (!ctx?.tenantId) redirect("/dashboard");
+  if (!ctx) redirect("/login");
+  // A super admin has no tenant of their own - championships they create are
+  // attached to whichever tenant they picked, so "my tenant's championships"
+  // doesn't apply to them. Send them to the platform-wide list instead of
+  // silently redirecting to an empty /dashboard (the previous behavior, which
+  // made super-admin-created championships appear to simply vanish).
+  if (isSuperAdmin(ctx)) redirect("/admin/championships");
+  if (!ctx.tenantId) redirect("/dashboard");
 
   const championships = await prisma.championship.findMany({
     where: { tenantId: ctx.tenantId },

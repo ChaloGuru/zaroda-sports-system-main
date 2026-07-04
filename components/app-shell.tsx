@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import {
   Trophy,
   LogOut,
@@ -22,6 +22,48 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
+import { AppShellContextProvider, useAppShellLabel } from "@/components/app-shell-context";
+
+function roleLabel(roles: Array<{ role: string; championshipId: string | null }> | undefined): string | null {
+  if (!roles || roles.length === 0) return null;
+  if (roles.some((r) => r.role === "SUPER_ADMIN")) return "Super Admin";
+  if (roles.some((r) => r.role === "TENANT_OWNER")) return "Tenant Owner";
+  const scoped = roles.find((r) => r.championshipId !== null);
+  if (scoped) {
+    return scoped.role
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
+  }
+  return null;
+}
+
+/** Persistent identity + current-championship strip, shown above the page content on every admin/dashboard screen. */
+function IdentityBar() {
+  const { data: session } = useSession();
+  const championshipLabel = useAppShellLabel();
+  const role = roleLabel(session?.user?.roles);
+
+  if (!session?.user && !championshipLabel) return null;
+
+  return (
+    <div className="no-print flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-raised px-6 py-2.5 text-sm">
+      <div className="flex items-center gap-2 text-foreground">
+        {session?.user && (
+          <span className="font-medium">
+            {session.user.name}
+            {role && <span className="ml-1.5 font-normal text-muted">· {role}</span>}
+          </span>
+        )}
+      </div>
+      {championshipLabel && (
+        <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+          <Trophy className="h-3.5 w-3.5" /> {championshipLabel}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export type IconName =
   | "LayoutDashboard"
@@ -78,7 +120,8 @@ export function AppShell({
   const pathname = usePathname();
 
   return (
-    <div className="flex min-h-screen">
+    <AppShellContextProvider>
+      <div className="flex min-h-screen">
       <aside className="no-print hidden w-64 shrink-0 flex-col border-r border-border bg-surface-raised lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-border px-6 font-heading font-extrabold text-foreground">
           <Image src="/images/logo.png" alt="Zaroda Sports" width={144} height={96} className="h-9 w-auto" priority />
@@ -181,8 +224,10 @@ export function AppShell({
             })}
           </nav>
         </header>
+        <IdentityBar />
         <main className="flex-1 bg-background p-6">{children}</main>
       </div>
     </div>
+    </AppShellContextProvider>
   );
 }

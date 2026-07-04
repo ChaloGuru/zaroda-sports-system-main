@@ -216,7 +216,7 @@ export const tournamentTeamSchema = z.object({
   contactEmail: optionalEmail,
   contactPhone: z.string().max(20).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
-  county: z.string().max(100).nullable().optional(),
+  county: z.string().min(1, "County is required").max(100),
 });
 export type TournamentTeamInput = z.infer<typeof tournamentTeamSchema>;
 
