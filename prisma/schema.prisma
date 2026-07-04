@@ -281,14 +281,21 @@ model TournamentTeam {
   // to enforce the championship's geographic scope (see requireGeographicScope
   // in lib/authorize.ts) for BASE/ZONE/SUB_COUNTY/COUNTY-level championships.
   county         String?
+  // Set when this team row was auto-created by promoting a winning team from
+  // a lower-level championship (see /api/tournament-teams/promote) - points
+  // at the origin TournamentTeam row in the other championship, for
+  // traceability beyond just matching on name.
+  promotedFromTeamId String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  championship Championship     @relation(fields: [championshipId], references: [id], onDelete: Cascade)
-  game         Game?            @relation(fields: [gameId], references: [id], onDelete: SetNull)
-  pool         Pool?            @relation(fields: [poolId], references: [id], onDelete: SetNull)
-  participants Participant[]
-  feePayments  TeamFeePayment[]
+  championship  Championship     @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  game          Game?            @relation(fields: [gameId], references: [id], onDelete: SetNull)
+  pool          Pool?            @relation(fields: [poolId], references: [id], onDelete: SetNull)
+  participants  Participant[]
+  feePayments   TeamFeePayment[]
+  promotedFrom  TournamentTeam?  @relation("TeamPromotion", fields: [promotedFromTeamId], references: [id], onDelete: SetNull)
+  promotedTo    TournamentTeam[] @relation("TeamPromotion")
 
   @@unique([championshipId, teamCode])
   @@index([poolId])

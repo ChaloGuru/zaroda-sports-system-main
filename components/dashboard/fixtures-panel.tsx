@@ -17,6 +17,8 @@ import { ShareButton } from "@/components/ui/share-button";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { computeStandings, type BallSport, type MatchResult, type StandingRow } from "@/lib/scoring";
 import { buildResultsShareMessage } from "@/lib/share-message";
+import { isHigherLevel, LEVEL_LABELS } from "@/lib/utils";
+import type { Level } from "@prisma/client";
 
 interface GameOption {
   id: string;
@@ -475,6 +477,99 @@ function PoolSection({
   );
 }
 
+interface ChampionshipOption {
+  id: string;
+  name: string;
+  level: Level;
+}
+
+function PromoteTeamsDialog({ gameId, currentLevel }: { gameId: string; currentLevel: Level | undefined }) {
+  const [open, setOpen] = React.useState(false);
+  const [targetChampionshipId, setTargetChampionshipId] = React.useState("");
+  const [topN, setTopN] = React.useState("1");
+
+  const { data: championshipsData } = useQuery({
+    queryKey: ["championships-picker"],
+    queryFn: () => apiGet<{ championships: ChampionshipOption[] }>("/api/championships"),
+    enabled: open,
+  });
+  const higherLevelChampionships = (championshipsData?.championships ?? []).filter(
+    (c) => currentLevel && isHigherLevel(c.level, currentLevel),
+  );
+
+  const promoteMutation = useMutation({
+    mutationFn: () =>
+      apiPost<{ promoted: Array<{ team: string; created: boolean; rosterCopied: number }> }>("/api/tournament-teams/promote", {
+        gameId,
+        targetChampionshipId,
+        topN: Number(topN),
+      }),
+    onSuccess: (result) => {
+      const createdCount = result.promoted.filter((p) => p.created).length;
+      toast.success(
+        createdCount > 0
+          ? `Promoted ${createdCount} team${createdCount === 1 ? "" : "s"}: ${result.promoted.map((p) => p.team).join(", ")}`
+          : "These teams were already promoted to that championship",
+      );
+      setOpen(false);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to promote teams"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="secondary">
+          <ArrowUpRight className="h-4 w-4" /> Promote top teams
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Promote top teams to a higher level</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Target championship</Label>
+            <Select value={targetChampionshipId} onValueChange={setTargetChampionshipId}>
+              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select a championship" /></SelectTrigger>
+              <SelectContent>
+                {higherLevelChampionships.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name} ({LEVEL_LABELS[c.level]})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {higherLevelChampionships.length === 0 && (
+              <p className="mt-1.5 text-xs text-muted">
+                No higher-level championship found that you manage - create one first (e.g. a Zone-level event) before
+                promoting.
+              </p>
+            )}
+          </div>
+          <div>
+            <Label>How many teams to promote</Label>
+            <Select value={topN} onValueChange={setTopN}>
+              <SelectTrigger className="mt-1.5 w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[1, 2, 3, 4].map((n) => (
+                  <SelectItem key={n} value={String(n)}>Top {n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-muted">
+            A matching game (same category, gender, school level, and sport) must already exist in the target
+            championship. Rosters are copied as an editable starting point - JS/Senior School/Tertiary teams are
+            renamed &quot;{"{"}this championship&apos;s name{"}"} - {"{"}team name{"}"}&quot;; Primary teams keep just their own name.
+          </p>
+          <Button className="w-full" disabled={!targetChampionshipId || promoteMutation.isPending} onClick={() => promoteMutation.mutate()}>
+            {promoteMutation.isPending ? "Promoting..." : "Promote teams"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function FixturesPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   const queryClient = useQueryClient();
   const [gameId, setGameId] = React.useState<string>("");
@@ -484,11 +579,13 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
 
   const { data: championshipData } = useQuery({
     queryKey: ["championship", championshipId],
-    queryFn: () => apiGet<{ championship: { startDate: string; endDate: string } }>(`/api/championships/${championshipId}`),
+    queryFn: () =>
+      apiGet<{ championship: { startDate: string; endDate: string; level: Level } }>(`/api/championships/${championshipId}`),
   });
   const championshipStart = championshipData?.championship.startDate.slice(0, 10);
   const championshipEnd = championshipData?.championship.endDate.slice(0, 10);
   const isMultiDay = !!championshipStart && !!championshipEnd && championshipStart !== championshipEnd;
+  const championshipLevel = championshipData?.championship.level;
 
   const { data: gamesData } = useQuery({
     queryKey: ["games", championshipId],
@@ -672,6 +769,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
             <CardDescription>Select a ball game/team event to manage its pools, fixtures, scores, and live standings.</CardDescription>
           </div>
           <div className="no-print flex flex-wrap items-center gap-2">
+            {gameId && <PromoteTeamsDialog gameId={gameId} currentLevel={championshipLevel} />}
             <PrintButton />
             <ShareButton
               title={selectedGame ? selectedGame.name : championshipName}

@@ -257,6 +257,15 @@ export const advanceRoundSchema = z.object({
 });
 export type AdvanceRoundInput = z.infer<typeof advanceRoundSchema>;
 
+// Promotes the top-N teams from a finished game into a higher-level
+// championship's matching game, renaming/re-rostering them along the way.
+export const promoteTeamsSchema = z.object({
+  gameId: z.string().uuid(),
+  targetChampionshipId: z.string().uuid(),
+  topN: z.number().int().min(1).max(8).default(1),
+});
+export type PromoteTeamsInput = z.infer<typeof promoteTeamsSchema>;
+
 // Bulk-registers a list of participating organizations/schools as a team in
 // every game the championship already has (e.g. 15 schools x 16 games ->
 // 240 teams in one action), instead of creating each org/game combination

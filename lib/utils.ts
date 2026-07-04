@@ -27,6 +27,13 @@ export function withLevelInName(name: string, level: Level): string {
   return `${name.trim()} - ${label}`;
 }
 
+/** Ladder order from lowest to highest competition level. */
+export const LEVEL_ORDER: Level[] = ["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL"];
+
+export function isHigherLevel(candidate: Level, than: Level): boolean {
+  return LEVEL_ORDER.indexOf(candidate) > LEVEL_ORDER.indexOf(than);
+}
+
 export function formatKes(amountKes: number): string {
   return new Intl.NumberFormat("en-KE", {
     style: "currency",
