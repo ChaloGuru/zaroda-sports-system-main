@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     const input = paymentInitializeSchema.parse(body);
     const siteUrl = process.env.PUBLIC_SITE_URL ?? "http://localhost:3000";
     const callbackUrl = `${siteUrl}/payment-success`;
+    console.log(`[initialize] mode=${input.mode} PUBLIC_SITE_URL=${process.env.PUBLIC_SITE_URL ?? "(unset)"} callbackUrl=${callbackUrl}`);
 
     if (input.mode === "subscription") {
       const ctx = await requireAuth();
