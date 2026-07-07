@@ -3,10 +3,12 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { apiPost } from "@/lib/api-client";
+import { apiPost, apiGet } from "@/lib/api-client";
+import { downloadPaymentReceiptPdf } from "@/lib/export-payment-receipt-pdf";
+import type { ReceiptData } from "@/app/api/payments/receipt/route";
 
 interface VerifyResponse {
   success: boolean;
@@ -19,6 +21,7 @@ function PaymentSuccessContent() {
   const reference = searchParams.get("reference") ?? searchParams.get("trxref");
   const [state, setState] = React.useState<"loading" | "success" | "failed">("loading");
   const [message, setMessage] = React.useState("Verifying your payment with Paystack...");
+  const [downloading, setDownloading] = React.useState(false);
 
   React.useEffect(() => {
     if (!reference) {
@@ -38,6 +41,19 @@ function PaymentSuccessContent() {
       });
   }, [reference]);
 
+  async function handleDownloadReceipt() {
+    if (!reference) return;
+    setDownloading(true);
+    try {
+      const receipt = await apiGet<ReceiptData>(`/api/payments/receipt?reference=${encodeURIComponent(reference)}`);
+      await downloadPaymentReceiptPdf(receipt);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not generate receipt");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <Card className="w-full max-w-md text-center">
       <CardHeader className="items-center">
@@ -49,7 +65,13 @@ function PaymentSuccessContent() {
         </CardTitle>
         <CardDescription>{message}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-2">
+        {state === "success" && (
+          <Button variant="outline" className="w-full" onClick={handleDownloadReceipt} disabled={downloading}>
+            {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Download receipt
+          </Button>
+        )}
         <Button asChild className="w-full">
           <Link href="/dashboard">Go to dashboard</Link>
         </Button>

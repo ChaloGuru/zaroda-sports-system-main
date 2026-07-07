@@ -176,6 +176,34 @@ describe("verifyAndRecordPayment", () => {
     expect(result.message).toMatch(/Unknown or missing payment mode/);
   });
 
+  it("does not mark a transaction PAID or activate a subscription when Paystack reports the transaction as abandoned", async () => {
+    verifyPaystackTransactionMock.mockResolvedValue(
+      paystackResponse({ status: "abandoned", gateway_response: "Abandoned", metadata: { mode: "subscription", tenantId: "tenant-1", planId: "plan-1" } }),
+    );
+
+    const result = await verifyAndRecordPayment("ref-abandoned");
+
+    expect(result.success).toBe(false);
+    expect(paymentTransactionUpdate).not.toHaveBeenCalled();
+    expect(championshipSubscriptionCreate).not.toHaveBeenCalled();
+    expect(championshipSubscriptionUpdate).not.toHaveBeenCalled();
+    expect(paymentTransactionUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "FAILED" }) }),
+    );
+  });
+
+  it("propagates an error and activates nothing when Paystack has no record of the reference", async () => {
+    verifyPaystackTransactionMock.mockRejectedValue(new Error("Failed to verify Paystack transaction"));
+
+    await expect(verifyAndRecordPayment("ref-unknown-to-paystack")).rejects.toThrow(
+      "Failed to verify Paystack transaction",
+    );
+
+    expect(paymentTransactionUpdate).not.toHaveBeenCalled();
+    expect(championshipSubscriptionCreate).not.toHaveBeenCalled();
+    expect(championshipSubscriptionUpdate).not.toHaveBeenCalled();
+  });
+
   it("reports failure when the subscription transaction record cannot be found", async () => {
     verifyPaystackTransactionMock.mockResolvedValue(
       paystackResponse({ metadata: { mode: "subscription", tenantId: "tenant-1", planId: "plan-1" } }),

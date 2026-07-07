@@ -114,4 +114,15 @@ describe("POST /api/payments/webhook", () => {
     expect(response.status).toBe(400);
     expect(verifyAndRecordPaymentMock).not.toHaveBeenCalled();
   });
+
+  it("ignores a validly-signed event that is not charge.success, without verifying anything", async () => {
+    const rawBody = JSON.stringify({ event: "charge.attempt", data: { reference: "ref-attempt" } });
+
+    const response = await POST(webhookRequest(rawBody, sign(rawBody)));
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.ignored).toBe(true);
+    expect(verifyAndRecordPaymentMock).not.toHaveBeenCalled();
+  });
 });

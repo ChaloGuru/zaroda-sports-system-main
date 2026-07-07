@@ -23,18 +23,31 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
+  let event: string | undefined;
   let reference: string | undefined;
   try {
-    const payload = JSON.parse(rawBody) as { data?: { reference?: string } };
+    const payload = JSON.parse(rawBody) as { event?: string; data?: { reference?: string } };
+    event = payload.event;
     reference = payload.data?.reference;
   } catch {
     console.error("[webhook] failed to JSON.parse rawBody");
     return NextResponse.json({ error: "Malformed payload" }, { status: 400 });
   }
 
-  console.log(`[webhook] called with reference: ${reference ?? "(missing)"}`);
+  console.log(`[webhook] called with event: ${event ?? "(missing)"} reference: ${reference ?? "(missing)"}`);
   if (!reference) {
     return NextResponse.json({ error: "Missing data.reference" }, { status: 400 });
+  }
+
+  // Only a confirmed successful charge should ever trigger verification. Other
+  // event types (charge.attempt, subscription lifecycle events, etc.) share
+  // the same data.reference shape but do not mean a payment succeeded -
+  // verifyAndRecordPayment's live Paystack re-check is the actual source of
+  // truth, but there's no reason to invoke it for events that can't possibly
+  // represent a completed charge.
+  if (event !== "charge.success") {
+    console.log(`[webhook] ignoring non-charge.success event: ${event ?? "(missing)"}`);
+    return NextResponse.json({ received: true, ignored: true, event }, { status: 200 });
   }
 
   try {
