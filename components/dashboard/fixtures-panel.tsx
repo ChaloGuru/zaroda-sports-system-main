@@ -460,7 +460,7 @@ function PoolSection({
         <FixturesTable
           fixtures={fixtures}
           onChanged={onChanged}
-          emptyMessage="No fixtures yet in this pool - generate a round robin or add one manually above."
+          emptyMessage="No fixtures yet in this pool - generate a round robin or add one manually above. Fixtures are visible to the public as soon as they're added, even before scores are entered, so schedule them ahead of match day."
           showMatchDay={showMatchDay}
         />
         {sport && (
@@ -1017,8 +1017,8 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                 onChanged={refetchAll}
                 emptyMessage={
                   pools.length > 0
-                    ? "No knockout fixtures yet. Once pool standings show who's progressing, add the semi-final/final pairings here."
-                    : "No fixtures yet. Add one manually or generate a round robin above."
+                    ? "No knockout fixtures yet. Once pool standings show who's progressing, add the semi-final/final pairings here. They'll be visible to the public right away, even before scores are entered."
+                    : "No fixtures yet. Add one manually or generate a round robin above - fixtures are visible to the public as soon as they're added, even before scores are entered, so schedule them ahead of match day."
                 }
                 showMatchDay={isMultiDay}
               />

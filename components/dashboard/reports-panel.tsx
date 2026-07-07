@@ -22,6 +22,22 @@ interface RankingRow {
   grandTotal: number;
 }
 
+interface TeamStandingRow {
+  teamId: string;
+  teamName: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  points: number;
+}
+
+interface GameStandings {
+  gameId: string;
+  gameName: string;
+  standings: TeamStandingRow[];
+}
+
 const SCHOOL_LEVEL_FILTERS = [{ value: "OVERALL", label: "Overall" }, ...GAME_SCHOOL_LEVELS];
 
 export function ReportsPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
@@ -34,7 +50,7 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
   async function exportStandings() {
     setExporting(true);
     try {
-      const { standings } = await apiGet<{ standings: RankingRow[] }>(
+      const { standings, teamStandings } = await apiGet<{ standings: RankingRow[]; teamStandings: GameStandings[] }>(
         `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}`,
       );
 
@@ -44,11 +60,41 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
       const contentY = await addPdfLogoHeader(doc);
       doc.setFontSize(14);
       doc.text(`${championshipName} - Official Standings (${schoolLevel.replace("_", " ")})`, 14, contentY + 6);
-      autoTable(doc, {
-        startY: contentY + 12,
-        head: [["Position", "Institution", "Boys Total", "Girls Total", "Grand Total"]],
-        body: standings.map((row) => [row.position, row.schoolName, row.boysTotal, row.girlsTotal, row.grandTotal]),
-      });
+
+      // Athletics events produce Participant.position rows (the `standings`
+      // table); ball-games/indoor-games team fixtures don't - those results
+      // live in `teamStandings` (one table per game) instead. Export whichever
+      // is populated, mirroring the branch the on-screen panel uses.
+      let nextY = contentY + 12;
+      if (standings.length > 0) {
+        autoTable(doc, {
+          startY: nextY,
+          head: [["Position", "Institution", "Boys Total", "Girls Total", "Grand Total"]],
+          body: standings.map((row) => [row.position, row.schoolName, row.boysTotal, row.girlsTotal, row.grandTotal]),
+        });
+      } else if (teamStandings.length > 0) {
+        for (const game of teamStandings) {
+          doc.setFontSize(11);
+          doc.text(game.gameName, 14, nextY);
+          autoTable(doc, {
+            startY: nextY + 4,
+            head: [["#", "Team", "P", "W", "D", "L", "Pts"]],
+            body: game.standings.map((row, index) => [
+              index + 1,
+              row.teamName,
+              row.played,
+              row.won,
+              row.drawn,
+              row.lost,
+              row.points,
+            ]),
+          });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          nextY = (doc as any).lastAutoTable.finalY + 10;
+        }
+      } else {
+        autoTable(doc, { startY: nextY, head: [["Institution", "Boys Total", "Girls Total", "Grand Total"]], body: [] });
+      }
       addPdfFooter(doc);
       doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-standings.pdf`);
     } catch (error) {
