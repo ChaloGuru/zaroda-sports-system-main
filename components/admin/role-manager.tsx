@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Link2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,7 +66,7 @@ export function RoleManager() {
         organizationName: form.role === "TEAM_MANAGER" ? form.organizationName : undefined,
       }),
     onSuccess: () => {
-      toast.success("Role assigned");
+      copyChampionshipLink();
       setForm({ email: "", name: "", password: "", role: "TOURNAMENT_ADMIN", organizationName: "" });
       queryClient.invalidateQueries({ queryKey: ["championship-roles", championshipId] });
     },
@@ -73,6 +74,12 @@ export function RoleManager() {
   });
 
   const championships = championshipsData?.championships ?? [];
+
+  function copyChampionshipLink() {
+    const url = `${window.location.origin}/dashboard/championships/${championshipId}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Link copied - send it to the person you just assigned");
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -178,9 +185,16 @@ export function RoleManager() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Current assignments</CardTitle>
-          <CardDescription>Roles scoped to the selected championship.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>Current assignments</CardTitle>
+            <CardDescription>Roles scoped to the selected championship.</CardDescription>
+          </div>
+          {championshipId && (
+            <Button variant="outline" size="sm" onClick={copyChampionshipLink}>
+              <Link2 className="h-4 w-4" /> Copy championship link
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-2">
           {!championshipId && <p className="text-sm text-muted">Select a championship to view its team.</p>}
