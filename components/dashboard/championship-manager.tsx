@@ -14,6 +14,7 @@ import { FixturesPanel } from "@/components/dashboard/fixtures-panel";
 import { CallRoomPanel } from "@/components/dashboard/call-room-panel";
 import { BibRangesPanel } from "@/components/dashboard/bib-ranges-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
+import { AnalyticsPanel } from "@/components/dashboard/analytics-panel";
 import { ChampionshipSettingsPanel } from "@/components/dashboard/championship-settings-panel";
 import { apiPatch } from "@/lib/api-client";
 import { useSetAppShellLabel } from "@/components/app-shell-context";
@@ -98,6 +99,7 @@ export function ChampionshipManager({
           <TabsTrigger value="call-room">Call Room</TabsTrigger>
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -144,6 +146,12 @@ export function ChampionshipManager({
         <TabsContent value="reports">
           <PanelErrorBoundary fallbackTitle="Reports panel failed to load">
             <ReportsPanel championshipId={championshipId} championshipName={name} />
+          </PanelErrorBoundary>
+        </TabsContent>
+
+        <TabsContent value="analytics">
+          <PanelErrorBoundary fallbackTitle="Analytics panel failed to load">
+            <AnalyticsPanel championshipId={championshipId} />
           </PanelErrorBoundary>
         </TabsContent>
 
