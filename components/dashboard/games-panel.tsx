@@ -27,7 +27,7 @@ interface GameRow {
   isTimed: boolean;
   sport: string | null;
   maxQualifiers: number;
-  _count: { participants: number; heats: number; matchPools: number };
+  _count: { participants: number; tournamentTeams: number; heats: number; matchPools: number };
 }
 
 const GENDERS = ["BOYS", "GIRLS", "MIXED"];
@@ -269,7 +269,9 @@ export function GamesPanel({
               <p className="text-sm text-muted">
                 {gameSchoolLevelLabel(game.schoolLevel)}
                 {game.sport ? ` - ${sportLabel(game.sport)}` : ""} -{" "}
-                {game._count.participants} participants
+                {game.isTimed
+                  ? `${game._count.participants} participant${game._count.participants === 1 ? "" : "s"}`
+                  : `${game._count.tournamentTeams} team${game._count.tournamentTeams === 1 ? "" : "s"}`}
               </p>
             </div>
             <div className="flex items-center gap-2">

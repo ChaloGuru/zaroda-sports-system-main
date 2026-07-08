@@ -335,6 +335,10 @@ function AddFixtureDialog({
           <div>
             <Label>Round name</Label>
             <Input className="mt-1.5" value={roundName} onChange={(e) => setRoundName(e.target.value)} />
+            <p className="mt-1.5 text-xs text-muted">
+              Give simultaneous matches (e.g. two semi-finals in a 4-team pool) the exact same round name - once every
+              match with that name has a winner, &quot;Advance winners&quot; pairs them into the next round automatically.
+            </p>
             {roundPresets && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {roundPresets.map((preset) => (

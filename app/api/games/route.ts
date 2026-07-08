@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const games = await prisma.game.findMany({
       where: { championshipId },
       orderBy: { name: "asc" },
-      include: { _count: { select: { participants: true, heats: true, matchPools: true } } },
+      include: { _count: { select: { participants: true, tournamentTeams: true, heats: true, matchPools: true } } },
     });
 
     return NextResponse.json({ games });
