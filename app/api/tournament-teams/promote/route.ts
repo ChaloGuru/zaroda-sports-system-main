@@ -67,8 +67,12 @@ export async function POST(request: Request) {
     }
     const promotees = standings.slice(0, input.topN);
 
-    const newName = (originTeamName: string) =>
-      originGame.schoolLevel === "PRIMARY" ? originTeamName : `${originGame.championship.name} - ${originTeamName}`;
+    const newName = (originTeamName: string) => {
+      if (originGame.schoolLevel === "PRIMARY") return originTeamName;
+      const prefix = originGame.championship.name;
+      if (originTeamName.toLowerCase().includes(prefix.toLowerCase())) return originTeamName;
+      return `${prefix} - ${originTeamName}`;
+    };
 
     let nextBibNumber: number | null = null;
 
