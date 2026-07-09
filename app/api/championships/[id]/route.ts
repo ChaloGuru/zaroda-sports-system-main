@@ -6,7 +6,6 @@ import {
   isSuperAdmin,
   hasRole,
   requireChampionshipAccess,
-  requireActiveSubscriptionForLevel,
   toErrorResponse,
   AuthorizationError,
 } from "@/lib/authorize";
@@ -52,19 +51,16 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     // necessarily the tenant owner) can edit the championship they're
     // running, not just SUPER_ADMIN/TENANT_OWNER.
     const ctx = await requireChampionshipAccess(params.id, ["TOURNAMENT_ADMIN"]);
-    const isOwner = isSuperAdmin(ctx) || (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === existing.tenantId);
-
     const body: unknown = await request.json();
     const input = championshipUpdateSchema.parse(body);
 
     if (input.level && input.level !== existing.level) {
-      // Changing level affects billing - only the owner (or a super admin)
-      // decides that, not a hired tournament admin.
-      if (!isOwner) {
-        throw new AuthorizationError("Only the tenant owner or a super admin can change a championship's level");
-      }
+      // Changing level affects billing - a tenant owner could otherwise pay
+      // for one championship at a low level, then re-use it at a higher
+      // level without buying a matching plan. Only a super admin may change
+      // the level after creation.
       if (!isSuperAdmin(ctx)) {
-        await requireActiveSubscriptionForLevel(existing.tenantId, input.level);
+        throw new AuthorizationError("Only a super admin can change a championship's level after creation");
       }
       const oldLabel = LEVEL_LABELS[existing.level];
       const baseName = (input.name ?? existing.name).replace(new RegExp(`\\s*-\\s*${oldLabel}$`, "i"), "");

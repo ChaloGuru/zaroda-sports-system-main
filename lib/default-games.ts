@@ -25,4 +25,20 @@ export const PRIMARY_JS_BALL_GAMES_TEMPLATE: DefaultGameTemplate[] = (
       sport,
     })),
   ),
+).concat(
+  (["BOYS", "GIRLS"] as const).map((gender) => ({
+    name: `BASKETBALL ${gender} JS`,
+    gender,
+    schoolLevel: "JS" as const,
+    sport: "BASKETBALL" as const,
+  })),
+).concat(
+  (["BOYS", "GIRLS"] as const).flatMap((gender) =>
+    (["JS", "PRIMARY"] as const).map((schoolLevel) => ({
+      name: `CHESS ${gender} ${schoolLevel}`,
+      gender,
+      schoolLevel,
+      sport: "CHESS" as const,
+    })),
+  ),
 );

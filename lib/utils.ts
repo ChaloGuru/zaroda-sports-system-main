@@ -23,7 +23,8 @@ export const LEVEL_LABELS: Record<Level, string> = {
  */
 export function withLevelInName(name: string, level: Level): string {
   const label = LEVEL_LABELS[level];
-  if (name.toLowerCase().includes(label.toLowerCase())) return name;
+  const normalized = name.toLowerCase().replace(/-/g, " ");
+  if (normalized.includes(label.toLowerCase().replace(/-/g, " "))) return name;
   return `${name.trim()} - ${label}`;
 }
 
