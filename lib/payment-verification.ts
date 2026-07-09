@@ -62,7 +62,13 @@ export async function verifyAndRecordPayment(reference: string): Promise<VerifyR
       if (existingSub) {
         await tx.championshipSubscription.update({
           where: { id: existingSub.id },
-          data: { status: "ACTIVE", paidAt: now, expiresAt, amountPaidKes: transaction.amountKes },
+          data: {
+            status: "ACTIVE",
+            paidAt: now,
+            expiresAt,
+            amountPaidKes: transaction.amountKes,
+            paystackReference: transaction.paystackReference,
+          },
         });
       } else {
         await tx.championshipSubscription.create({
@@ -76,6 +82,7 @@ export async function verifyAndRecordPayment(reference: string): Promise<VerifyR
             paidAt: now,
             expiresAt,
             amountPaidKes: transaction.amountKes,
+            paystackReference: transaction.paystackReference,
           },
         });
       }

@@ -5,11 +5,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
+import { DownloadReceiptButton } from "@/components/payments/download-receipt-button";
 
 export default async function AdminChampionshipsPage() {
   const championships = await prisma.championship.findMany({
     orderBy: { createdAt: "desc" },
-    include: { tenant: { select: { organizationName: true } }, _count: { select: { games: true, participants: true } } },
+    include: {
+      tenant: { select: { organizationName: true } },
+      _count: { select: { games: true, participants: true } },
+      subscriptions: {
+        where: { paidAt: { not: null }, paystackReference: { not: null } },
+        orderBy: { paidAt: "desc" },
+        take: 1,
+        select: { paystackReference: true },
+      },
+    },
   });
 
   return (
@@ -38,6 +48,9 @@ export default async function AdminChampionshipsPage() {
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
                   <Badge variant={c.isPublished ? "success" : "outline"}>{c.isPublished ? "Published" : "Draft"}</Badge>
+                  {c.subscriptions[0]?.paystackReference && (
+                    <DownloadReceiptButton reference={c.subscriptions[0].paystackReference} />
+                  )}
                 </div>
               </CardContent>
             </Card>

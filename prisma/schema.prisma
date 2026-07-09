@@ -484,6 +484,7 @@ model ChampionshipSubscription {
   paidAt         DateTime?
   expiresAt      DateTime?
   amountPaidKes  Int?
+  paystackReference String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
