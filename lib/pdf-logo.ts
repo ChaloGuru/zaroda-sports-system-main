@@ -23,6 +23,14 @@ export async function addPdfLogoHeader(doc: jsPDF): Promise<number> {
   if (!cachedLogoDataUrl) cachedLogoDataUrl = loadLogoDataUrl();
   const dataUrl = await cachedLogoDataUrl;
   doc.addImage(dataUrl, "PNG", 14, 8, 30, 20);
+
+  doc.setFontSize(13);
+  doc.setTextColor(20);
+  doc.text("Zaroda Solutions", 48, 16);
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  doc.text("0781230805  |  zarodasports.live", 48, 22);
+
   return 34;
 }
 

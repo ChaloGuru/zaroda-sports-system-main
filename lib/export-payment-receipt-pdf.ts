@@ -14,7 +14,7 @@ export async function downloadPaymentReceiptPdf(receipt: ReceiptData): Promise<v
   const paidAt = receipt.paidAt ? new Date(receipt.paidAt) : null;
   const rows: [string, string][] = [
     ["Reference", receipt.reference],
-    ["Paid to", receipt.payerName],
+    ["Paid by", receipt.payerName],
     ["Description", receipt.description],
     ["Amount", `KES ${receipt.amountKes.toLocaleString()}`],
     ["Status", receipt.status],
