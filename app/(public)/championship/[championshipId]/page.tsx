@@ -15,6 +15,7 @@ export default async function ChampionshipPage({ params }: { params: { champions
       tenant: { select: { organizationName: true } },
       games: { orderBy: { name: "asc" } },
       tournamentTeams: { orderBy: { name: "asc" } },
+      circulars: { orderBy: { createdAt: "desc" }, include: { postedBy: { select: { name: true } } } },
     },
   });
 
@@ -69,6 +70,13 @@ export default async function ChampionshipPage({ params }: { params: { champions
           isTimed: g.isTimed,
         }))}
         teams={uniqueTeams.map((t) => ({ id: t.id, name: t.name, teamCode: t.teamCode }))}
+        circulars={championship.circulars.map((c) => ({
+          id: c.id,
+          title: c.title,
+          body: c.body,
+          createdAt: c.createdAt.toISOString(),
+          postedByName: c.postedBy.name,
+        }))}
       />
     </div>
   );

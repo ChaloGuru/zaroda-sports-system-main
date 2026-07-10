@@ -16,6 +16,7 @@ import { BibRangesPanel } from "@/components/dashboard/bib-ranges-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { AnalyticsPanel } from "@/components/dashboard/analytics-panel";
 import { ChampionshipSettingsPanel } from "@/components/dashboard/championship-settings-panel";
+import { CircularsPanel } from "@/components/dashboard/circulars-panel";
 import { apiPatch } from "@/lib/api-client";
 import { useSetAppShellLabel } from "@/components/app-shell-context";
 
@@ -100,6 +101,7 @@ export function ChampionshipManager({
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="circulars">Circulars</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -152,6 +154,12 @@ export function ChampionshipManager({
         <TabsContent value="analytics">
           <PanelErrorBoundary fallbackTitle="Analytics panel failed to load">
             <AnalyticsPanel championshipId={championshipId} />
+          </PanelErrorBoundary>
+        </TabsContent>
+
+        <TabsContent value="circulars">
+          <PanelErrorBoundary fallbackTitle="Circulars panel failed to load">
+            <CircularsPanel championshipId={championshipId} />
           </PanelErrorBoundary>
         </TabsContent>
 

@@ -332,3 +332,10 @@ export const championshipFeeSchema = z.object({
   isRequired: z.boolean().default(true),
 });
 export type ChampionshipFeeInput = z.infer<typeof championshipFeeSchema>;
+
+export const championshipCircularSchema = z.object({
+  championshipId: z.string().uuid(),
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(5000),
+});
+export type ChampionshipCircularInput = z.infer<typeof championshipCircularSchema>;

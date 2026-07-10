@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { Megaphone } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GenderBadge } from "@/components/ui/gender-badge";
 import { StandingsPanel } from "@/components/championship/standings-panel";
+import { formatDate } from "@/lib/utils";
 
 interface GameSummary {
   id: string;
@@ -22,16 +24,26 @@ interface TeamSummary {
   teamCode: string | null;
 }
 
+interface CircularSummary {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  postedByName: string;
+}
+
 export function ChampionshipTabs({
   championshipId,
   championshipName,
   games,
   teams,
+  circulars,
 }: {
   championshipId: string;
   championshipName: string;
   games: GameSummary[];
   teams: TeamSummary[];
+  circulars: CircularSummary[];
 }) {
   return (
     <Tabs defaultValue="games" className="mt-8">
@@ -39,6 +51,7 @@ export function ChampionshipTabs({
         <TabsTrigger value="games">Games</TabsTrigger>
         <TabsTrigger value="standings">Standings</TabsTrigger>
         <TabsTrigger value="teams">Teams / Schools</TabsTrigger>
+        <TabsTrigger value="circulars">Circulars</TabsTrigger>
       </TabsList>
 
       <TabsContent value="games">
@@ -73,6 +86,28 @@ export function ChampionshipTabs({
                 <CardTitle>{team.name}</CardTitle>
                 {team.teamCode && <p className="text-sm text-muted">Code: {team.teamCode}</p>}
               </CardHeader>
+            </Card>
+          ))}
+        </div>
+      </TabsContent>
+
+      <TabsContent value="circulars">
+        <div className="space-y-4">
+          {circulars.length === 0 && <p className="text-muted">No circulars posted yet.</p>}
+          {circulars.map((c) => (
+            <Card key={c.id}>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Megaphone className="h-4 w-4 text-primary" />
+                  <CardTitle>{c.title}</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap text-sm text-muted">{c.body}</p>
+                <p className="mt-3 text-xs text-muted">
+                  Posted by {c.postedByName} on {formatDate(c.createdAt)}
+                </p>
+              </CardContent>
             </Card>
           ))}
         </div>

@@ -141,6 +141,7 @@ model User {
   receivedMessages     AdminMessage[] @relation("MessageRecipient")
   notifications        Notification[]
   auditLogs            AuditLog[]
+  postedCirculars      ChampionshipCircular[]
 
   @@map("users")
 }
@@ -219,6 +220,7 @@ model Championship {
   subscriptions   ChampionshipSubscription[]
   fees            ChampionshipFee[]
   teamFeePayments TeamFeePayment[]
+  circulars       ChampionshipCircular[]
 
   @@index([tenantId])
   @@map("championships")
@@ -530,6 +532,22 @@ model ChampionshipFee {
 
   @@index([championshipId])
   @@map("championship_fees")
+}
+
+model ChampionshipCircular {
+  id             String   @id @default(uuid())
+  championshipId String
+  title          String
+  body           String
+  postedById     String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  championship Championship @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  postedBy     User         @relation(fields: [postedById], references: [id])
+
+  @@index([championshipId])
+  @@map("championship_circulars")
 }
 
 model TeamFeePayment {
