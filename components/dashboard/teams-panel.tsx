@@ -5,7 +5,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,6 +56,7 @@ export function TeamsPanel({
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [bulkOpen, setBulkOpen] = React.useState(false);
   const [bulkText, setBulkText] = React.useState("");
+  const [search, setSearch] = React.useState("");
 
   const { data: gamesData } = useQuery({
     queryKey: ["games", championshipId],
@@ -67,9 +68,20 @@ export function TeamsPanel({
     queryKey: ["tournament-teams", championshipId],
     queryFn: () => apiGet<{ teams: TeamRow[] }>(`/api/tournament-teams?championshipId=${championshipId}`),
   });
-  const visibleTeams = restrictToOrganizationName
+  const scopedTeams = restrictToOrganizationName
     ? (data?.teams ?? []).filter((t) => t.name.trim().toLowerCase() === restrictToOrganizationName.trim().toLowerCase())
     : (data?.teams ?? []);
+  const searchQuery = search.trim().toLowerCase();
+  const visibleTeams = searchQuery
+    ? scopedTeams.filter((t) => {
+        const game = games.find((g) => g.id === t.gameId);
+        return (
+          t.name.toLowerCase().includes(searchQuery) ||
+          (game?.name.toLowerCase().includes(searchQuery) ?? false) ||
+          (t.teamCode?.toLowerCase().includes(searchQuery) ?? false)
+        );
+      })
+    : scopedTeams;
 
   const {
     register,
@@ -308,8 +320,20 @@ export function TeamsPanel({
         {games.length === 0 && (
           <p className="text-muted">Add a game in the Games tab first - teams register for a specific game.</p>
         )}
+        {games.length > 0 && scopedTeams.length > 0 && (
+          <div className="relative mb-2">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <Input
+              className="pl-8"
+              placeholder="Search by team, game, or code..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        )}
         {isLoading && <p className="text-muted">Loading teams...</p>}
-        {!isLoading && games.length > 0 && visibleTeams.length === 0 && <p className="text-muted">No teams yet. Add your first team.</p>}
+        {!isLoading && games.length > 0 && scopedTeams.length === 0 && <p className="text-muted">No teams yet. Add your first team.</p>}
+        {!isLoading && scopedTeams.length > 0 && visibleTeams.length === 0 && <p className="text-muted">No teams match your search.</p>}
         {visibleTeams.map((team) => (
           <div key={team.id} className="flex items-center justify-between rounded-md border border-border p-3">
             <div>

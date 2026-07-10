@@ -6,6 +6,8 @@ export interface GameStandingsPdfRow {
   won: number;
   drawn: number;
   lost: number;
+  gf: number;
+  ga: number;
   gd: number;
   points: number;
 }
@@ -24,8 +26,8 @@ export async function downloadGameStandingsPdf(
   doc.text(`${championshipName} - ${gameName} Standings`, 14, contentY + 6);
   autoTable(doc, {
     startY: contentY + 12,
-    head: [["Team", "P", "W", "D", "L", "+/-", "Pts"]],
-    body: rows.map((row) => [row.teamName, row.played, row.won, row.drawn, row.lost, row.gd, row.points]),
+    head: [["Team", "P", "W", "D", "L", "GF", "GA", "GD", "Pts"]],
+    body: rows.map((row) => [row.teamName, row.played, row.won, row.drawn, row.lost, row.gf, row.ga, row.gd, row.points]),
   });
   addPdfFooter(doc);
   doc.save(`${gameName.replace(/\s+/g, "-").toLowerCase()}-standings.pdf`);

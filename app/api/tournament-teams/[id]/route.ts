@@ -29,6 +29,20 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       return NextResponse.json({ error: "Team managers cannot rename their organization" }, { status: 403 });
     }
 
+    const nextName = input.name ?? existing.name;
+    const nextGameId = input.gameId !== undefined ? input.gameId : existing.gameId;
+    const duplicate = await prisma.tournamentTeam.findFirst({
+      where: {
+        id: { not: params.id },
+        championshipId: existing.championshipId,
+        gameId: nextGameId ?? null,
+        name: { equals: nextName.trim(), mode: "insensitive" },
+      },
+    });
+    if (duplicate) {
+      return NextResponse.json({ error: "A team with this name is already registered for this game" }, { status: 409 });
+    }
+
     const updated = await withAudit({
       actorId: ctx.userId,
       operation: "UPDATE",

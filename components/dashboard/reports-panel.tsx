@@ -13,6 +13,7 @@ import { GAME_SCHOOL_LEVELS } from "@/lib/school-levels";
 import { addPdfLogoHeader, addPdfFooter } from "@/lib/pdf-logo";
 import { buildResultsShareMessage } from "@/lib/share-message";
 import { downloadOrganizationRankingsPdf, type OrganizationRankingPdfRow } from "@/lib/export-organization-rankings-pdf";
+import { downloadJsGameWinnersPdf } from "@/lib/export-js-game-winners-pdf";
 
 interface RankingRow {
   position: number;
@@ -29,12 +30,17 @@ interface TeamStandingRow {
   won: number;
   drawn: number;
   lost: number;
+  gf: number;
+  ga: number;
+  gd: number;
   points: number;
 }
 
 interface GameStandings {
   gameId: string;
   gameName: string;
+  gender: string;
+  sport: string;
   standings: TeamStandingRow[];
 }
 
@@ -44,6 +50,7 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
   const [schoolLevel, setSchoolLevel] = React.useState("OVERALL");
   const [exporting, setExporting] = React.useState(false);
   const [exportingRankings, setExportingRankings] = React.useState(false);
+  const [exportingJsWinners, setExportingJsWinners] = React.useState(false);
 
   const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/championship/${championshipId}` : "";
 
@@ -78,7 +85,7 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
           doc.text(game.gameName, 14, nextY);
           autoTable(doc, {
             startY: nextY + 4,
-            head: [["#", "Team", "P", "W", "D", "L", "Pts"]],
+            head: [["#", "Team", "P", "W", "D", "L", "GF", "GA", "GD", "Pts"]],
             body: game.standings.map((row, index) => [
               index + 1,
               row.teamName,
@@ -86,6 +93,9 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
               row.won,
               row.drawn,
               row.lost,
+              row.gf,
+              row.ga,
+              row.gd,
               row.points,
             ]),
           });
@@ -116,6 +126,32 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
       toast.error(error instanceof Error ? error.message : "Failed to export rankings");
     } finally {
       setExportingRankings(false);
+    }
+  }
+
+  async function exportJsGameWinners() {
+    setExportingJsWinners(true);
+    try {
+      const { teamStandings } = await apiGet<{ teamStandings: GameStandings[] }>(
+        `/api/rankings?championshipId=${championshipId}&schoolLevel=JS`,
+      );
+      const rows = teamStandings
+        .filter((game) => game.standings.length > 0)
+        .map((game) => ({
+          gameName: game.gameName,
+          sport: game.sport,
+          gender: game.gender,
+          winningTeam: game.standings[0]!.teamName,
+        }));
+      if (rows.length === 0) {
+        toast.error("No JS ball games with results yet");
+        return;
+      }
+      await downloadJsGameWinnersPdf(championshipName, rows);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to export JS game winners");
+    } finally {
+      setExportingJsWinners(false);
     }
   }
 
@@ -151,6 +187,9 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
         </Button>
         <Button variant="secondary" onClick={exportOrganizationRankings} disabled={exportingRankings}>
           <FileDown className="h-4 w-4" /> {exportingRankings ? "Exporting..." : "Export organization rankings (PDF)"}
+        </Button>
+        <Button variant="secondary" onClick={exportJsGameWinners} disabled={exportingJsWinners}>
+          <FileDown className="h-4 w-4" /> {exportingJsWinners ? "Exporting..." : "Download JS ball games winners (PDF)"}
         </Button>
       </CardContent>
     </Card>

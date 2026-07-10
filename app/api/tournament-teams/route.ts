@@ -58,6 +58,17 @@ export async function POST(request: Request) {
     }
     // else: unauthenticated public self-registration (open-tournament teams paying their own entry fee)
 
+    const duplicate = await prisma.tournamentTeam.findFirst({
+      where: {
+        championshipId: input.championshipId,
+        gameId: input.gameId ?? null,
+        name: { equals: input.name.trim(), mode: "insensitive" },
+      },
+    });
+    if (duplicate) {
+      return NextResponse.json({ error: "A team with this name is already registered for this game" }, { status: 409 });
+    }
+
     const team = await withAudit({
       actorId: ctx?.userId ?? null,
       operation: "INSERT",

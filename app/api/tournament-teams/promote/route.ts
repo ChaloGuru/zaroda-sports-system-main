@@ -90,6 +90,25 @@ export async function POST(request: Request) {
         continue;
       }
 
+      const targetName = newName(originTeam.name);
+      // A bare zone-name team (e.g. "OSOSGO ZONE" with no " - School" suffix)
+      // already sitting in this game means someone added the zone itself as
+      // an organization before any of its schools were promoted - creating
+      // "OSOSGO ZONE - Oyani sch" alongside it would just look like a
+      // duplicate on the public Teams/Schools page. Skip and let the admin
+      // reconcile (rename or delete) the existing row manually instead.
+      const zonePlaceholder = await prisma.tournamentTeam.findFirst({
+        where: {
+          championshipId: input.targetChampionshipId,
+          gameId: targetGame.id,
+          name: { equals: originGame.championship.name, mode: "insensitive" },
+        },
+      });
+      if (zonePlaceholder && targetName !== originTeam.name) {
+        promoted.push({ team: `${originTeam.name} (skipped - "${zonePlaceholder.name}" already exists in this game)`, created: false, rosterCopied: 0 });
+        continue;
+      }
+
       if (isGeographicallyRestricted(targetChampionship.level)) {
         assertWithinGeographicScope(targetChampionship.county, originTeam.county);
       }

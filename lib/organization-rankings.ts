@@ -36,7 +36,12 @@ export async function computeOrganizationRankings(
 
   const points = new Map<string, number>();
   const addPoints = (rawName: string, amount: number) => {
-    const name = rawName.trim();
+    // Team promotion (see app/api/tournament-teams/promote) renames a
+    // promoted team "{Origin Zone} - {Team Name}" to keep its lineage
+    // visible. For the organization leaderboard that suffix should NOT
+    // create a separate entry - its points belong to the parent zone/org.
+    const trimmed = rawName.trim();
+    const name = trimmed.includes(" - ") ? trimmed.split(" - ")[0]!.trim() : trimmed;
     if (!name || amount === 0) return;
     points.set(name, (points.get(name) ?? 0) + amount);
   };

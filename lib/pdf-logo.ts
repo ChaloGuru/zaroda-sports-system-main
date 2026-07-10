@@ -1,6 +1,7 @@
 import type jsPDF from "jspdf";
 
 let cachedLogoDataUrl: Promise<string> | null = null;
+let cachedHeaderLogoDataUrl: Promise<string> | null = null;
 
 async function loadLogoDataUrl(): Promise<string> {
   const response = await fetch("/images/logo.png");
@@ -14,14 +15,45 @@ async function loadLogoDataUrl(): Promise<string> {
 }
 
 /**
+ * Downscales the source logo to a small header-sized raster before jsPDF
+ * embeds it. jsPDF embeds images at their native pixel dimensions regardless
+ * of the mm size they're drawn at, so feeding it the full-resolution source
+ * (used for on-screen display) bloated every exported PDF by several MB.
+ */
+async function loadHeaderLogoDataUrl(): Promise<string> {
+  const dataUrl = await loadLogoDataUrl();
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+
+  // Header is drawn at 30x20mm; a ~180x120px raster (6x that at typical print
+  // density) is more than enough detail and keeps the embedded image tiny.
+  const maxSrc = 180;
+  const scale = Math.min(1, maxSrc / Math.max(img.width, img.height));
+  const drawW = Math.round(img.width * scale);
+  const drawH = Math.round(img.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = drawW;
+  canvas.height = drawH;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0, drawW, drawH);
+
+  return canvas.toDataURL("image/png");
+}
+
+/**
  * Stamps the Zaroda Sports logo in the top-left of a jsPDF document and
  * returns the Y position (mm) below it where the rest of the page content
  * should start. Caches the fetched logo across calls within a session so
  * exporting several reports in a row only fetches it once.
  */
 export async function addPdfLogoHeader(doc: jsPDF): Promise<number> {
-  if (!cachedLogoDataUrl) cachedLogoDataUrl = loadLogoDataUrl();
-  const dataUrl = await cachedLogoDataUrl;
+  if (!cachedHeaderLogoDataUrl) cachedHeaderLogoDataUrl = loadHeaderLogoDataUrl();
+  const dataUrl = await cachedHeaderLogoDataUrl;
   doc.addImage(dataUrl, "PNG", 14, 8, 30, 20);
 
   doc.setFontSize(13);

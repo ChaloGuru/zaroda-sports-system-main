@@ -121,7 +121,9 @@ function TeamStandingsTable({ game }: { game: GameStandings }) {
               <TableHead>W</TableHead>
               <TableHead>D</TableHead>
               <TableHead>L</TableHead>
-              <TableHead>+/-</TableHead>
+              <TableHead>GF</TableHead>
+              <TableHead>GA</TableHead>
+              <TableHead>GD</TableHead>
               <TableHead>Pts</TableHead>
             </TableRow>
           </TableHeader>
@@ -149,13 +151,15 @@ function TeamStandingsTable({ game }: { game: GameStandings }) {
                 <TableCell className="font-mono tabular-nums">{row.won}</TableCell>
                 <TableCell className="font-mono tabular-nums">{row.drawn}</TableCell>
                 <TableCell className="font-mono tabular-nums">{row.lost}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.gf}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.ga}</TableCell>
                 <TableCell className="font-mono tabular-nums">{row.gd}</TableCell>
                 <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.points}</TableCell>
               </TableRow>
             ))}
             {game.standings.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted">No fixtures played yet.</TableCell>
+                <TableCell colSpan={10} className="text-center text-muted">No fixtures played yet.</TableCell>
               </TableRow>
             )}
           </TableBody>
