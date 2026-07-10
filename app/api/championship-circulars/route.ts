@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
       newData: input,
     });
 
+    revalidatePath(`/championship/${input.championshipId}`);
     return NextResponse.json({ circular }, { status: 201 });
   } catch (error) {
     const { body, status } = toErrorResponse(error);

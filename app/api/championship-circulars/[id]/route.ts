@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
@@ -21,6 +22,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
       recordId: () => params.id,
     });
 
+    revalidatePath(`/championship/${existing.championshipId}`);
     return NextResponse.json({ success: true });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
