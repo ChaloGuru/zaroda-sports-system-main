@@ -41,8 +41,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
-      <Card className="w-full max-w-md">
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden py-16">
+      <Image
+        src="/images/team-bg.png"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover object-top"
+      />
+      <div className="absolute inset-0 bg-[#0A1633]/70" />
+      <Card className="relative w-full max-w-md border-white/10 bg-background/95 shadow-2xl backdrop-blur-sm">
         <CardHeader className="items-center text-center">
           <Image src="/images/logo.png" alt="Zaroda Sports Management System" width={216} height={144} className="h-16 w-auto" priority />
           <CardTitle>Log in to Zaroda Sports</CardTitle>
