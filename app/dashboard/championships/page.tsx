@@ -12,12 +12,12 @@ import { DownloadReceiptButton } from "@/components/payments/download-receipt-bu
 export default async function DashboardChampionshipsPage() {
   const ctx = await getAuthContext();
   if (!ctx) redirect("/login");
-  // A super admin has no tenant of their own - championships they create are
-  // attached to whichever tenant they picked, so "my tenant's championships"
-  // doesn't apply to them. Send them to the platform-wide list instead of
-  // silently redirecting to an empty /dashboard (the previous behavior, which
-  // made super-admin-created championships appear to simply vanish).
-  if (isSuperAdmin(ctx)) redirect("/admin/championships");
+  // A super admin with no tenant of their own has nothing to scope this list
+  // to - send them to the platform-wide list instead of silently redirecting
+  // to an empty /dashboard. A super admin who IS also tied to a tenant (e.g.
+  // their account has a tenantId) still gets their own tenant's list here,
+  // same as any tenant owner.
+  if (isSuperAdmin(ctx) && !ctx.tenantId) redirect("/admin/championships");
   if (!ctx.tenantId) redirect("/dashboard");
 
   const championships = await prisma.championship.findMany({

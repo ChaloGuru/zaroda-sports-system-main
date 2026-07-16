@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { DownloadReceiptButton } from "@/components/payments/download-receipt-button";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminChampionshipsPage() {
   const championships = await prisma.championship.findMany({
     orderBy: { createdAt: "desc" },
