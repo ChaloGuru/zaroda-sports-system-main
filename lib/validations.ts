@@ -9,7 +9,7 @@ const optionalUrl = z.preprocess(emptyToUndefined, z.string().url().nullable().o
 
 export const accountTypeSchema = z.enum(["SCHOOL", "OPEN_TOURNAMENT"]);
 export const gameCategorySchema = z.enum(["BALL_GAMES", "ATHLETICS", "MUSIC", "OTHER_GAMES"]);
-export const levelSchema = z.enum(["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL"]);
+export const levelSchema = z.enum(["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL", "OPEN_TOURNAMENT"]);
 // Championship.schoolLevel is the subscription/pricing tier - only ever one of
 // these three values (Primary and Junior Secondary are bundled as one tier).
 export const schoolLevelSchema = z.enum(["PRIMARY_JS", "SENIOR_SCHOOL", "TERTIARY"]);

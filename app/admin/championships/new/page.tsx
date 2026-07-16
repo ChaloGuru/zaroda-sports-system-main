@@ -20,7 +20,7 @@ interface TenantOption {
   organizationName: string;
 }
 
-const LEVELS = ["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL"];
+const LEVELS = ["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL", "OPEN_TOURNAMENT"];
 const CATEGORIES = ["BALL_GAMES", "ATHLETICS", "MUSIC", "OTHER_GAMES"];
 
 export default function AdminNewChampionshipPage() {

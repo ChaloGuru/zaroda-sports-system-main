@@ -8,7 +8,8 @@ const ESSENTIAL_PLANS: Array<{ displayName: string; level: Level; priceKes: numb
   { displayName: "Essential - Sub-County", level: Level.SUB_COUNTY, priceKes: 1160 },
   { displayName: "Essential - County", level: Level.COUNTY, priceKes: 2320 },
   { displayName: "Essential - Regional", level: Level.REGIONAL, priceKes: 3480 },
-  { displayName: "Essential - National / Open Tournament", level: Level.NATIONAL, priceKes: 5800 },
+  { displayName: "Essential - National", level: Level.NATIONAL, priceKes: 5800 },
+  { displayName: "Essential - Open Tournament", level: Level.OPEN_TOURNAMENT, priceKes: 5800 },
 ];
 
 async function seedSubscriptionPlans() {

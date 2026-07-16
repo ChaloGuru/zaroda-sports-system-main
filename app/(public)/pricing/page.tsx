@@ -18,7 +18,8 @@ const ESSENTIAL_TIERS = [
   { level: "Sub-County", priceKes: 1160 },
   { level: "County", priceKes: 2320 },
   { level: "Regional", priceKes: 3480 },
-  { level: "National / Open Tournament", priceKes: 5800 },
+  { level: "National", priceKes: 5800 },
+  { level: "Open Tournament", priceKes: 5800 },
 ];
 
 const FEATURES = [

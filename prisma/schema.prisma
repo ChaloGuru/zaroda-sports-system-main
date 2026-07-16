@@ -62,6 +62,10 @@ enum Level {
   COUNTY
   REGIONAL
   NATIONAL
+  // A standalone open tournament (accountType OPEN_TOURNAMENT) - not part of
+  // the school competition ladder above, so it's excluded from LEVEL_ORDER/
+  // isHigherLevel and geographic restriction (lib/utils.ts, lib/authorize.ts).
+  OPEN_TOURNAMENT
 }
 
 // Championship.schoolLevel only ever uses PRIMARY_JS / SENIOR_SCHOOL / TERTIARY

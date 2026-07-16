@@ -13,6 +13,7 @@ export const LEVEL_LABELS: Record<Level, string> = {
   COUNTY: "County",
   REGIONAL: "Regional",
   NATIONAL: "National",
+  OPEN_TOURNAMENT: "Open Tournament",
 };
 
 /**
