@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPatch, apiDelete } from "@/lib/api-client";
 
 interface ChampionshipDetail {
@@ -18,13 +19,65 @@ interface ChampionshipDetail {
   location: string;
   startDate: string;
   endDate: string;
+  tenant: { id: string; organizationName: string };
+}
+
+interface TenantOption {
+  id: string;
+  organizationName: string;
 }
 
 function toDateInput(value: string): string {
   return value.slice(0, 10);
 }
 
-export function ChampionshipSettingsPanel({ championshipId }: { championshipId: string }) {
+function TransferTenantCard({ championshipId, currentTenant }: { championshipId: string; currentTenant: { id: string; organizationName: string } }) {
+  const router = useRouter();
+  const [tenantId, setTenantId] = React.useState("");
+
+  const { data: tenants } = useQuery({
+    queryKey: ["admin-tenants-lite"],
+    queryFn: () => apiGet<{ tenants: TenantOption[] }>("/api/tenants"),
+  });
+
+  const transferMutation = useMutation({
+    mutationFn: () => apiPatch(`/api/championships/${championshipId}`, { tenantId }),
+    onSuccess: () => {
+      toast.success("Championship transferred");
+      router.refresh();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to transfer championship"),
+  });
+
+  const options = (tenants?.tenants ?? []).filter((t) => t.id !== currentTenant.id);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Transfer to a tenant</CardTitle>
+        <CardDescription>
+          Currently owned by <strong>{currentTenant.organizationName}</strong>. Use this if this championship was created
+          ahead of time and the actual tenant has since subscribed.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Select value={tenantId} onValueChange={setTenantId}>
+          <SelectTrigger><SelectValue placeholder="Select destination tenant" /></SelectTrigger>
+          <SelectContent>
+            {options.map((t) => (
+              <SelectItem key={t.id} value={t.id}>{t.organizationName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button disabled={!tenantId || transferMutation.isPending} onClick={() => transferMutation.mutate()}>
+          {transferMutation.isPending ? "Transferring..." : "Transfer championship"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ChampionshipSettingsPanel({ championshipId, isSuperAdmin }: { championshipId: string; isSuperAdmin?: boolean }) {
   const router = useRouter();
   const [deleting, setDeleting] = React.useState(false);
 
@@ -120,6 +173,10 @@ export function ChampionshipSettingsPanel({ championshipId }: { championshipId: 
           </Button>
         </CardContent>
       </Card>
+
+      {isSuperAdmin && data?.championship.tenant && (
+        <TransferTenantCard championshipId={championshipId} currentTenant={data.championship.tenant} />
+      )}
 
       <Card className="border-destructive/40">
         <CardHeader>

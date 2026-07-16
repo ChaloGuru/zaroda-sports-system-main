@@ -54,6 +54,17 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const body: unknown = await request.json();
     const input = championshipUpdateSchema.parse(body);
 
+    if (input.tenantId && input.tenantId !== existing.tenantId) {
+      // Reassigning the owning tenant is a super-admin-only move: it's how a
+      // championship a super admin created ahead of time (before the real
+      // tenant had subscribed) gets handed off to them afterwards.
+      if (!isSuperAdmin(ctx)) {
+        throw new AuthorizationError("Only a super admin can transfer a championship to another tenant");
+      }
+      const targetTenant = await prisma.tenant.findUnique({ where: { id: input.tenantId } });
+      if (!targetTenant) throw new AuthorizationError("Target tenant not found", 400);
+    }
+
     if (input.level && input.level !== existing.level) {
       // Changing level affects billing - a tenant owner could otherwise pay
       // for one championship at a low level, then re-use it at a higher

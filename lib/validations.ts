@@ -81,8 +81,13 @@ export const championshipCreateSchema = championshipFieldsSchema.refine(
 export type ChampionshipCreateInput = z.infer<typeof championshipCreateSchema>;
 
 // Used for PATCH: all fields optional, without the cross-field refine (partial
-// updates may only touch one of startDate/endDate at a time).
-export const championshipUpdateSchema = championshipFieldsSchema.partial();
+// updates may only touch one of startDate/endDate at a time). tenantId is
+// only honored for the caller when they're a super admin (enforced in the
+// route) - it lets a championship a super admin created ahead of time be
+// handed off once the actual tenant subscribes.
+export const championshipUpdateSchema = championshipFieldsSchema.partial().extend({
+  tenantId: z.string().uuid().optional(),
+});
 export type ChampionshipUpdateInput = z.infer<typeof championshipUpdateSchema>;
 
 export const ballSportSchema = z.enum([

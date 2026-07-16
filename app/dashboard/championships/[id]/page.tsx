@@ -32,6 +32,7 @@ export default async function DashboardChampionshipDetailPage({ params }: { para
       schoolLevel={championship.schoolLevel}
       isPublished={championship.isPublished}
       restrictToOrganizationName={teamManagerRole?.organizationName ?? null}
+      isSuperAdmin={isSuperAdmin(ctx)}
     />
   );
 }

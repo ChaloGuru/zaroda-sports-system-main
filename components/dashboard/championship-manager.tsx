@@ -27,6 +27,7 @@ export function ChampionshipManager({
   schoolLevel,
   isPublished,
   restrictToOrganizationName,
+  isSuperAdmin,
 }: {
   championshipId: string;
   name: string;
@@ -35,6 +36,7 @@ export function ChampionshipManager({
   isPublished: boolean;
   /** Set when the viewer is a Team Manager - shows only their own organization's teams, nothing else. */
   restrictToOrganizationName?: string | null;
+  isSuperAdmin?: boolean;
 }) {
   const router = useRouter();
   const [publishing, setPublishing] = React.useState(false);
@@ -165,7 +167,7 @@ export function ChampionshipManager({
 
         <TabsContent value="settings">
           <PanelErrorBoundary fallbackTitle="Settings panel failed to load">
-            <ChampionshipSettingsPanel championshipId={championshipId} />
+            <ChampionshipSettingsPanel championshipId={championshipId} isSuperAdmin={isSuperAdmin} />
           </PanelErrorBoundary>
         </TabsContent>
       </Tabs>
