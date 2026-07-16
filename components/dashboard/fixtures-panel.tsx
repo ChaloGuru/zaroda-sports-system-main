@@ -481,6 +481,146 @@ function PoolSection({
   );
 }
 
+interface SemifinalRule {
+  id: string;
+  roundName: string;
+  poolAId: string;
+  rankA: number;
+  poolBId: string;
+  rankB: number;
+}
+
+const RANK_OPTIONS = [1, 2, 3];
+
+function SemifinalRulesCard({
+  pools,
+  poolStandingsById,
+  teamNameById,
+  rules,
+  onRulesChange,
+  onGenerate,
+  generating,
+}: {
+  pools: PoolOption[];
+  poolStandingsById: Map<string, StandingRow[]>;
+  teamNameById: Map<string, string>;
+  rules: SemifinalRule[];
+  onRulesChange: (rules: SemifinalRule[]) => void;
+  onGenerate: () => void;
+  generating: boolean;
+}) {
+  function addRule() {
+    onRulesChange([
+      ...rules,
+      {
+        id: crypto.randomUUID(),
+        roundName: "Semifinal",
+        poolAId: pools[0]?.id ?? "",
+        rankA: 1,
+        poolBId: pools[1]?.id ?? pools[0]?.id ?? "",
+        rankB: 1,
+      },
+    ]);
+  }
+
+  function updateRule(id: string, patch: Partial<SemifinalRule>) {
+    onRulesChange(rules.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
+  function removeRule(id: string) {
+    onRulesChange(rules.filter((r) => r.id !== id));
+  }
+
+  function resolvedTeamName(poolId: string, rank: number): string {
+    const row = poolStandingsById.get(poolId)?.[rank - 1];
+    if (!row) return "Not decided yet";
+    return teamNameById.get(row.teamId) ?? "Unknown team";
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Semi-final pairing rules</CardTitle>
+        <CardDescription>
+          For championships with many pools, define exactly who plays who once pool play settles - e.g. "Winner Pool A vs
+          Winner Pool B" and "Winner Pool C vs Winner Pool D" - instead of an automatic round robin among every qualifier.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {rules.map((rule) => (
+          <div key={rule.id} className="space-y-2 rounded-md border border-border p-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-40">
+                <Label>Round name</Label>
+                <Input className="mt-1.5" value={rule.roundName} onChange={(e) => updateRule(rule.id, { roundName: e.target.value })} />
+              </div>
+              <div className="w-40">
+                <Label>Pool</Label>
+                <Select value={rule.poolAId} onValueChange={(v) => updateRule(rule.id, { poolAId: v })}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {pools.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-28">
+                <Label>Rank</Label>
+                <Select value={String(rule.rankA)} onValueChange={(v) => updateRule(rule.id, { rankA: Number(v) })}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {RANK_OPTIONS.map((n) => (
+                      <SelectItem key={n} value={String(n)}>{n === 1 ? "1st" : n === 2 ? "2nd" : "3rd"}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="pb-2 text-sm text-muted">vs</span>
+              <div className="w-40">
+                <Label>Pool</Label>
+                <Select value={rule.poolBId} onValueChange={(v) => updateRule(rule.id, { poolBId: v })}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {pools.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-28">
+                <Label>Rank</Label>
+                <Select value={String(rule.rankB)} onValueChange={(v) => updateRule(rule.id, { rankB: Number(v) })}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {RANK_OPTIONS.map((n) => (
+                      <SelectItem key={n} value={String(n)}>{n === 1 ? "1st" : n === 2 ? "2nd" : "3rd"}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="icon" variant="ghost" onClick={() => removeRule(rule.id)}>
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted">
+              {resolvedTeamName(rule.poolAId, rule.rankA)} vs {resolvedTeamName(rule.poolBId, rule.rankB)}
+            </p>
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" disabled={pools.length === 0} onClick={addRule}>
+            <Plus className="h-4 w-4" /> Add pairing rule
+          </Button>
+          <Button size="sm" disabled={rules.length === 0 || generating} onClick={onGenerate}>
+            <ArrowUpRight className="h-4 w-4" /> {generating ? "Generating..." : "Generate fixtures from rules"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface ChampionshipOption {
   id: string;
   name: string;
@@ -696,6 +836,61 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
       refetchAll();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to advance teams"),
+  });
+
+  const poolStandingsById = React.useMemo(() => {
+    const map = new Map<string, StandingRow[]>();
+    if (!selectedGame?.sport) return map;
+    for (const pool of pools) {
+      const poolTeamIds = teams.filter((t) => t.poolId === pool.id).map((t) => t.id);
+      const results: MatchResult[] = fixtures
+        .filter((f) => f.poolId === pool.id && f.teamAScore !== null && f.teamBScore !== null)
+        .map((f) => ({ teamAId: f.teamAId, teamBId: f.teamBId, teamAScore: f.teamAScore as number, teamBScore: f.teamBScore as number }));
+      map.set(pool.id, computeStandings(poolTeamIds, results, selectedGame.sport as BallSport));
+    }
+    return map;
+  }, [pools, teams, fixtures, selectedGame]);
+
+  const [semifinalRules, setSemifinalRules] = React.useState<SemifinalRule[]>([]);
+  const generateFromRulesMutation = useMutation({
+    mutationFn: async () => {
+      const existingPairs = new Set(fixtures.map((f) => [f.teamAId, f.teamBId].sort().join("::")));
+      let created = 0;
+      let skipped = 0;
+      for (const rule of semifinalRules) {
+        const teamA = poolStandingsById.get(rule.poolAId)?.[rule.rankA - 1];
+        const teamB = poolStandingsById.get(rule.poolBId)?.[rule.rankB - 1];
+        if (!teamA || !teamB || teamA.teamId === teamB.teamId) {
+          skipped++;
+          continue;
+        }
+        const pairKey = [teamA.teamId, teamB.teamId].sort().join("::");
+        if (existingPairs.has(pairKey)) {
+          skipped++;
+          continue;
+        }
+        await apiPost("/api/match-pools", {
+          gameId,
+          poolId: null,
+          roundName: rule.roundName,
+          teamAId: teamA.teamId,
+          teamBId: teamB.teamId,
+          matchDate: null,
+        });
+        existingPairs.add(pairKey);
+        created++;
+      }
+      return { created, skipped };
+    },
+    onSuccess: ({ created, skipped }) => {
+      toast.success(
+        created > 0
+          ? `Created ${created} fixture${created === 1 ? "" : "s"} from rules${skipped > 0 ? ` (${skipped} skipped - pool not decided yet or already exists)` : ""}`
+          : "No new fixtures - pool standings aren't final yet, or these matches already exist",
+      );
+      refetchAll();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to generate fixtures from rules"),
   });
 
   const [roundToAdvance, setRoundToAdvance] = React.useState("");
@@ -931,6 +1126,18 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
           maxDate={championshipEnd}
         />
       ))}
+
+      {gameId && pools.length >= 2 && (
+        <SemifinalRulesCard
+          pools={pools}
+          poolStandingsById={poolStandingsById}
+          teamNameById={teamNameById}
+          rules={semifinalRules}
+          onRulesChange={setSemifinalRules}
+          onGenerate={() => generateFromRulesMutation.mutate()}
+          generating={generateFromRulesMutation.isPending}
+        />
+      )}
 
       {gameId && (
         <Card>
