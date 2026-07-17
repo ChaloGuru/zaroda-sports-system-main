@@ -59,6 +59,15 @@ export default function NewChampionshipPage() {
   });
 
   const level = watch("level");
+  const isOpenTournament = level === "OPEN_TOURNAMENT";
+
+  // School level (Primary/JS, Senior School, Tertiary) is a school-ladder
+  // pricing/games concept - an open tournament isn't necessarily
+  // school-based at all, so force a neutral value and hide the field
+  // rather than asking the organizer to pick one that doesn't apply.
+  React.useEffect(() => {
+    if (isOpenTournament) setValue("schoolLevel", "TERTIARY");
+  }, [isOpenTournament, setValue]);
 
   const hasActiveSubForLevel = (lvl: string) =>
     lvl === "BASE" ||
@@ -117,7 +126,7 @@ export default function NewChampionshipPage() {
               {errors.name && <p className="mt-1 text-sm text-red-400">{errors.name.message}</p>}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className={isOpenTournament ? "" : "grid gap-4 sm:grid-cols-2"}>
               <div>
                 <Label>Level</Label>
                 <Select value={level} onValueChange={(v) => setValue("level", v as ChampionshipCreateInput["level"])}>
@@ -133,24 +142,26 @@ export default function NewChampionshipPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>School level</Label>
-                <Select
-                  value={watch("schoolLevel")}
-                  onValueChange={(v) => setValue("schoolLevel", v as ChampionshipCreateInput["schoolLevel"])}
-                >
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SCHOOL_LEVELS.map((l) => (
-                      <SelectItem key={l.value} value={l.value}>
-                        {l.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!isOpenTournament && (
+                <div>
+                  <Label>School level</Label>
+                  <Select
+                    value={watch("schoolLevel")}
+                    onValueChange={(v) => setValue("schoolLevel", v as ChampionshipCreateInput["schoolLevel"])}
+                  >
+                    <SelectTrigger className="mt-1.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SCHOOL_LEVELS.map((l) => (
+                        <SelectItem key={l.value} value={l.value}>
+                          {l.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {needsUpgrade && (
