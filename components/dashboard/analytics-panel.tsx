@@ -26,7 +26,12 @@ interface AnalyticsData {
     byCategory: Record<string, number>;
     byGender: Record<string, number>;
     withResultsCount: number;
-    byStage: { stage: string; scored: number; pending: number; total: number }[];
+    byRound: {
+      gameId: string;
+      gameName: string;
+      schoolLevel: string;
+      rounds: { round: string; scored: number; pending: number; total: number }[];
+    }[];
   };
   participants: { byGender: Record<string, number>; byStatus: Record<string, number> };
   teams: { byGender: Record<string, number>; byCounty: Record<string, number> };
@@ -112,18 +117,27 @@ export function AnalyticsPanel({ championshipId }: { championshipId: string }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Matches &amp; races by stage</CardTitle>
-          <CardDescription>Scored vs pending games/fixtures at each school level.</CardDescription>
+          <CardTitle>Matches &amp; races by round</CardTitle>
+          <CardDescription>Scored vs pending matches/races per game, broken down by round (heats, preliminaries, quarters, semis, finals).</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {data.games.byStage.length === 0 && <p className="text-sm text-muted">No games yet.</p>}
-          {data.games.byStage.map((row) => (
-            <div key={row.stage} className="flex items-center justify-between rounded-md border border-border p-3">
-              <p className="text-sm font-medium text-foreground">{row.stage.replace(/_/g, " ")}</p>
-              <div className="flex gap-4 text-sm tabular">
-                <span className="text-[#2EA043]">{row.scored} scored</span>
-                <span className="text-[#DA3633]">{row.pending} pending</span>
-                <span className="text-muted">{row.total} total</span>
+        <CardContent className="space-y-5">
+          {data.games.byRound.length === 0 && <p className="text-sm text-muted">No games yet.</p>}
+          {data.games.byRound.map((game) => (
+            <div key={game.gameId} className="space-y-2">
+              <p className="text-sm font-semibold text-foreground">
+                {game.gameName} <span className="font-normal text-muted">({game.schoolLevel.replace(/_/g, " ")})</span>
+              </p>
+              <div className="space-y-2">
+                {game.rounds.map((row) => (
+                  <div key={row.round} className="flex items-center justify-between rounded-md border border-border p-3">
+                    <p className="text-sm font-medium capitalize text-foreground">{row.round}</p>
+                    <div className="flex gap-4 text-sm tabular">
+                      <span className="text-[#2EA043]">{row.scored} scored</span>
+                      <span className="text-[#DA3633]">{row.pending} pending</span>
+                      <span className="text-muted">{row.total} total</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

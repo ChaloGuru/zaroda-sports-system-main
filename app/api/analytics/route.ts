@@ -27,10 +27,10 @@ export async function GET(request: Request) {
     );
     if (!isFullAdmin && !hasOperationalRole) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
 
-    const [games, participants, teams, payments, matchPools] = await Promise.all([
+    const [games, participants, teams, payments, matchPools, heats] = await Promise.all([
       prisma.game.findMany({
         where: { championshipId },
-        select: { id: true, category: true, gender: true, schoolLevel: true, isTimed: true, sport: true },
+        select: { id: true, name: true, category: true, gender: true, schoolLevel: true, isTimed: true, sport: true },
       }),
       prisma.participant.findMany({
         where: { championshipId },
@@ -40,7 +40,16 @@ export async function GET(request: Request) {
       prisma.teamFeePayment.findMany({ where: { championshipId }, select: { amountKes: true, status: true } }),
       prisma.matchPool.findMany({
         where: { game: { championshipId } },
-        select: { gameId: true, teamAScore: true, teamBScore: true },
+        select: { gameId: true, roundName: true, teamAScore: true, teamBScore: true },
+      }),
+      prisma.heat.findMany({
+        where: { game: { championshipId } },
+        select: {
+          gameId: true,
+          heatNumber: true,
+          heatType: true,
+          participants: { select: { position: true, timeTaken: true } },
+        },
       }),
     ]);
 
@@ -48,32 +57,45 @@ export async function GET(request: Request) {
     const gamesByGender = tallyBy(games, (g) => g.gender);
     const gamesWithResults = new Set(participants.filter((p) => p.position !== null).map((p) => p.gameId));
 
-    // Team-fixture games (ball/indoor games) don't produce Participant rows -
-    // a fixture is "scored" once both team scores are recorded.
-    const fixturesByGame = new Map<string, { scored: number; total: number }>();
-    for (const mp of matchPools) {
-      const entry = fixturesByGame.get(mp.gameId) ?? { scored: 0, total: 0 };
+    // Per-game, per-round (heats/preliminaries/quarters/semis/finals) summary
+    // of scored vs pending matches/races - the natural unit officials think
+    // in, rather than a single scored/pending flag for the whole game.
+    type RoundRow = { round: string; scored: number; pending: number; total: number };
+    const roundsByGame = new Map<string, Map<string, { scored: number; total: number }>>();
+    const bumpRound = (gameId: string, round: string, scored: boolean) => {
+      if (!roundsByGame.has(gameId)) roundsByGame.set(gameId, new Map());
+      const rounds = roundsByGame.get(gameId) as Map<string, { scored: number; total: number }>;
+      const entry = rounds.get(round) ?? { scored: 0, total: 0 };
       entry.total++;
-      if (mp.teamAScore !== null && mp.teamBScore !== null) entry.scored++;
-      fixturesByGame.set(mp.gameId, entry);
+      if (scored) entry.scored++;
+      rounds.set(round, entry);
+    };
+
+    for (const mp of matchPools) {
+      bumpRound(mp.gameId, mp.roundName, mp.teamAScore !== null && mp.teamBScore !== null);
+    }
+    for (const heat of heats) {
+      const label = `${heat.heatType.replace(/_/g, " ")} ${heat.heatNumber}`;
+      const scored = heat.participants.some((p) => p.position !== null || p.timeTaken !== null);
+      bumpRound(heat.gameId, label, scored);
+    }
+    // Games with neither fixtures nor heats (a straight athletics final, no
+    // preliminary rounds) get a single implicit "Final" round from participants.
+    for (const game of games) {
+      if (roundsByGame.has(game.id)) continue;
+      const gameParticipants = participants.filter((p) => p.gameId === game.id);
+      if (gameParticipants.length === 0) continue;
+      bumpRound(game.id, "Final", gamesWithResults.has(game.id));
     }
 
-    // Per-stage (schoolLevel) summary of scored vs pending games/fixtures -
-    // an athletics game counts as scored once any participant has a
-    // recorded position; a ball-games game counts as scored once at least
-    // one of its fixtures has both team scores recorded.
-    const stageSummary = new Map<string, { scored: number; pending: number; total: number }>();
-    for (const game of games) {
-      const stage = game.schoolLevel;
-      const entry = stageSummary.get(stage) ?? { scored: 0, pending: 0, total: 0 };
-      entry.total++;
-      const fixtures = fixturesByGame.get(game.id);
-      const isScored = fixtures ? fixtures.scored > 0 : gamesWithResults.has(game.id);
-      if (isScored) entry.scored++;
-      else entry.pending++;
-      stageSummary.set(stage, entry);
-    }
-    const gamesByStage = Array.from(stageSummary.entries()).map(([stage, counts]) => ({ stage, ...counts }));
+    const gamesByRound = games
+      .filter((g) => roundsByGame.has(g.id))
+      .map((game) => {
+        const rounds: RoundRow[] = Array.from(roundsByGame.get(game.id) as Map<string, { scored: number; total: number }>).map(
+          ([round, counts]) => ({ round, scored: counts.scored, pending: counts.total - counts.scored, total: counts.total }),
+        );
+        return { gameId: game.id, gameName: game.name, schoolLevel: game.schoolLevel, rounds };
+      });
 
     const participantsByGender = tallyBy(participants, (p) => p.gender);
     const participantsByStatus = tallyBy(participants, (p) => p.status);
@@ -98,7 +120,7 @@ export async function GET(request: Request) {
         byCategory: gamesByCategory,
         byGender: gamesByGender,
         withResultsCount: gamesWithResults.size,
-        byStage: gamesByStage,
+        byRound: gamesByRound,
       },
       participants: { byGender: participantsByGender, byStatus: participantsByStatus },
       teams: { byGender: teamsByGender, byCounty: teamsByCounty },
