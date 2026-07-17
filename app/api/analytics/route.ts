@@ -76,16 +76,21 @@ export async function GET(request: Request) {
     }
     for (const heat of heats) {
       const label = `${heat.heatType.replace(/_/g, " ")} ${heat.heatNumber}`;
-      const scored = heat.participants.some((p) => p.position !== null || p.timeTaken !== null);
+      // "Scored" means the race's result is actually saved, not merely
+      // started - every entrant needs a recorded position/time, not just one.
+      const scored =
+        heat.participants.length > 0 && heat.participants.every((p) => p.position !== null || p.timeTaken !== null);
       bumpRound(heat.gameId, label, scored);
     }
     // Games with neither fixtures nor heats (a straight athletics final, no
-    // preliminary rounds) get a single implicit "Final" round from participants.
+    // preliminary rounds) get a single implicit "Final" round from participants -
+    // "scored" requires every entrant's position saved, not just some.
     for (const game of games) {
       if (roundsByGame.has(game.id)) continue;
       const gameParticipants = participants.filter((p) => p.gameId === game.id);
       if (gameParticipants.length === 0) continue;
-      bumpRound(game.id, "Final", gamesWithResults.has(game.id));
+      const scored = gameParticipants.every((p) => p.position !== null);
+      bumpRound(game.id, "Final", scored);
     }
 
     const gamesByRound = games
