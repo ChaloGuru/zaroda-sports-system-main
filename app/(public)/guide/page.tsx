@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "User Guide | Zaroda Sports Management System",
   description:
     "A quick, interactive guide to running championships, registering schools and teams, managing fixtures and scores, and sharing results on Zaroda Sports.",
+  alternates: { canonical: "https://zarodasports.live/guide" },
 };
 
 export default function GuidePage() {

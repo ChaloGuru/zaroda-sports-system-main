@@ -14,6 +14,26 @@ export const metadata: Metadata = {
   title: "Zaroda Sports Management System | Championship & Athletics Management for Kenyan Schools",
   description:
     "Run school championships and athletics meets from registration to final rankings - built for Kenyan zones, sub-counties, counties, and national tournaments.",
+  // Explicit canonical + JSON-LD WebSite/Organization schema below tell
+  // search engines the homepage - not /guide or any other page - is the
+  // primary entity for brand-name searches like "Zaroda Sports".
+  alternates: { canonical: "https://zarodasports.live/" },
+};
+
+const WEBSITE_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Zaroda Sports",
+  alternateName: "Zaroda Sports Management System",
+  url: "https://zarodasports.live/",
+};
+
+const ORGANIZATION_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Zaroda Sports",
+  url: "https://zarodasports.live/",
+  logo: "https://zarodasports.live/images/logo.png",
 };
 
 export default async function LandingPage() {
@@ -26,6 +46,11 @@ export default async function LandingPage() {
 
   return (
     <div>
+      {/* eslint-disable-next-line react/no-danger */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(WEBSITE_JSON_LD) }} />
+      {/* eslint-disable-next-line react/no-danger */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSON_LD) }} />
+
       <section className="relative overflow-hidden border-b border-border">
         <Image
           src="/images/hero.png"

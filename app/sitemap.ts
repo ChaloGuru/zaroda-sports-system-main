@@ -8,6 +8,9 @@ export const revalidate = 3600;
 const staticRoutes: MetadataRoute.Sitemap = [
   { url: `${BASE_URL}/`, changeFrequency: "weekly", priority: 1.0 },
   { url: `${BASE_URL}/pricing`, changeFrequency: "monthly", priority: 0.8 },
+  // Lower priority than "/" so search engines weight the homepage as the
+  // primary entity for brand-name searches, not this supporting page.
+  { url: `${BASE_URL}/guide`, changeFrequency: "monthly", priority: 0.4 },
   { url: `${BASE_URL}/rankings`, changeFrequency: "daily", priority: 0.7 },
   { url: `${BASE_URL}/medal-table`, changeFrequency: "daily", priority: 0.7 },
   { url: `${BASE_URL}/circulars`, changeFrequency: "weekly", priority: 0.6 },
