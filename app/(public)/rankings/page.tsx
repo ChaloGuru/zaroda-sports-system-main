@@ -2,16 +2,33 @@
 
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { MapPin, Calendar } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { FinishLineRule } from "@/components/ui/finish-line-rule";
 import { PanelErrorBoundary } from "@/components/error-boundary";
 import { StandingsPanel } from "@/components/championship/standings-panel";
 import { apiGet } from "@/lib/api-client";
+import { formatDate } from "@/lib/utils";
 
 interface ChampionshipOption {
   id: string;
   name: string;
+}
+
+interface OngoingChampionship {
+  id: string;
+  name: string;
+  level: string;
+  schoolLevel: string;
+  location: string;
+  county: string;
+  startDate: string;
+  endDate: string;
+  tenant: { organizationName: string };
 }
 
 function RankingsExplorer() {
@@ -21,10 +38,45 @@ function RankingsExplorer() {
     queryKey: ["championships-public"],
     queryFn: () => apiGet<{ championships: ChampionshipOption[] }>("/api/championships"),
   });
+  const { data: ongoingData } = useQuery({
+    queryKey: ["championships-public-ongoing"],
+    queryFn: () => apiGet<{ championships: OngoingChampionship[] }>("/api/championships?ongoing=true"),
+  });
+  const ongoingChampionships = ongoingData?.championships ?? [];
   const selected = (championships?.championships ?? []).find((c) => c.id === championshipId);
 
   return (
     <div className="space-y-6">
+      {!championshipId && ongoingChampionships.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-extrabold text-foreground">Ongoing Championships</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {ongoingChampionships.map((c) => (
+              <button key={c.id} type="button" onClick={() => setChampionshipId(c.id)} className="text-left">
+                <Card className="h-full border-2 border-primary/40 transition-colors hover:border-primary">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                      <Badge variant="outline">{c.schoolLevel.replace("_", " ")}</Badge>
+                    </div>
+                    <CardTitle className="mt-2 font-extrabold">{c.name}</CardTitle>
+                    <CardDescription className="font-semibold">{c.tenant.organizationName}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm font-medium text-foreground">
+                    <p className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" /> {c.location}, {c.county}
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" /> {formatDate(c.startDate)} - {formatDate(c.endDate)}
+                    </p>
+                  </CardContent>
+                </Card>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Select value={championshipId} onValueChange={setChampionshipId}>
           <SelectTrigger className="w-72">

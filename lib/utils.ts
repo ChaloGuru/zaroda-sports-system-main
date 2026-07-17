@@ -48,3 +48,18 @@ export function formatDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return new Intl.DateTimeFormat("en-KE", { dateStyle: "medium" }).format(d);
 }
+
+/**
+ * Championship start/end dates are stored as whole-day UTC midnights (e.g. a
+ * July 16-17 event has endDate = 2026-07-17T00:00:00Z), so comparing against
+ * the exact current instant would drop the event as soon as it ticks past
+ * midnight UTC on its own last day. Callers should filter by
+ * `startDate < startOfTomorrowUtc && endDate >= startOfTodayUtc` instead, so
+ * "today" (in UTC) falling anywhere within [startDate, endDate] counts.
+ */
+export function todayUtcRange(): { startOfTodayUtc: Date; startOfTomorrowUtc: Date } {
+  const now = new Date();
+  const startOfTodayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const startOfTomorrowUtc = new Date(startOfTodayUtc.getTime() + 24 * 60 * 60 * 1000);
+  return { startOfTodayUtc, startOfTomorrowUtc };
+}

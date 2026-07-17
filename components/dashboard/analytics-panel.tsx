@@ -22,7 +22,12 @@ const COLORS = ["#D4A017", "#1A3A8F", "#8B949E", "#DA3633", "#2EA043", "#58A6FF"
 
 interface AnalyticsData {
   totals: { games: number; participants: number; teams: number; qualified: number };
-  games: { byCategory: Record<string, number>; byGender: Record<string, number>; withResultsCount: number };
+  games: {
+    byCategory: Record<string, number>;
+    byGender: Record<string, number>;
+    withResultsCount: number;
+    byStage: { stage: string; scored: number; pending: number; total: number }[];
+  };
   participants: { byGender: Record<string, number>; byStatus: Record<string, number> };
   teams: { byGender: Record<string, number>; byCounty: Record<string, number> };
   revenue: { collectedKes: number; pendingKes: number; failedKes: number; byStatus: Record<string, number> };
@@ -104,6 +109,26 @@ export function AnalyticsPanel({ championshipId }: { championshipId: string }) {
         <StatTile label="Teams" value={data.totals.teams} />
         <StatTile label="Qualified" value={data.totals.qualified} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Matches &amp; races by stage</CardTitle>
+          <CardDescription>Scored vs pending games/fixtures at each school level.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {data.games.byStage.length === 0 && <p className="text-sm text-muted">No games yet.</p>}
+          {data.games.byStage.map((row) => (
+            <div key={row.stage} className="flex items-center justify-between rounded-md border border-border p-3">
+              <p className="text-sm font-medium text-foreground">{row.stage.replace(/_/g, " ")}</p>
+              <div className="flex gap-4 text-sm tabular">
+                <span className="text-[#2EA043]">{row.scored} scored</span>
+                <span className="text-[#DA3633]">{row.pending} pending</span>
+                <span className="text-muted">{row.total} total</span>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

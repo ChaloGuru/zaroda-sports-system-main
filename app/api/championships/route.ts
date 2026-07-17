@@ -11,7 +11,7 @@ import {
 } from "@/lib/authorize";
 import { championshipCreateSchema } from "@/lib/validations";
 import { PRIMARY_JS_BALL_GAMES_TEMPLATE } from "@/lib/default-games";
-import { withLevelInName } from "@/lib/utils";
+import { withLevelInName, todayUtcRange } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +25,17 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
     const county = searchParams.get("county");
+    const ongoing = searchParams.get("ongoing") === "true";
     const ctx = await getAuthContext();
 
     const where: Record<string, unknown> = {};
     if (category) where.category = category;
     if (county) where.county = county;
+    if (ongoing) {
+      const { startOfTodayUtc, startOfTomorrowUtc } = todayUtcRange();
+      where.startDate = { lt: startOfTomorrowUtc };
+      where.endDate = { gte: startOfTodayUtc };
+    }
 
     if (!ctx) {
       where.isPublished = true;

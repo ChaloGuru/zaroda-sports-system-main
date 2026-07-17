@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthContext, isSuperAdmin, hasRole, toErrorResponse } from "@/lib/authorize";
 import { computeChampionshipTeamStandings } from "@/lib/team-standings";
+import { buildCanonicalNameMap } from "@/lib/org-name";
 
 export const dynamic = "force-dynamic";
 
@@ -35,28 +36,14 @@ export async function GET(request: Request) {
       },
     });
 
-    // Keyed by organization name (trimmed/lowercased), not by School/
-    // TournamentTeam id: the same real-world institution gets a *separate*
-    // TournamentTeam row per ball game it enters (see the bulk "Add
-    // organizations" flow in TeamsPanel), so keying by id split one
-    // institution's medals across multiple rows whenever it medaled in more
-    // than one game - the exact "same institution appears twice" bug.
-    const rows = new Map<string, MedalRow>();
-    function addMedal(rawName: string, medal: "gold" | "silver" | "bronze") {
-      const key = rawName.trim().toLowerCase();
-      if (!key) return;
-      if (!rows.has(key)) {
-        rows.set(key, { entityName: rawName.trim(), gold: 0, silver: 0, bronze: 0 });
-      }
-      (rows.get(key) as MedalRow)[medal]++;
-    }
+    const medalHits: Array<{ name: string; medal: "gold" | "silver" | "bronze" }> = [];
 
     for (const p of participants) {
       const name = p.school?.name ?? p.tournamentTeam?.name;
       if (!name) continue;
-      if (p.position === 1) addMedal(name, "gold");
-      else if (p.position === 2) addMedal(name, "silver");
-      else if (p.position === 3) addMedal(name, "bronze");
+      if (p.position === 1) medalHits.push({ name, medal: "gold" });
+      else if (p.position === 2) medalHits.push({ name, medal: "silver" });
+      else if (p.position === 3) medalHits.push({ name, medal: "bronze" });
     }
 
     // Ball-games/indoor-games team fixtures don't produce Participant rows,
@@ -72,8 +59,27 @@ export async function GET(request: Request) {
       played.slice(0, 3).forEach((row, index) => {
         const medal = medalPositions[index];
         if (!medal) return;
-        addMedal(row.teamName, medal);
+        medalHits.push({ name: row.teamName, medal });
       });
+    }
+
+    // Keyed by organization name (trimmed/lowercased and folded onto its
+    // parent zone/org, see lib/org-name.ts), not by School/TournamentTeam
+    // id: the same real-world institution gets a *separate* TournamentTeam
+    // row per ball game it enters (see the bulk "Add organizations" flow in
+    // TeamsPanel), so keying by id split one institution's medals across
+    // multiple rows whenever it medaled in more than one game - the exact
+    // "same institution appears twice" bug.
+    const canonicalNames = buildCanonicalNameMap(medalHits.map((h) => h.name));
+    const rows = new Map<string, MedalRow>();
+    for (const { name: rawName, medal } of medalHits) {
+      const name = canonicalNames.get(rawName.trim()) ?? rawName.trim();
+      const key = name.toLowerCase();
+      if (!key) continue;
+      if (!rows.has(key)) {
+        rows.set(key, { entityName: name, gold: 0, silver: 0, bronze: 0 });
+      }
+      (rows.get(key) as MedalRow)[medal]++;
     }
 
     const medalTable = Array.from(rows.values())

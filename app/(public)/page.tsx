@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { Trophy, Medal, Timer, ShieldCheck, ArrowRight, Users } from "lucide-react";
+import { Trophy, Medal, Timer, ShieldCheck, ArrowRight, Users, MapPin, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { prisma } from "@/lib/prisma";
+import { formatDate, todayUtcRange } from "@/lib/utils";
 
 export const revalidate = 60;
 
@@ -13,7 +16,14 @@ export const metadata: Metadata = {
     "Run school championships and athletics meets from registration to final rankings - built for Kenyan zones, sub-counties, counties, and national tournaments.",
 };
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const { startOfTodayUtc, startOfTomorrowUtc } = todayUtcRange();
+  const ongoingChampionships = await prisma.championship.findMany({
+    where: { isPublished: true, startDate: { lt: startOfTomorrowUtc }, endDate: { gte: startOfTodayUtc } },
+    orderBy: { startDate: "asc" },
+    include: { tenant: { select: { organizationName: true } } },
+  });
+
   return (
     <div>
       <section className="relative overflow-hidden border-b border-border">
@@ -60,6 +70,41 @@ export default function LandingPage() {
           />
         </div>
       </section>
+
+      {ongoingChampionships.length > 0 && (
+        <section className="border-b border-border bg-surface-raised py-14">
+          <div className="container">
+            <h2 className="text-center text-2xl font-extrabold text-foreground">Ongoing Championships</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-center text-muted">
+              Tap a championship below to view live results, standings, and rankings.
+            </p>
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {ongoingChampionships.map((c) => (
+                <Link key={c.id} href={`/championship/${c.id}`}>
+                  <Card className="h-full border-2 border-primary/40 transition-colors hover:border-primary">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                        <Badge variant="outline">{c.schoolLevel.replace("_", " ")}</Badge>
+                      </div>
+                      <CardTitle className="mt-2 font-extrabold">{c.name}</CardTitle>
+                      <CardDescription className="font-semibold">{c.tenant.organizationName}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm font-medium text-foreground">
+                      <p className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" /> {c.location}, {c.county}
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" /> {formatDate(c.startDate)} - {formatDate(c.endDate)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="container py-20">
         <h2 className="text-center text-2xl font-bold text-foreground">Free Base tier, pay only when you level up</h2>

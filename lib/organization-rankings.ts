@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { pointsForPosition } from "./scoring";
 import { computeChampionshipTeamStandings } from "./team-standings";
+import { buildCanonicalNameMap } from "./org-name";
 
 export interface OrganizationRankingRow {
   name: string;
@@ -34,17 +35,7 @@ export async function computeOrganizationRankings(
   const genderFilter = !filters.gender || filters.gender === "OVERALL" ? null : filters.gender;
   const schoolLevelFilter = !filters.schoolLevel || filters.schoolLevel === "OVERALL" ? null : filters.schoolLevel;
 
-  const points = new Map<string, number>();
-  const addPoints = (rawName: string, amount: number) => {
-    // Team promotion (see app/api/tournament-teams/promote) renames a
-    // promoted team "{Origin Zone} - {Team Name}" to keep its lineage
-    // visible. For the organization leaderboard that suffix should NOT
-    // create a separate entry - its points belong to the parent zone/org.
-    const trimmed = rawName.trim();
-    const name = trimmed.includes(" - ") ? trimmed.split(" - ")[0]!.trim() : trimmed;
-    if (!name || amount === 0) return;
-    points.set(name, (points.get(name) ?? 0) + amount);
-  };
+  const contributions: Array<{ name: string; amount: number }> = [];
 
   const participants = await prisma.participant.findMany({
     where: {
@@ -63,7 +54,7 @@ export async function computeOrganizationRankings(
     if (schoolLevelFilter && p.game.schoolLevel !== schoolLevelFilter) continue;
     const name = p.school?.name ?? p.tournamentTeam?.name;
     if (!name) continue;
-    addPoints(name, pointsForPosition(p.position));
+    contributions.push({ name, amount: pointsForPosition(p.position) });
   }
 
   const gameStandings = await computeChampionshipTeamStandings(championshipId);
@@ -71,8 +62,16 @@ export async function computeOrganizationRankings(
     if (genderFilter && game.gender !== genderFilter) continue;
     if (schoolLevelFilter && game.schoolLevel !== schoolLevelFilter) continue;
     for (const row of game.standings) {
-      addPoints(row.teamName, row.points);
+      contributions.push({ name: row.teamName, amount: row.points });
     }
+  }
+
+  const canonicalNames = buildCanonicalNameMap(contributions.map((c) => c.name));
+  const points = new Map<string, number>();
+  for (const { name: rawName, amount } of contributions) {
+    const name = canonicalNames.get(rawName.trim()) ?? rawName.trim();
+    if (!name || amount === 0) continue;
+    points.set(name, (points.get(name) ?? 0) + amount);
   }
 
   return Array.from(points.entries())

@@ -27,19 +27,53 @@ export async function GET(request: Request) {
     );
     if (!isFullAdmin && !hasOperationalRole) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
 
-    const [games, participants, teams, payments] = await Promise.all([
-      prisma.game.findMany({ where: { championshipId }, select: { id: true, category: true, gender: true, schoolLevel: true } }),
+    const [games, participants, teams, payments, matchPools] = await Promise.all([
+      prisma.game.findMany({
+        where: { championshipId },
+        select: { id: true, category: true, gender: true, schoolLevel: true, isTimed: true, sport: true },
+      }),
       prisma.participant.findMany({
         where: { championshipId },
         select: { gameId: true, gender: true, status: true, isQualified: true, position: true },
       }),
       prisma.tournamentTeam.findMany({ where: { championshipId }, select: { id: true, gender: true, county: true } }),
       prisma.teamFeePayment.findMany({ where: { championshipId }, select: { amountKes: true, status: true } }),
+      prisma.matchPool.findMany({
+        where: { game: { championshipId } },
+        select: { gameId: true, teamAScore: true, teamBScore: true },
+      }),
     ]);
 
     const gamesByCategory = tallyBy(games, (g) => g.category);
     const gamesByGender = tallyBy(games, (g) => g.gender);
     const gamesWithResults = new Set(participants.filter((p) => p.position !== null).map((p) => p.gameId));
+
+    // Team-fixture games (ball/indoor games) don't produce Participant rows -
+    // a fixture is "scored" once both team scores are recorded.
+    const fixturesByGame = new Map<string, { scored: number; total: number }>();
+    for (const mp of matchPools) {
+      const entry = fixturesByGame.get(mp.gameId) ?? { scored: 0, total: 0 };
+      entry.total++;
+      if (mp.teamAScore !== null && mp.teamBScore !== null) entry.scored++;
+      fixturesByGame.set(mp.gameId, entry);
+    }
+
+    // Per-stage (schoolLevel) summary of scored vs pending games/fixtures -
+    // an athletics game counts as scored once any participant has a
+    // recorded position; a ball-games game counts as scored once at least
+    // one of its fixtures has both team scores recorded.
+    const stageSummary = new Map<string, { scored: number; pending: number; total: number }>();
+    for (const game of games) {
+      const stage = game.schoolLevel;
+      const entry = stageSummary.get(stage) ?? { scored: 0, pending: 0, total: 0 };
+      entry.total++;
+      const fixtures = fixturesByGame.get(game.id);
+      const isScored = fixtures ? fixtures.scored > 0 : gamesWithResults.has(game.id);
+      if (isScored) entry.scored++;
+      else entry.pending++;
+      stageSummary.set(stage, entry);
+    }
+    const gamesByStage = Array.from(stageSummary.entries()).map(([stage, counts]) => ({ stage, ...counts }));
 
     const participantsByGender = tallyBy(participants, (p) => p.gender);
     const participantsByStatus = tallyBy(participants, (p) => p.status);
@@ -60,7 +94,12 @@ export async function GET(request: Request) {
         teams: teams.length,
         qualified: qualifiedCount,
       },
-      games: { byCategory: gamesByCategory, byGender: gamesByGender, withResultsCount: gamesWithResults.size },
+      games: {
+        byCategory: gamesByCategory,
+        byGender: gamesByGender,
+        withResultsCount: gamesWithResults.size,
+        byStage: gamesByStage,
+      },
       participants: { byGender: participantsByGender, byStatus: participantsByStatus },
       teams: { byGender: teamsByGender, byCounty: teamsByCounty },
       revenue: {
