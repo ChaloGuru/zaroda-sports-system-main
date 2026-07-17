@@ -10,7 +10,7 @@ import { PrintButton } from "@/components/ui/print-button";
 import { ShareButton } from "@/components/ui/share-button";
 import { apiGet } from "@/lib/api-client";
 import { GAME_SCHOOL_LEVELS } from "@/lib/school-levels";
-import { addPdfLogoHeader, addPdfFooter } from "@/lib/pdf-logo";
+import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "@/lib/pdf-logo";
 import { buildResultsShareMessage } from "@/lib/share-message";
 import { downloadOrganizationRankingsPdf, type OrganizationRankingPdfRow } from "@/lib/export-organization-rankings-pdf";
 import { downloadJsGameWinnersPdf } from "@/lib/export-js-game-winners-pdf";
@@ -65,14 +65,13 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
       const autoTable = (await import("jspdf-autotable")).default;
       const doc = new jsPDF();
       const contentY = await addPdfLogoHeader(doc);
-      doc.setFontSize(14);
-      doc.text(`${championshipName} - Official Standings (${schoolLevel.replace("_", " ")})`, 14, contentY + 6);
+      const titleEndY = addPdfTitle(doc, `${championshipName} - Official Standings (${schoolLevel.replace("_", " ")})`, contentY + 6);
 
       // Athletics events produce Participant.position rows (the `standings`
       // table); ball-games/indoor-games team fixtures don't - those results
       // live in `teamStandings` (one table per game) instead. Export whichever
       // is populated, mirroring the branch the on-screen panel uses.
-      let nextY = contentY + 12;
+      let nextY = titleEndY + 6;
       if (standings.length > 0) {
         autoTable(doc, {
           startY: nextY,
@@ -81,10 +80,9 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
         });
       } else if (teamStandings.length > 0) {
         for (const game of teamStandings) {
-          doc.setFontSize(11);
-          doc.text(game.gameName, 14, nextY);
+          const gameTitleEndY = addPdfTitle(doc, game.gameName, nextY, 11);
           autoTable(doc, {
-            startY: nextY + 4,
+            startY: gameTitleEndY,
             head: [["#", "Team", "P", "W", "D", "L", "GF", "GA", "GD", "Pts"]],
             body: game.standings.map((row, index) => [
               index + 1,

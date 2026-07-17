@@ -1,4 +1,4 @@
-import { addPdfLogoHeader, addPdfFooter } from "./pdf-logo";
+import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "./pdf-logo";
 
 export interface TeamRosterPdfRow {
   jerseyNumber: number | null;
@@ -17,10 +17,9 @@ export async function downloadTeamRosterPdf(
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF();
   const contentY = await addPdfLogoHeader(doc);
-  doc.setFontSize(14);
-  doc.text(`${championshipName} - ${teamName} Roster`, 14, contentY + 6);
+  const titleEndY = addPdfTitle(doc, `${championshipName} - ${teamName} Roster`, contentY + 6);
   autoTable(doc, {
-    startY: contentY + 12,
+    startY: titleEndY + 6,
     head: [["#", "Player", "Position"]],
     body: rows.map((row) => [row.jerseyNumber ?? "-", `${row.firstName} ${row.lastName}`, row.playingPosition ?? "-"]),
   });

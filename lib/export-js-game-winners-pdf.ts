@@ -1,4 +1,4 @@
-import { addPdfLogoHeader, addPdfFooter } from "./pdf-logo";
+import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "./pdf-logo";
 
 export interface JsGameWinnerRow {
   gameName: string;
@@ -16,10 +16,9 @@ export async function downloadJsGameWinnersPdf(
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF();
   const contentY = await addPdfLogoHeader(doc);
-  doc.setFontSize(14);
-  doc.text(`${championshipName} - JS Ball Games Winners`, 14, contentY + 6);
+  const titleEndY = addPdfTitle(doc, `${championshipName} - JS Ball Games Winners`, contentY + 6);
   autoTable(doc, {
-    startY: contentY + 12,
+    startY: titleEndY + 6,
     head: [["Game", "Sport", "Gender", "Winning Team"]],
     body: rows.map((row) => [row.gameName, row.sport, row.gender, row.winningTeam]),
   });

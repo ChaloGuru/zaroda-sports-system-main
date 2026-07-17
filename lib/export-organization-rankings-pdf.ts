@@ -1,4 +1,4 @@
-import { addPdfLogoHeader, addPdfFooter } from "./pdf-logo";
+import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "./pdf-logo";
 
 export interface OrganizationRankingPdfRow {
   position: number;
@@ -17,10 +17,9 @@ export async function downloadOrganizationRankingsPdf(
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF();
   const contentY = await addPdfLogoHeader(doc);
-  doc.setFontSize(14);
-  doc.text(`${championshipName} - Overall Organization Rankings (${filterLabel})`, 14, contentY + 6);
+  const titleEndY = addPdfTitle(doc, `${championshipName} - Overall Organization Rankings (${filterLabel})`, contentY + 6);
   autoTable(doc, {
-    startY: contentY + 12,
+    startY: titleEndY + 6,
     head: [["Position", "Organization / School / Team", "Total Points"]],
     body: rows.map((row) => [row.position, row.name, row.points]),
   });

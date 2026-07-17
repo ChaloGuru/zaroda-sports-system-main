@@ -66,6 +66,27 @@ export async function addPdfLogoHeader(doc: jsPDF): Promise<number> {
   return 34;
 }
 
+/**
+ * Draws a report title that wraps within the page margins instead of running
+ * off the right edge - championship names combined with a game/report label
+ * easily exceed a single 180mm line at 14pt, which without wrapping just
+ * overflows past the page boundary (looks like overlapping/cut-off text).
+ * Returns the Y position (mm) below the title where content should start.
+ */
+export function addPdfTitle(doc: jsPDF, text: string, startY: number, fontSize = 14): number {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const marginX = 14;
+  const maxWidth = pageWidth - marginX * 2;
+
+  doc.setFontSize(fontSize);
+  doc.setTextColor(20);
+  const lines = doc.splitTextToSize(text, maxWidth) as string[];
+  doc.text(lines, marginX, startY);
+
+  const lineHeight = fontSize * 0.55;
+  return startY + lines.length * lineHeight;
+}
+
 let cachedRotatedWatermarkDataUrl: Promise<string> | null = null;
 
 /**
