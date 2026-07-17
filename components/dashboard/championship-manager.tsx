@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { AlertTriangle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +12,7 @@ import { PanelErrorBoundary } from "@/components/error-boundary";
 import { GamesPanel } from "@/components/dashboard/games-panel";
 import { ParticipantsPanel } from "@/components/dashboard/participants-panel";
 import { TeamsPanel } from "@/components/dashboard/teams-panel";
+import { RegisteredTeamsPanel } from "@/components/dashboard/registered-teams-panel";
 import { FixturesPanel } from "@/components/dashboard/fixtures-panel";
 import { CallRoomPanel } from "@/components/dashboard/call-room-panel";
 import { BibRangesPanel } from "@/components/dashboard/bib-ranges-panel";
@@ -17,7 +20,7 @@ import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { AnalyticsPanel } from "@/components/dashboard/analytics-panel";
 import { ChampionshipSettingsPanel } from "@/components/dashboard/championship-settings-panel";
 import { CircularsPanel } from "@/components/dashboard/circulars-panel";
-import { apiPatch } from "@/lib/api-client";
+import { apiPatch, apiGet } from "@/lib/api-client";
 import { useSetAppShellLabel } from "@/components/app-shell-context";
 
 export function ChampionshipManager({
@@ -25,6 +28,7 @@ export function ChampionshipManager({
   name,
   category,
   schoolLevel,
+  level,
   isPublished,
   restrictToOrganizationName,
   isSuperAdmin,
@@ -33,6 +37,8 @@ export function ChampionshipManager({
   name: string;
   category: string;
   schoolLevel: string;
+  /** Championship.level, e.g. "OPEN_TOURNAMENT" - gates the Registered Teams tab and payout-account banner below. */
+  level: string;
   isPublished: boolean;
   /** Set when the viewer is a Team Manager - shows only their own organization's teams, nothing else. */
   restrictToOrganizationName?: string | null;
@@ -41,6 +47,19 @@ export function ChampionshipManager({
   const router = useRouter();
   const [publishing, setPublishing] = React.useState(false);
   useSetAppShellLabel(name);
+
+  const isOpenTournament = level === "OPEN_TOURNAMENT";
+  // Only the tenant owner can query/configure a payout account, so a
+  // scoped-role viewer (TOURNAMENT_ADMIN, etc.) simply never sees this
+  // banner - failing silently rather than erroring the whole page.
+  const { data: payoutData } = useQuery({
+    queryKey: ["tenant-payout-account"],
+    queryFn: () => apiGet<{ payoutAccount: { subaccountStatus: string } }>("/api/tenant/payout-account"),
+    enabled: isOpenTournament && !restrictToOrganizationName,
+    retry: false,
+    throwOnError: false,
+  });
+  const payoutNotActive = isOpenTournament && payoutData && payoutData.payoutAccount.subaccountStatus !== "ACTIVE";
 
   // Participant rows (individual competitors) only ever get created for
   // ATHLETICS/MUSIC games; ball-games/indoor-games (BALL_GAMES, OTHER_GAMES)
@@ -93,11 +112,28 @@ export function ChampionshipManager({
         </Button>
       </div>
 
+      {payoutNotActive && (
+        <div className="flex items-start gap-3 rounded-md border border-[#DA3633]/40 bg-[#DA3633]/5 p-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#DA3633]" />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">Team registration payments are blocked</p>
+            <p className="text-muted">
+              Set up your bank payout account before opening registration - otherwise team fee payments cannot be
+              accepted.{" "}
+              <a href="/dashboard/payout-account" className="font-medium text-primary underline">
+                Configure payout account
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
+
       <Tabs defaultValue="games">
         <TabsList className="flex-wrap">
           <TabsTrigger value="games">Games</TabsTrigger>
           {showsParticipants && <TabsTrigger value="participants">Participants</TabsTrigger>}
           {showsTeams && <TabsTrigger value="teams">Teams</TabsTrigger>}
+          {isOpenTournament && <TabsTrigger value="registered-teams">Registered Teams</TabsTrigger>}
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="call-room">Call Room</TabsTrigger>
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
@@ -125,6 +161,14 @@ export function ChampionshipManager({
           <TabsContent value="teams">
             <PanelErrorBoundary fallbackTitle="Teams panel failed to load">
               <TeamsPanel championshipId={championshipId} championshipName={name} />
+            </PanelErrorBoundary>
+          </TabsContent>
+        )}
+
+        {isOpenTournament && (
+          <TabsContent value="registered-teams">
+            <PanelErrorBoundary fallbackTitle="Registered teams panel failed to load">
+              <RegisteredTeamsPanel championshipId={championshipId} />
             </PanelErrorBoundary>
           </TabsContent>
         )}

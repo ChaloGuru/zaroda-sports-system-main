@@ -18,6 +18,7 @@ import {
   ExternalLink,
   ListOrdered,
   BookOpen,
+  Landmark,
   type LucideIcon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -77,7 +78,8 @@ export type IconName =
   | "UserCog"
   | "ExternalLink"
   | "ListOrdered"
-  | "BookOpen";
+  | "BookOpen"
+  | "Landmark";
 
 // Server Component layouts (admin/dashboard) can't pass icon component
 // references as props into this Client Component - functions aren't
@@ -96,6 +98,7 @@ const ICONS: Record<IconName, LucideIcon> = {
   ExternalLink,
   ListOrdered,
   BookOpen,
+  Landmark,
 };
 
 export interface NavItem {

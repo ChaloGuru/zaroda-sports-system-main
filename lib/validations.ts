@@ -338,6 +338,13 @@ export const championshipFeeSchema = z.object({
 });
 export type ChampionshipFeeInput = z.infer<typeof championshipFeeSchema>;
 
+export const payoutAccountSchema = z.object({
+  settlementBankCode: z.string().min(1).max(20),
+  settlementBankName: z.string().min(1).max(200),
+  accountNumber: z.string().min(1).max(50),
+});
+export type PayoutAccountInput = z.infer<typeof payoutAccountSchema>;
+
 export const championshipCircularSchema = z.object({
   championshipId: z.string().uuid(),
   title: z.string().min(1).max(200),

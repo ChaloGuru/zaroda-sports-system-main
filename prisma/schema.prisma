@@ -120,6 +120,16 @@ enum TeamPaymentStatus {
   FAILED
 }
 
+// Tracks a tenant's Paystack Subaccount used to receive open-tournament team
+// registration fees directly (see lib/paystack.ts createPaystackSubaccount) -
+// entirely separate from the Zaroda subscription flow (PaymentTransaction).
+enum SubaccountStatus {
+  NOT_CONFIGURED
+  PENDING
+  ACTIVE
+  FAILED
+}
+
 enum AuditOp {
   INSERT
   UPDATE
@@ -185,6 +195,17 @@ model Tenant {
   lastActiveAt     DateTime     @default(now())
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
+
+  // Paystack Subaccount for open-tournament team registration fees - 100% of
+  // every team_fee payment settles here (percentage_charge: 0, see
+  // lib/paystack.ts createPaystackSubaccount), never to Zaroda's main
+  // account. Entirely separate from subscriptions/PaymentTransaction above.
+  paystackSubaccountCode  String?           @unique
+  settlementBankCode      String?
+  settlementBankName      String?
+  settlementAccountNumber String?
+  settlementAccountName   String?
+  subaccountStatus        SubaccountStatus  @default(NOT_CONFIGURED)
 
   user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   championships       Championship[]

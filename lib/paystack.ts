@@ -30,6 +30,15 @@ export interface PaystackInitializeParams {
   reference: string;
   metadata: PaystackMetadata;
   callbackUrl: string;
+  /**
+   * A tenant's Paystack Subaccount code (ACCT_xxx). When set, this
+   * transaction settles to that subaccount instead of Zaroda's main account -
+   * used only for open-tournament team_fee payments, never for subscriptions.
+   * `bearer` is deliberately left unset so Zaroda's main account (not the
+   * subaccount) absorbs Paystack's own transaction processing fee - the
+   * subaccount still receives the full configured share of the fee amount.
+   */
+  subaccount?: string;
 }
 
 export interface PaystackInitializeResponse {
@@ -57,6 +66,7 @@ export async function initializePaystackTransaction(
       reference: params.reference,
       metadata: params.metadata,
       callback_url: params.callbackUrl,
+      ...(params.subaccount ? { subaccount: params.subaccount } : {}),
     }),
   });
 
@@ -132,4 +142,81 @@ export function computeSubscriptionExpiry(from: Date = new Date()): Date {
   const expires = new Date(from);
   expires.setFullYear(expires.getFullYear() + 1);
   return expires;
+}
+
+export interface PaystackBank {
+  name: string;
+  code: string;
+  slug: string;
+}
+
+interface PaystackBankListResponse {
+  status: boolean;
+  message: string;
+  data: PaystackBank[];
+}
+
+/**
+ * Paystack's live list of Kenyan banks supported for Subaccount settlement -
+ * fetched fresh rather than hardcoded, since the supported set can change.
+ */
+export async function listPaystackBanks(): Promise<PaystackBank[]> {
+  const response = await fetch(`${PAYSTACK_BASE_URL}/bank?country=kenya&currency=KES`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${getSecretKey()}` },
+    cache: "no-store",
+  });
+
+  const json = (await response.json()) as PaystackBankListResponse;
+  if (!response.ok || !json.status) {
+    throw new Error(json.message || "Failed to fetch bank list");
+  }
+  return json.data.map((b) => ({ name: b.name, code: b.code, slug: b.slug }));
+}
+
+export interface PaystackSubaccountParams {
+  businessName: string;
+  settlementBankCode: string;
+  accountNumber: string;
+}
+
+export interface PaystackSubaccountResponse {
+  status: boolean;
+  message: string;
+  data: {
+    subaccount_code: string;
+    account_number: string;
+    account_name: string | null;
+    settlement_bank: string;
+    percentage_charge: number;
+  };
+}
+
+/**
+ * Creates a Paystack Subaccount that team registration fees settle to
+ * directly. percentage_charge is the share the MAIN account (Zaroda)
+ * receives from each split transaction - set to 0 so the subaccount (the
+ * championship manager) receives 100% of every team_fee payment routed to
+ * it. Zaroda takes no commission on registration fees.
+ */
+export async function createPaystackSubaccount(params: PaystackSubaccountParams): Promise<PaystackSubaccountResponse> {
+  const response = await fetch(`${PAYSTACK_BASE_URL}/subaccount`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getSecretKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      business_name: params.businessName,
+      settlement_bank: params.settlementBankCode,
+      account_number: params.accountNumber,
+      percentage_charge: 0,
+    }),
+  });
+
+  const json = (await response.json()) as PaystackSubaccountResponse;
+  if (!response.ok || !json.status) {
+    throw new Error(json.message || "Failed to create Paystack subaccount");
+  }
+  return json;
 }

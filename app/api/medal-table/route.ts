@@ -28,8 +28,15 @@ export async function GET(request: Request) {
       if (!owns) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
     }
 
-    const participants = await prisma.participant.findMany({
-      where: { championshipId, position: { in: [1, 2, 3] } },
+    // allNames spans every participant/team in the championship, not just
+    // medal-earning ones - a bare root name like "AWENDO" might never place
+    // top-3 in any single event even though "AWENDO DAGO JS" does, so
+    // folding the latter onto the former must be able to see both names
+    // (see lib/org-name.ts and the identical fix in organization-rankings.ts).
+    const allNames: string[] = [];
+
+    const allParticipants = await prisma.participant.findMany({
+      where: { championshipId },
       include: {
         school: { select: { id: true, name: true } },
         tournamentTeam: { select: { id: true, name: true } },
@@ -38,9 +45,10 @@ export async function GET(request: Request) {
 
     const medalHits: Array<{ name: string; medal: "gold" | "silver" | "bronze" }> = [];
 
-    for (const p of participants) {
+    for (const p of allParticipants) {
       const name = p.school?.name ?? p.tournamentTeam?.name;
       if (!name) continue;
+      allNames.push(name);
       if (p.position === 1) medalHits.push({ name, medal: "gold" });
       else if (p.position === 2) medalHits.push({ name, medal: "silver" });
       else if (p.position === 3) medalHits.push({ name, medal: "bronze" });
@@ -52,6 +60,9 @@ export async function GET(request: Request) {
     // (there's no explicit "pool concluded" flag on Game/MatchPool yet).
     const teamStandings = await computeChampionshipTeamStandings(championshipId);
     for (const game of teamStandings) {
+      for (const row of game.standings) {
+        allNames.push(row.teamName);
+      }
       const played = game.standings.filter((s) => s.played > 0);
       if (played.length === 0) continue;
 
@@ -70,7 +81,7 @@ export async function GET(request: Request) {
     // TeamsPanel), so keying by id split one institution's medals across
     // multiple rows whenever it medaled in more than one game - the exact
     // "same institution appears twice" bug.
-    const canonicalNames = buildCanonicalNameMap(medalHits.map((h) => h.name));
+    const canonicalNames = buildCanonicalNameMap(allNames);
     const rows = new Map<string, MedalRow>();
     for (const { name: rawName, medal } of medalHits) {
       const name = canonicalNames.get(rawName.trim()) ?? rawName.trim();

@@ -6,6 +6,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/roles", label: "Roles", icon: "ShieldCheck" },
   { href: "/dashboard/messages", label: "Messages", icon: "Inbox" },
   { href: "/dashboard/billing", label: "Billing", icon: "CreditCard" },
+  { href: "/dashboard/payout-account", label: "Payout Account", icon: "Landmark" },
   { href: "/dashboard/account", label: "Account", icon: "UserCog" },
   { href: "/guide", label: "User Guide", icon: "BookOpen", external: true },
   { href: "/rankings", label: "Public Rankings", icon: "ListOrdered", external: true },

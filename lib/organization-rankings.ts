@@ -35,14 +35,15 @@ export async function computeOrganizationRankings(
   const genderFilter = !filters.gender || filters.gender === "OVERALL" ? null : filters.gender;
   const schoolLevelFilter = !filters.schoolLevel || filters.schoolLevel === "OVERALL" ? null : filters.schoolLevel;
 
+  // allNames spans the WHOLE championship, unfiltered - a bare root name like
+  // "URIRI" might only ever compete at PRIMARY level while "URIRI - LUORO JS"
+  // competes at JS level, so folding the latter into the former must be able
+  // to see both names even when the caller has filtered to just one level.
+  const allNames: string[] = [];
   const contributions: Array<{ name: string; amount: number }> = [];
 
   const participants = await prisma.participant.findMany({
-    where: {
-      championshipId,
-      position: { not: null },
-      ...(genderFilter ? { gender: genderFilter } : {}),
-    },
+    where: { championshipId, position: { not: null } },
     include: {
       game: { select: { schoolLevel: true } },
       school: { select: { name: true } },
@@ -51,14 +52,19 @@ export async function computeOrganizationRankings(
   });
   for (const p of participants) {
     if (p.position === null) continue;
-    if (schoolLevelFilter && p.game.schoolLevel !== schoolLevelFilter) continue;
     const name = p.school?.name ?? p.tournamentTeam?.name;
     if (!name) continue;
+    allNames.push(name);
+    if (genderFilter && p.gender !== genderFilter) continue;
+    if (schoolLevelFilter && p.game.schoolLevel !== schoolLevelFilter) continue;
     contributions.push({ name, amount: pointsForPosition(p.position) });
   }
 
   const gameStandings = await computeChampionshipTeamStandings(championshipId);
   for (const game of gameStandings) {
+    for (const row of game.standings) {
+      allNames.push(row.teamName);
+    }
     if (genderFilter && game.gender !== genderFilter) continue;
     if (schoolLevelFilter && game.schoolLevel !== schoolLevelFilter) continue;
     for (const row of game.standings) {
@@ -66,7 +72,7 @@ export async function computeOrganizationRankings(
     }
   }
 
-  const canonicalNames = buildCanonicalNameMap(contributions.map((c) => c.name));
+  const canonicalNames = buildCanonicalNameMap(allNames);
   const points = new Map<string, number>();
   for (const { name: rawName, amount } of contributions) {
     const name = canonicalNames.get(rawName.trim()) ?? rawName.trim();

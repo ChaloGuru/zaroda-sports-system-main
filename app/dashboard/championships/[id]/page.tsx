@@ -30,6 +30,7 @@ export default async function DashboardChampionshipDetailPage({ params }: { para
       name={championship.name}
       category={championship.category}
       schoolLevel={championship.schoolLevel}
+      level={championship.level}
       isPublished={championship.isPublished}
       restrictToOrganizationName={teamManagerRole?.organizationName ?? null}
       isSuperAdmin={isSuperAdmin(ctx)}

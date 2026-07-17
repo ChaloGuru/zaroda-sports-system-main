@@ -70,8 +70,29 @@ export async function POST(request: Request) {
 
     // team_fee mode: open-tournament teams pay directly, no tenant auth required.
     if (!input.feeId) throw new Error("feeId is required for team_fee mode");
-    const fee = await prisma.championshipFee.findUnique({ where: { id: input.feeId } });
+    const fee = await prisma.championshipFee.findUnique({
+      where: { id: input.feeId },
+      include: { championship: { select: { level: true, tenantId: true } } },
+    });
     if (!fee) throw new Error("Fee not found");
+
+    // Only OPEN_TOURNAMENT championships settle registration fees to the
+    // manager's own Paystack subaccount (see /api/tenant/payout-account) -
+    // school-ladder championships (Zone/Sub-County/.../National) keep the
+    // prior, unchanged behavior of settling to Zaroda's main account.
+    let subaccountCode: string | undefined;
+    if (fee.championship.level === "OPEN_TOURNAMENT") {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: fee.championship.tenantId },
+        select: { subaccountStatus: true, paystackSubaccountCode: true },
+      });
+      if (!tenant || tenant.subaccountStatus !== "ACTIVE" || !tenant.paystackSubaccountCode) {
+        throw new Error(
+          "This championship's manager has not yet configured their bank payout account - team registration payments cannot be accepted until they do.",
+        );
+      }
+      subaccountCode = tenant.paystackSubaccountCode;
+    }
 
     let team;
     if (input.teamId) {
@@ -114,6 +135,7 @@ export async function POST(request: Request) {
       reference,
       metadata: { mode: "team_fee", teamId: team.id, feeId: fee.id, championshipId: fee.championshipId },
       callbackUrl,
+      subaccount: subaccountCode,
     });
 
     return NextResponse.json({ authorizationUrl: paystackRes.data.authorization_url, reference });
