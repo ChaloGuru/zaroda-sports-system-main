@@ -16,6 +16,7 @@ import { RegisteredTeamsPanel } from "@/components/dashboard/registered-teams-pa
 import { FeesPanel } from "@/components/dashboard/fees-panel";
 import { FixturesPanel } from "@/components/dashboard/fixtures-panel";
 import { CallRoomPanel } from "@/components/dashboard/call-room-panel";
+import { TrackResultsPanel } from "@/components/dashboard/track-results-panel";
 import { BibRangesPanel } from "@/components/dashboard/bib-ranges-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { AnalyticsPanel } from "@/components/dashboard/analytics-panel";
@@ -138,6 +139,7 @@ export function ChampionshipManager({
           {isOpenTournament && <TabsTrigger value="fees">Fees &amp; Registration</TabsTrigger>}
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="call-room">Call Room</TabsTrigger>
+          {showsParticipants && <TabsTrigger value="track-results">Track Results</TabsTrigger>}
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -199,6 +201,14 @@ export function ChampionshipManager({
             <CallRoomPanel championshipId={championshipId} />
           </PanelErrorBoundary>
         </TabsContent>
+
+        {showsParticipants && (
+          <TabsContent value="track-results">
+            <PanelErrorBoundary fallbackTitle="Track results panel failed to load">
+              <TrackResultsPanel championshipId={championshipId} />
+            </PanelErrorBoundary>
+          </TabsContent>
+        )}
 
         <TabsContent value="bib-ranges">
           <PanelErrorBoundary fallbackTitle="Bib ranges panel failed to load">

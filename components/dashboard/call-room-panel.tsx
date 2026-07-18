@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Search, CheckCircle2, Ban, Save } from "lucide-react";
+import { Search, CheckCircle2, Ban, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,10 +29,14 @@ interface ParticipantRow {
   position: number | null;
 }
 
-function ParticipantRowEditor({ participant, gameId, isTimed }: { participant: ParticipantRow; gameId: string; isTimed: boolean }) {
+/**
+ * Call room is eligibility only - confirm the athlete is present/eligible
+ * and push them to the track, or scratch them. Race results (time/score/
+ * position) are entered by the Chief Track Judge on the Track Results tab
+ * once the race has actually run, not here.
+ */
+function ParticipantRowEditor({ participant, gameId }: { participant: ParticipantRow; gameId: string }) {
   const queryClient = useQueryClient();
-  const [resultValue, setResultValue] = React.useState("");
-  const [position, setPosition] = React.useState("");
 
   const patchMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => apiPatch(`/api/participants/${participant.id}`, body),
@@ -58,40 +62,25 @@ function ParticipantRowEditor({ participant, gameId, isTimed }: { participant: P
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          placeholder={isTimed ? "Time (12.06 or 1:23.45)" : "Score"}
-          value={resultValue}
-          onChange={(e) => setResultValue(e.target.value)}
-          className="h-11 w-40 font-mono tabular-nums"
-        />
-        <Input
-          placeholder="Position"
-          value={position}
-          onChange={(e) => setPosition(e.target.value)}
-          className="h-11 w-24 font-mono tabular-nums"
-        />
-        <Button
-          size="default"
-          variant="secondary"
-          className="h-11"
-          onClick={() =>
-            patchMutation.mutate({
-              timeInput: isTimed && resultValue ? resultValue : undefined,
-              score: !isTimed && resultValue ? Number(resultValue) : undefined,
-              position: position ? Number(position) : undefined,
-            })
-          }
-        >
-          <Save className="h-4 w-4" /> Save
-        </Button>
-        <Button
-          size="default"
-          variant="outline"
-          className="h-11"
-          onClick={() => patchMutation.mutate({ status: "CONFIRMED_IN_CALL_ROOM" })}
-        >
-          <CheckCircle2 className="h-4 w-4" /> Check in
-        </Button>
+        {participant.status === "CONFIRMED_IN_CALL_ROOM" ? (
+          <Button
+            size="default"
+            variant="outline"
+            className="h-11"
+            onClick={() => patchMutation.mutate({ status: "REGISTERED" })}
+          >
+            <Undo2 className="h-4 w-4" /> Undo check-in
+          </Button>
+        ) : (
+          <Button
+            size="default"
+            variant="outline"
+            className="h-11"
+            onClick={() => patchMutation.mutate({ status: "CONFIRMED_IN_CALL_ROOM" })}
+          >
+            <CheckCircle2 className="h-4 w-4" /> Check in - push to track
+          </Button>
+        )}
         <Button size="default" variant="destructive" className="h-11" onClick={() => patchMutation.mutate({ status: "DISQUALIFIED" })}>
           <Ban className="h-4 w-4" /> DQ
         </Button>
@@ -118,7 +107,6 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
   const filtered = (participantsData?.participants ?? []).filter(
     (p) => !search || p.bibNumber.toString().includes(search) || `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()),
   );
-  const selectedGame = (gamesData?.games ?? []).find((g) => g.id === gameId);
 
   return (
     <Card className="border-navy-dark bg-navy">
@@ -151,7 +139,7 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
         {gameId && filtered.length === 0 && <p className="text-white/70">No matching participants.</p>}
         {gameId &&
           filtered.map((p) => (
-            <ParticipantRowEditor key={p.id} participant={p} gameId={gameId} isTimed={selectedGame?.isTimed ?? true} />
+            <ParticipantRowEditor key={p.id} participant={p} gameId={gameId} />
           ))}
       </CardContent>
     </Card>
