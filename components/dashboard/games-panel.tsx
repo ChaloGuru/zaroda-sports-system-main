@@ -57,13 +57,19 @@ function defaultSportForCategory(category: string): GameCreateInput["sport"] {
   return null;
 }
 
-function emptyDefaults(category: string, championshipId: string, needsLevelChoice: boolean, championshipSchoolLevel: string): GameCreateInput {
+function emptyDefaults(
+  category: string,
+  championshipId: string,
+  needsLevelChoice: boolean,
+  championshipSchoolLevel: string,
+  defaultLevel: string,
+): GameCreateInput {
   return {
     championshipId,
     name: "",
     category: category as GameCreateInput["category"],
     gender: "BOYS",
-    schoolLevel: needsLevelChoice ? "PRIMARY" : (championshipSchoolLevel as GameCreateInput["schoolLevel"]),
+    schoolLevel: needsLevelChoice ? (defaultLevel as GameCreateInput["schoolLevel"]) : (championshipSchoolLevel as GameCreateInput["schoolLevel"]),
     isTimed: category === "ATHLETICS",
     sport: defaultSportForCategory(category),
     maxQualifiers: 5,
@@ -74,15 +80,23 @@ export function GamesPanel({
   championshipId,
   category,
   championshipSchoolLevel,
+  isOpenTournament,
 }: {
   championshipId: string;
   category: string;
   championshipSchoolLevel: string;
+  isOpenTournament?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
-  const needsLevelChoice = championshipSchoolLevel === "PRIMARY_JS";
+  // An open tournament isn't bound to one fixed school level the way a
+  // school-ladder championship is (its Championship.schoolLevel is just a
+  // neutral placeholder, not a real level) - it can mix Primary, JS, Senior
+  // School, and Tertiary category games under one roof, so the choice needs
+  // to stay open per-game rather than being hidden and auto-set.
+  const needsLevelChoice = championshipSchoolLevel === "PRIMARY_JS" || !!isOpenTournament;
+  const levelOptions = isOpenTournament ? GAME_SCHOOL_LEVELS : PRIMARY_JS_GAME_LEVELS;
 
   const { data, isLoading } = useQuery({
     queryKey: ["games", championshipId],
@@ -98,7 +112,7 @@ export function GamesPanel({
     formState: { errors },
   } = useForm<GameCreateInput>({
     resolver: zodResolver(gameCreateSchema),
-    defaultValues: emptyDefaults(category, championshipId, needsLevelChoice, championshipSchoolLevel),
+    defaultValues: emptyDefaults(category, championshipId, needsLevelChoice, championshipSchoolLevel, levelOptions[0]?.value ?? "PRIMARY"),
   });
   const watchedCategory = watch("category");
   const showsSportPicker = watchedCategory === "BALL_GAMES" || watchedCategory === "OTHER_GAMES";
@@ -106,7 +120,7 @@ export function GamesPanel({
 
   function openCreate() {
     setEditingId(null);
-    reset(emptyDefaults(category, championshipId, needsLevelChoice, championshipSchoolLevel));
+    reset(emptyDefaults(category, championshipId, needsLevelChoice, championshipSchoolLevel, levelOptions[0]?.value ?? "PRIMARY"));
     setOpen(true);
   }
 
@@ -189,7 +203,7 @@ export function GamesPanel({
                     <Select value={watch("schoolLevel")} onValueChange={(v) => setValue("schoolLevel", v as GameCreateInput["schoolLevel"])}>
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {PRIMARY_JS_GAME_LEVELS.map((l) => (
+                        {levelOptions.map((l) => (
                           <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
                         ))}
                       </SelectContent>

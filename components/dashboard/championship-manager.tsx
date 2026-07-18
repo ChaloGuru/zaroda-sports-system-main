@@ -145,14 +145,19 @@ export function ChampionshipManager({
 
         <TabsContent value="games">
           <PanelErrorBoundary fallbackTitle="Games panel failed to load">
-            <GamesPanel championshipId={championshipId} category={category} championshipSchoolLevel={schoolLevel} />
+            <GamesPanel
+              championshipId={championshipId}
+              category={category}
+              championshipSchoolLevel={schoolLevel}
+              isOpenTournament={isOpenTournament}
+            />
           </PanelErrorBoundary>
         </TabsContent>
 
         {showsParticipants && (
           <TabsContent value="participants">
             <PanelErrorBoundary fallbackTitle="Participants panel failed to load">
-              <ParticipantsPanel championshipId={championshipId} />
+              <ParticipantsPanel championshipId={championshipId} isOpenTournament={isOpenTournament} />
             </PanelErrorBoundary>
           </TabsContent>
         )}

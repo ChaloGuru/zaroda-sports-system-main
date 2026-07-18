@@ -27,6 +27,11 @@ interface SchoolOption {
   name: string;
 }
 
+interface TeamOption {
+  id: string;
+  name: string;
+}
+
 interface ParticipantRow {
   id: string;
   firstName: string;
@@ -140,7 +145,14 @@ function EditParticipantDialog({
   );
 }
 
-export function ParticipantsPanel({ championshipId }: { championshipId: string }) {
+export function ParticipantsPanel({
+  championshipId,
+  isOpenTournament,
+}: {
+  championshipId: string;
+  /** Open tournaments aren't school-based - participants belong to a registered organization/team, not a School. */
+  isOpenTournament?: boolean;
+}) {
   const queryClient = useQueryClient();
   const [gameId, setGameId] = React.useState<string>("");
   const [open, setOpen] = React.useState(false);
@@ -150,10 +162,23 @@ export function ParticipantsPanel({ championshipId }: { championshipId: string }
     queryKey: ["games", championshipId],
     queryFn: () => apiGet<{ games: GameOption[] }>(`/api/games?championshipId=${championshipId}`),
   });
-  const { data: schoolsData } = useQuery({
-    queryKey: ["schools"],
-    queryFn: () => apiGet<{ schools: SchoolOption[] }>("/api/schools"),
+  // School-ladder championships: only schools actually participating in THIS
+  // championship (i.e. allocated a bib range here) should be selectable -
+  // not the entire nationwide school directory.
+  const { data: bibRangesData } = useQuery({
+    queryKey: ["bib-ranges", championshipId],
+    queryFn: () => apiGet<{ ranges: Array<{ schoolId: string; school: { name: string } }> }>(`/api/bib-ranges?championshipId=${championshipId}`),
+    enabled: !isOpenTournament,
   });
+  const schools: SchoolOption[] = (bibRangesData?.ranges ?? []).map((r) => ({ id: r.schoolId, name: r.school.name }));
+  // Open tournaments: participants belong to a registered organization/team
+  // instead of a School.
+  const { data: teamsData } = useQuery({
+    queryKey: ["tournament-teams", championshipId],
+    queryFn: () => apiGet<{ teams: TeamOption[] }>(`/api/tournament-teams?championshipId=${championshipId}`),
+    enabled: !!isOpenTournament,
+  });
+  const teams = teamsData?.teams ?? [];
 
   const { data: participantsData, isLoading } = useQuery({
     queryKey: ["participants", gameId],
@@ -262,22 +287,44 @@ export function ParticipantsPanel({ championshipId }: { championshipId: string }
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>School</Label>
-                  <Select value={watch("schoolId") ?? ""} onValueChange={(v) => setValue("schoolId", v)}>
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select school" /></SelectTrigger>
-                    <SelectContent>
-                      {(schoolsData?.schools ?? []).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {isOpenTournament ? (
+                  <div>
+                    <Label>Organization</Label>
+                    <Select value={watch("tournamentTeamId") ?? ""} onValueChange={(v) => setValue("tournamentTeamId", v)}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select organization" /></SelectTrigger>
+                      <SelectContent>
+                        {teams.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {teams.length === 0 && (
+                      <p className="mt-1 text-xs text-muted">No organizations registered yet - add one in the Registered Teams tab first.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <Label>School</Label>
+                    <Select value={watch("schoolId") ?? ""} onValueChange={(v) => setValue("schoolId", v)}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select school" /></SelectTrigger>
+                      <SelectContent>
+                        {schools.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {schools.length === 0 && (
+                      <p className="mt-1 text-xs text-muted">No participating schools yet - allocate a bib range in the Bib Ranges tab first.</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="bibNumber">Bib number (optional - auto-assigned from school range)</Label>
+                  <Label htmlFor="bibNumber">
+                    Bib number {isOpenTournament ? "(optional - auto-assigned)" : "(optional - auto-assigned from school range)"}
+                  </Label>
                   <Input id="bibNumber" type="number" className="mt-1.5" {...register("bibNumber", { valueAsNumber: true })} />
                 </div>
                 <div>
