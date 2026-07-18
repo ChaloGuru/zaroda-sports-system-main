@@ -110,6 +110,8 @@ export function FeesPanel({ championshipId, championshipName }: { championshipId
               title={`${championshipName} - Team Registration`}
               message={`Register your team for ${championshipName}: ${registrationUrl}`}
               url={registrationUrl}
+              label="Share reg link"
+              copiedMessage="Registration link and message copied - paste it anywhere to share"
             />
           )}
         </CardHeader>
