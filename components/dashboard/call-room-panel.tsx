@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { GenderBadge } from "@/components/ui/gender-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LaneChip } from "@/components/ui/lane-chip";
 import { apiGet, apiPatch } from "@/lib/api-client";
@@ -23,10 +24,13 @@ interface ParticipantRow {
   firstName: string;
   lastName: string;
   bibNumber: number;
+  gender: string;
   status: string;
   timeTaken: string | null;
   score: string | null;
   position: number | null;
+  school: { name: string } | null;
+  tournamentTeam: { name: string } | null;
 }
 
 /**
@@ -52,9 +56,11 @@ function ParticipantRowEditor({ participant, gameId }: { participant: Participan
       <div className="flex items-center gap-3">
         <LaneChip value={participant.bibNumber} size="lg" />
         <div>
-          <p className="font-medium text-foreground">
+          <p className="flex items-center gap-2 font-medium text-foreground">
             {participant.firstName} {participant.lastName}
+            <GenderBadge gender={participant.gender} />
           </p>
+          <p className="text-sm text-muted">{participant.school?.name ?? participant.tournamentTeam?.name ?? "-"}</p>
           <Badge variant={participant.status === "DISQUALIFIED" ? "destructive" : participant.status === "CONFIRMED_IN_CALL_ROOM" ? "success" : "outline"}>
             {participant.status.replace(/_/g, " ")}
           </Badge>

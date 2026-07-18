@@ -28,7 +28,18 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
         include: {
           participants: {
             orderBy: [{ position: "asc" }, { laneNumber: "asc" }],
-            include: { participant: { select: { firstName: true, lastName: true, bibNumber: true } } },
+            include: {
+              participant: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  bibNumber: true,
+                  gender: true,
+                  school: { select: { name: true } },
+                  tournamentTeam: { select: { name: true } },
+                },
+              },
+            },
           },
         },
       },
@@ -80,6 +91,8 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                         <TableHead>Lane</TableHead>
                         <TableHead>Bib</TableHead>
                         <TableHead>Athlete</TableHead>
+                        <TableHead>Gender</TableHead>
+                        <TableHead>Institution</TableHead>
                         <TableHead>Time</TableHead>
                         <TableHead>Qualified</TableHead>
                       </TableRow>
@@ -97,6 +110,8 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                           <TableCell>
                             {hp.participant.firstName} {hp.participant.lastName}
                           </TableCell>
+                          <TableCell><GenderBadge gender={hp.participant.gender} /></TableCell>
+                          <TableCell>{hp.participant.school?.name ?? hp.participant.tournamentTeam?.name ?? "-"}</TableCell>
                           <TableCell className="font-mono tabular-nums">
                             {hp.timeTaken ? formatSecondsToTime(Number(hp.timeTaken)) : "-"}
                           </TableCell>
@@ -233,6 +248,7 @@ interface ParticipantRow {
   firstName: string;
   lastName: string;
   bibNumber: number;
+  gender: string;
   position: number | null;
   timeTaken: unknown;
   score: unknown;
@@ -248,6 +264,7 @@ function ResultsTable({ participants, isTimed }: { participants: ParticipantRow[
           <TableHead>Pos</TableHead>
           <TableHead>Bib</TableHead>
           <TableHead>Participant</TableHead>
+          <TableHead>Gender</TableHead>
           <TableHead>Institution</TableHead>
           <TableHead>{isTimed ? "Time" : "Score"}</TableHead>
         </TableRow>
@@ -262,6 +279,7 @@ function ResultsTable({ participants, isTimed }: { participants: ParticipantRow[
             <TableCell>
               {p.firstName} {p.lastName}
             </TableCell>
+            <TableCell><GenderBadge gender={p.gender} /></TableCell>
             <TableCell>{p.school?.name ?? p.tournamentTeam?.name ?? "-"}</TableCell>
             <TableCell className="font-mono tabular-nums">
               {isTimed ? (p.timeTaken ? formatSecondsToTime(Number(p.timeTaken)) : "-") : p.score ? Number(p.score) : "-"}
@@ -270,7 +288,7 @@ function ResultsTable({ participants, isTimed }: { participants: ParticipantRow[
         ))}
         {participants.length === 0 && (
           <TableRow>
-            <TableCell colSpan={5} className="text-center text-muted">
+            <TableCell colSpan={6} className="text-center text-muted">
               No results recorded yet.
             </TableCell>
           </TableRow>
