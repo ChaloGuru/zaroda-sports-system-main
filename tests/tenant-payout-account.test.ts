@@ -112,4 +112,52 @@ describe("POST /api/tenant/payout-account", () => {
     expect(res.status).toBe(403);
     expect(createPaystackSubaccountMock).not.toHaveBeenCalled();
   });
+
+  it("lets a super admin (who has no tenant of their own) configure a named tenant's payout account", async () => {
+    requireAuthMock.mockResolvedValue({
+      userId: "admin-1",
+      email: "admin@zaroda.com",
+      tenantId: null,
+      roles: [{ role: "SUPER_ADMIN", championshipId: null }],
+    });
+    createPaystackSubaccountMock.mockResolvedValue({
+      status: true,
+      message: "ok",
+      data: {
+        subaccount_code: "ACCT_999",
+        account_number: "1234567890",
+        account_name: "Jane's Open Tournament",
+        settlement_bank: "068",
+        percentage_charge: 0,
+      },
+    });
+
+    const res = await POST(
+      req({
+        settlementBankCode: "068",
+        settlementBankName: "Equity Bank",
+        accountNumber: "1234567890",
+        tenantId: "11111111-1111-1111-1111-111111111111",
+      }),
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(tenantFindUnique).toHaveBeenCalledWith({ where: { id: "11111111-1111-1111-1111-111111111111" } });
+    expect(json.payoutAccount.subaccountStatus).toBe("ACTIVE");
+  });
+
+  it("rejects a super admin who didn't name a tenant", async () => {
+    requireAuthMock.mockResolvedValue({
+      userId: "admin-1",
+      email: "admin@zaroda.com",
+      tenantId: null,
+      roles: [{ role: "SUPER_ADMIN", championshipId: null }],
+    });
+
+    const res = await POST(req({ settlementBankCode: "068", settlementBankName: "Equity Bank", accountNumber: "1234567890" }));
+
+    expect(res.status).toBe(403);
+    expect(createPaystackSubaccountMock).not.toHaveBeenCalled();
+  });
 });

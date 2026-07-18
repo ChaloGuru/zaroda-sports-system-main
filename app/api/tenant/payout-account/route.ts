@@ -11,13 +11,24 @@ export const dynamic = "force-dynamic";
  * team registration fees - entirely separate from the Zaroda subscription
  * flow (ChampionshipSubscription/PaymentTransaction), which this never touches.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const ctx = await requireAuth();
-    if (!ctx.tenantId) throw new AuthorizationError("No tenant is associated with this account");
+    const { searchParams } = new URL(request.url);
+    const requestedTenantId = searchParams.get("tenantId");
+
+    // A super admin has no tenant of their own - they can only view/configure
+    // a payout account by naming which tenant it belongs to.
+    let tenantId: string | null;
+    if (isSuperAdmin(ctx) && requestedTenantId) {
+      tenantId = requestedTenantId;
+    } else {
+      tenantId = ctx.tenantId;
+    }
+    if (!tenantId) throw new AuthorizationError("No tenant is associated with this account");
 
     const tenant = await prisma.tenant.findUnique({
-      where: { id: ctx.tenantId },
+      where: { id: tenantId },
       select: {
         subaccountStatus: true,
         settlementBankName: true,
@@ -41,12 +52,16 @@ export async function POST(request: Request) {
     if (!hasRole(ctx, "TENANT_OWNER") && !isSuperAdmin(ctx)) {
       throw new AuthorizationError("Only a tenant owner can configure a payout account");
     }
-    if (!ctx.tenantId) throw new AuthorizationError("No tenant is associated with this account");
 
     const body: unknown = await request.json();
     const input = payoutAccountSchema.parse(body);
 
-    const tenant = await prisma.tenant.findUnique({ where: { id: ctx.tenantId } });
+    // A super admin has no tenant of their own - they must name which
+    // tenant they're configuring the payout account on behalf of.
+    const tenantId = isSuperAdmin(ctx) && input.tenantId ? input.tenantId : ctx.tenantId;
+    if (!tenantId) throw new AuthorizationError("No tenant is associated with this account");
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
     // Mark PENDING before calling out to Paystack so a crash mid-request

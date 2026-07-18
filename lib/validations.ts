@@ -342,6 +342,10 @@ export const payoutAccountSchema = z.object({
   settlementBankCode: z.string().min(1).max(20),
   settlementBankName: z.string().min(1).max(200),
   accountNumber: z.string().min(1).max(50),
+  // Only honored for the caller when they're a super admin (enforced in the
+  // route) - a super admin has no tenant of their own, so they must name
+  // which tenant they're configuring the payout account on behalf of.
+  tenantId: z.string().uuid().optional(),
 });
 export type PayoutAccountInput = z.infer<typeof payoutAccountSchema>;
 

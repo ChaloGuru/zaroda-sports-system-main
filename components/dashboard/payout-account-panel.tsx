@@ -33,18 +33,22 @@ const STATUS_LABEL: Record<PayoutAccount["subaccountStatus"], string> = {
   FAILED: "Failed",
 };
 
-export function PayoutAccountPanel() {
+export function PayoutAccountPanel({ tenantId }: { tenantId?: string } = {}) {
   const queryClient = useQueryClient();
   const [bankCode, setBankCode] = React.useState("");
   const [accountNumber, setAccountNumber] = React.useState("");
+  const queryKey = ["tenant-payout-account", tenantId ?? "self"];
 
   const { data: banksData, isLoading: banksLoading } = useQuery({
     queryKey: ["paystack-banks"],
     queryFn: () => apiGet<{ banks: Bank[] }>("/api/paystack/banks"),
   });
   const { data: payoutData, isLoading: payoutLoading } = useQuery({
-    queryKey: ["tenant-payout-account"],
-    queryFn: () => apiGet<{ payoutAccount: PayoutAccount }>("/api/tenant/payout-account"),
+    queryKey,
+    queryFn: () =>
+      apiGet<{ payoutAccount: PayoutAccount }>(
+        `/api/tenant/payout-account${tenantId ? `?tenantId=${tenantId}` : ""}`,
+      ),
   });
 
   const banks = banksData?.banks ?? [];
@@ -58,16 +62,17 @@ export function PayoutAccountPanel() {
         settlementBankCode: selectedBank.code,
         settlementBankName: selectedBank.name,
         accountNumber,
+        ...(tenantId ? { tenantId } : {}),
       });
     },
     onSuccess: (result) => {
-      queryClient.setQueryData(["tenant-payout-account"], { payoutAccount: result.payoutAccount });
+      queryClient.setQueryData(queryKey, { payoutAccount: result.payoutAccount });
       if (result.payoutAccount.subaccountStatus === "ACTIVE") {
         toast.success("Payout account configured - confirm the account name below matches your own.");
       }
     },
     onError: (error) => {
-      queryClient.invalidateQueries({ queryKey: ["tenant-payout-account"] });
+      queryClient.invalidateQueries({ queryKey });
       toast.error(error instanceof Error ? error.message : "Failed to configure payout account");
     },
   });
