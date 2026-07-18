@@ -27,7 +27,19 @@ export async function GET(request: Request) {
       include: {
         participants: {
           orderBy: [{ position: "asc" }, { laneNumber: "asc" }],
-          include: { participant: { select: { firstName: true, lastName: true, bibNumber: true, personalBest: true } } },
+          include: {
+            participant: {
+              select: {
+                firstName: true,
+                lastName: true,
+                bibNumber: true,
+                gender: true,
+                personalBest: true,
+                school: { select: { name: true } },
+                tournamentTeam: { select: { name: true } },
+              },
+            },
+          },
         },
       },
     });
