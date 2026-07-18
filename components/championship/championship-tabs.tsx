@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GenderBadge } from "@/components/ui/gender-badge";
 import { StandingsPanel } from "@/components/championship/standings-panel";
+import { ResultsPanel } from "@/components/championship/results-panel";
 import { formatDate } from "@/lib/utils";
 
 interface GameSummary {
@@ -49,6 +50,7 @@ export function ChampionshipTabs({
     <Tabs defaultValue="games" className="mt-8">
       <TabsList>
         <TabsTrigger value="games">Games</TabsTrigger>
+        <TabsTrigger value="results">Results</TabsTrigger>
         <TabsTrigger value="standings">Standings</TabsTrigger>
         <TabsTrigger value="teams">Teams / Schools</TabsTrigger>
         <TabsTrigger value="circulars">Circulars</TabsTrigger>
@@ -71,6 +73,10 @@ export function ChampionshipTabs({
             </Link>
           ))}
         </div>
+      </TabsContent>
+
+      <TabsContent value="results">
+        <ResultsPanel championshipId={championshipId} games={games} />
       </TabsContent>
 
       <TabsContent value="standings">
