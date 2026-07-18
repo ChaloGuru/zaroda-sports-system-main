@@ -325,7 +325,12 @@ export function ParticipantsPanel({
                   <Label htmlFor="bibNumber">
                     Bib number {isOpenTournament ? "(optional - auto-assigned)" : "(optional - auto-assigned from school range)"}
                   </Label>
-                  <Input id="bibNumber" type="number" className="mt-1.5" {...register("bibNumber", { valueAsNumber: true })} />
+                  <Input
+                    id="bibNumber"
+                    type="number"
+                    className="mt-1.5"
+                    {...register("bibNumber", { setValueAs: (v) => (v === "" ? undefined : Number(v)) })}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="personalBest">Personal best (e.g. 12.06 or 1:23.45)</Label>
