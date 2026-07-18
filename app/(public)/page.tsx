@@ -38,11 +38,19 @@ const ORGANIZATION_JSON_LD = {
 
 export default async function LandingPage() {
   const { startOfTodayUtc, startOfTomorrowUtc } = todayUtcRange();
-  const ongoingChampionships = await prisma.championship.findMany({
-    where: { isPublished: true, startDate: { lt: startOfTomorrowUtc }, endDate: { gte: startOfTodayUtc } },
-    orderBy: { startDate: "asc" },
-    include: { tenant: { select: { organizationName: true } } },
-  });
+  const [ongoingChampionships, upcomingChampionships] = await Promise.all([
+    prisma.championship.findMany({
+      where: { isPublished: true, startDate: { lt: startOfTomorrowUtc }, endDate: { gte: startOfTodayUtc } },
+      orderBy: { startDate: "asc" },
+      include: { tenant: { select: { organizationName: true } } },
+    }),
+    prisma.championship.findMany({
+      where: { isPublished: true, startDate: { gte: startOfTomorrowUtc } },
+      orderBy: { startDate: "asc" },
+      take: 6,
+      include: { tenant: { select: { organizationName: true } } },
+    }),
+  ]);
 
   return (
     <div>
@@ -107,6 +115,41 @@ export default async function LandingPage() {
               {ongoingChampionships.map((c) => (
                 <Link key={c.id} href={`/championship/${c.id}`}>
                   <Card className="h-full border-2 border-primary/40 transition-colors hover:border-primary">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                        <Badge variant="outline">{c.schoolLevel.replace("_", " ")}</Badge>
+                      </div>
+                      <CardTitle className="mt-2 font-extrabold">{c.name}</CardTitle>
+                      <CardDescription className="font-semibold">{c.tenant.organizationName}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm font-medium text-foreground">
+                      <p className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" /> {c.location}, {c.county}
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" /> {formatDate(c.startDate)} - {formatDate(c.endDate)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {upcomingChampionships.length > 0 && (
+        <section className="border-b border-border py-14">
+          <div className="container">
+            <h2 className="text-center text-2xl font-extrabold text-foreground">Upcoming Championships</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-center text-muted">
+              Championships coming up soon - tap one to see its details.
+            </p>
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {upcomingChampionships.map((c) => (
+                <Link key={c.id} href={`/championship/${c.id}`}>
+                  <Card className="h-full border-2 border-accent/40 transition-colors hover:border-accent">
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>

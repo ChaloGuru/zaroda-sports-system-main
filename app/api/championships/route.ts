@@ -26,6 +26,7 @@ export async function GET(request: Request) {
     const category = searchParams.get("category");
     const county = searchParams.get("county");
     const ongoing = searchParams.get("ongoing") === "true";
+    const upcoming = searchParams.get("upcoming") === "true";
     const ctx = await getAuthContext();
 
     const where: Record<string, unknown> = {};
@@ -35,6 +36,11 @@ export async function GET(request: Request) {
       const { startOfTodayUtc, startOfTomorrowUtc } = todayUtcRange();
       where.startDate = { lt: startOfTomorrowUtc };
       where.endDate = { gte: startOfTodayUtc };
+    } else if (upcoming) {
+      // Starts on some future UTC day - i.e. not today or earlier, so this
+      // never overlaps with the "ongoing" set above.
+      const { startOfTomorrowUtc } = todayUtcRange();
+      where.startDate = { gte: startOfTomorrowUtc };
     }
 
     if (!ctx) {

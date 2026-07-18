@@ -42,7 +42,12 @@ function RankingsExplorer() {
     queryKey: ["championships-public-ongoing"],
     queryFn: () => apiGet<{ championships: OngoingChampionship[] }>("/api/championships?ongoing=true"),
   });
+  const { data: upcomingData } = useQuery({
+    queryKey: ["championships-public-upcoming"],
+    queryFn: () => apiGet<{ championships: OngoingChampionship[] }>("/api/championships?upcoming=true"),
+  });
   const ongoingChampionships = ongoingData?.championships ?? [];
+  const upcomingChampionships = upcomingData?.championships ?? [];
   const selected = (championships?.championships ?? []).find((c) => c.id === championshipId);
 
   return (
@@ -54,6 +59,36 @@ function RankingsExplorer() {
             {ongoingChampionships.map((c) => (
               <button key={c.id} type="button" onClick={() => setChampionshipId(c.id)} className="text-left">
                 <Card className="h-full border-2 border-primary/40 transition-colors hover:border-primary">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                      <Badge variant="outline">{c.schoolLevel.replace("_", " ")}</Badge>
+                    </div>
+                    <CardTitle className="mt-2 font-extrabold">{c.name}</CardTitle>
+                    <CardDescription className="font-semibold">{c.tenant.organizationName}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm font-medium text-foreground">
+                    <p className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" /> {c.location}, {c.county}
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" /> {formatDate(c.startDate)} - {formatDate(c.endDate)}
+                    </p>
+                  </CardContent>
+                </Card>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!championshipId && upcomingChampionships.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-extrabold text-foreground">Upcoming Championships</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {upcomingChampionships.slice(0, 6).map((c) => (
+              <button key={c.id} type="button" onClick={() => setChampionshipId(c.id)} className="text-left">
+                <Card className="h-full border-2 border-accent/40 transition-colors hover:border-accent">
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
