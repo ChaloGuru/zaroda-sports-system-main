@@ -379,6 +379,11 @@ model Participant {
   // and playing position (e.g. "Striker", "Goalkeeper"). Both optional.
   jerseyNumber     Int?
   playingPosition  String?
+  // Set when this participant row was auto-created by promoting a qualifying
+  // finalist from a lower-level championship (see /api/participants/promote)
+  // - points at the origin Participant row in the other championship, so
+  // re-running promotion skips athletes already carried forward.
+  promotedFromParticipantId String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 

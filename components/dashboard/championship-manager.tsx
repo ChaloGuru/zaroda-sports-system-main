@@ -17,6 +17,7 @@ import { FeesPanel } from "@/components/dashboard/fees-panel";
 import { FixturesPanel } from "@/components/dashboard/fixtures-panel";
 import { CallRoomPanel } from "@/components/dashboard/call-room-panel";
 import { TrackResultsPanel } from "@/components/dashboard/track-results-panel";
+import { PromotionsPanel } from "@/components/dashboard/promotions-panel";
 import { BibRangesPanel } from "@/components/dashboard/bib-ranges-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { AnalyticsPanel } from "@/components/dashboard/analytics-panel";
@@ -24,6 +25,7 @@ import { ChampionshipSettingsPanel } from "@/components/dashboard/championship-s
 import { CircularsPanel } from "@/components/dashboard/circulars-panel";
 import { apiPatch, apiGet } from "@/lib/api-client";
 import { useSetAppShellLabel } from "@/components/app-shell-context";
+import type { Level } from "@prisma/client";
 
 export function ChampionshipManager({
   championshipId,
@@ -140,6 +142,7 @@ export function ChampionshipManager({
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="call-room">Call Room</TabsTrigger>
           {showsParticipants && <TabsTrigger value="track-results">Track Results</TabsTrigger>}
+          {category === "ATHLETICS" && <TabsTrigger value="promotions">Promotions</TabsTrigger>}
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -206,6 +209,14 @@ export function ChampionshipManager({
           <TabsContent value="track-results">
             <PanelErrorBoundary fallbackTitle="Track results panel failed to load">
               <TrackResultsPanel championshipId={championshipId} />
+            </PanelErrorBoundary>
+          </TabsContent>
+        )}
+
+        {category === "ATHLETICS" && (
+          <TabsContent value="promotions">
+            <PanelErrorBoundary fallbackTitle="Promotions panel failed to load">
+              <PromotionsPanel championshipId={championshipId} currentLevel={level as Level} />
             </PanelErrorBoundary>
           </TabsContent>
         )}
