@@ -13,6 +13,7 @@ import { GamesPanel } from "@/components/dashboard/games-panel";
 import { ParticipantsPanel } from "@/components/dashboard/participants-panel";
 import { TeamsPanel } from "@/components/dashboard/teams-panel";
 import { RegisteredTeamsPanel } from "@/components/dashboard/registered-teams-panel";
+import { FeesPanel } from "@/components/dashboard/fees-panel";
 import { FixturesPanel } from "@/components/dashboard/fixtures-panel";
 import { CallRoomPanel } from "@/components/dashboard/call-room-panel";
 import { BibRangesPanel } from "@/components/dashboard/bib-ranges-panel";
@@ -134,6 +135,7 @@ export function ChampionshipManager({
           {showsParticipants && <TabsTrigger value="participants">Participants</TabsTrigger>}
           {showsTeams && <TabsTrigger value="teams">Teams</TabsTrigger>}
           {isOpenTournament && <TabsTrigger value="registered-teams">Registered Teams</TabsTrigger>}
+          {isOpenTournament && <TabsTrigger value="fees">Fees &amp; Registration</TabsTrigger>}
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="call-room">Call Room</TabsTrigger>
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
@@ -174,6 +176,14 @@ export function ChampionshipManager({
           <TabsContent value="registered-teams">
             <PanelErrorBoundary fallbackTitle="Registered teams panel failed to load">
               <RegisteredTeamsPanel championshipId={championshipId} />
+            </PanelErrorBoundary>
+          </TabsContent>
+        )}
+
+        {isOpenTournament && (
+          <TabsContent value="fees">
+            <PanelErrorBoundary fallbackTitle="Fees panel failed to load">
+              <FeesPanel championshipId={championshipId} championshipName={name} />
             </PanelErrorBoundary>
           </TabsContent>
         )}

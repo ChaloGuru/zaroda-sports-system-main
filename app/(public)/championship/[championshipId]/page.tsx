@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
-import { MapPin, Calendar } from "lucide-react";
+import { MapPin, Calendar, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ChampionshipTabs } from "@/components/championship/championship-tabs";
 import { ResultsActions } from "@/components/championship/results-actions";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +19,7 @@ export default async function ChampionshipPage({ params }: { params: { champions
       games: { orderBy: { name: "asc" } },
       tournamentTeams: { orderBy: { name: "asc" } },
       circulars: { orderBy: { createdAt: "desc" }, include: { postedBy: { select: { name: true } } } },
+      fees: { select: { id: true } },
     },
   });
 
@@ -63,7 +66,16 @@ export default async function ChampionshipPage({ params }: { params: { champions
                 <Calendar className="h-4 w-4" /> {formatDate(championship.startDate)} - {formatDate(championship.endDate)}
               </span>
             </div>
-            <ResultsActions championshipId={championship.id} championshipName={championship.name} />
+            <div className="no-print flex flex-wrap items-center gap-2">
+              {championship.level === "OPEN_TOURNAMENT" && championship.fees.length > 0 && (
+                <Button asChild size="sm">
+                  <Link href={`/register/${championship.id}`}>
+                    <UserPlus className="h-4 w-4" /> Register your team
+                  </Link>
+                </Button>
+              )}
+              <ResultsActions championshipId={championship.id} championshipName={championship.name} />
+            </div>
           </div>
 
           <ChampionshipTabs
