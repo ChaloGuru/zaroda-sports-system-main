@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { computeStandings, type BallSport, type MatchResult, type StandingRow } from "./scoring";
+import { computeStandings, type BallSport, type MatchResult, type StandingRow, type WalkoverResult } from "./scoring";
 
 export interface TeamStandingRow extends StandingRow {
   teamName: string;
@@ -59,21 +59,31 @@ export async function computeSingleGameStandings(gameId: string): Promise<TeamSt
 
 function computeGameStandings(
   teams: Array<{ id: string; name: string; teamColor: string | null }>,
-  matchPools: Array<{ teamAId: string; teamBId: string; teamAScore: number | null; teamBScore: number | null }>,
+  matchPools: Array<{
+    teamAId: string;
+    teamBId: string;
+    teamAScore: number | null;
+    teamBScore: number | null;
+    isWalkover: boolean;
+    winnerId: string | null;
+  }>,
   sport: BallSport,
 ): TeamStandingRow[] {
   const results: MatchResult[] = matchPools
-    .filter((mp) => mp.teamAScore !== null && mp.teamBScore !== null)
+    .filter((mp) => !mp.isWalkover && mp.teamAScore !== null && mp.teamBScore !== null)
     .map((mp) => ({
       teamAId: mp.teamAId,
       teamBId: mp.teamBId,
       teamAScore: mp.teamAScore as number,
       teamBScore: mp.teamBScore as number,
     }));
+  const walkovers: WalkoverResult[] = matchPools
+    .filter((mp) => mp.isWalkover && mp.winnerId !== null)
+    .map((mp) => ({ teamAId: mp.teamAId, teamBId: mp.teamBId, winnerId: mp.winnerId as string }));
 
   const teamIds = teams.map((t) => t.id);
   const teamById = new Map(teams.map((t) => [t.id, t]));
-  const standings = computeStandings(teamIds, results, sport);
+  const standings = computeStandings(teamIds, results, sport, walkovers);
 
   return standings.map((row) => ({
     ...row,

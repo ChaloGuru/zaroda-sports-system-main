@@ -197,6 +197,19 @@ export interface MatchResult {
   teamBCards?: CardCount;
 }
 
+/**
+ * A fixture decided by one team failing to turn up rather than being played
+ * out. No scoreline exists - winnerId names the awarded (present) team, the
+ * other side is the defaulter. Kept as a separate shape from MatchResult
+ * (rather than a fake scoreline) so computeStandings can both award the win
+ * and, per-team, distinguish "lost" from "never actually played".
+ */
+export interface WalkoverResult {
+  teamAId: string;
+  teamBId: string;
+  winnerId: string;
+}
+
 export interface StandingRow {
   teamId: string;
   played: number;
@@ -210,12 +223,58 @@ export interface StandingRow {
   fairPlay: number;
 }
 
-export function computeStandings(teamIds: string[], results: MatchResult[], sport: BallSport): StandingRow[] {
+export function computeStandings(
+  teamIds: string[],
+  results: MatchResult[],
+  sport: BallSport,
+  walkovers: WalkoverResult[] = [],
+): StandingRow[] {
   const config = SPORT_CONFIGS[sport];
   const table = new Map<string, StandingRow>();
 
   for (const id of teamIds) {
     table.set(id, { teamId: id, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0, fairPlay: 0 });
+  }
+
+  // A team that only ever defaulted - never played a real match, and never
+  // even turned up to claim a walkover win - never actually competed in
+  // this game, so it shouldn't be ranked alongside teams that did (even
+  // though it's technically "0 played, 0 points" like a team that just
+  // hasn't had its first fixture yet). A walkover *winner* did show up and
+  // is credited normally; only the defaulting side is at risk of exclusion.
+  const everAppeared = new Set<string>();
+  const reallyPlayed = new Set<string>();
+  for (const result of results) {
+    everAppeared.add(result.teamAId);
+    everAppeared.add(result.teamBId);
+    reallyPlayed.add(result.teamAId);
+    reallyPlayed.add(result.teamBId);
+  }
+  for (const walkover of walkovers) {
+    everAppeared.add(walkover.teamAId);
+    everAppeared.add(walkover.teamBId);
+    reallyPlayed.add(walkover.winnerId);
+  }
+  const onlyEverDefaulted = new Set([...everAppeared].filter((id) => !reallyPlayed.has(id)));
+
+  for (const walkover of walkovers) {
+    const winner = table.get(walkover.winnerId);
+    if (!winner) continue;
+    const loserId = walkover.winnerId === walkover.teamAId ? walkover.teamBId : walkover.teamAId;
+    winner.played++;
+    winner.won++;
+    winner.points += config.winPoints;
+
+    // Only charge the defaulter a loss if it has at least one real match in
+    // this standings scope; a team that never played at all is excluded
+    // from the table entirely below, so crediting it a loss here would be
+    // meaningless.
+    const loser = table.get(loserId);
+    if (loser && reallyPlayed.has(loserId)) {
+      loser.played++;
+      loser.lost++;
+      loser.points += config.lossPoints;
+    }
   }
 
   for (const result of results) {
@@ -261,7 +320,8 @@ export function computeStandings(teamIds: string[], results: MatchResult[], spor
     row.gd = row.gf - row.ga;
   }
 
-  return sortStandings(Array.from(table.values()), results, config);
+  const rankedRows = Array.from(table.values()).filter((row) => !onlyEverDefaulted.has(row.teamId));
+  return sortStandings(rankedRows, results, config);
 }
 
 function headToHeadPoints(teamId: string, tiedIds: Set<string>, results: MatchResult[], config: SportConfig): number {

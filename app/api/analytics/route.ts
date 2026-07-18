@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       prisma.teamFeePayment.findMany({ where: { championshipId }, select: { amountKes: true, status: true } }),
       prisma.matchPool.findMany({
         where: { game: { championshipId } },
-        select: { gameId: true, roundName: true, teamAScore: true, teamBScore: true },
+        select: { gameId: true, roundName: true, teamAScore: true, teamBScore: true, isWalkover: true },
       }),
       prisma.heat.findMany({
         where: { game: { championshipId } },
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
     };
 
     for (const mp of matchPools) {
-      bumpRound(mp.gameId, mp.roundName, mp.teamAScore !== null && mp.teamBScore !== null);
+      bumpRound(mp.gameId, mp.roundName, mp.isWalkover || (mp.teamAScore !== null && mp.teamBScore !== null));
     }
     for (const heat of heats) {
       const label = `${heat.heatType.replace(/_/g, " ")} ${heat.heatNumber}`;

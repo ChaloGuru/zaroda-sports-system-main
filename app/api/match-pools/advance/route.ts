@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { advanceTopTeamsSchema } from "@/lib/validations";
-import { computeStandings, generateRoundRobinSchedule, type MatchResult } from "@/lib/scoring";
+import { computeStandings, generateRoundRobinSchedule, type MatchResult, type WalkoverResult } from "@/lib/scoring";
 import { distributeMatchDatesFromEnd } from "@/lib/match-day";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     const allMatchPools = await prisma.matchPool.findMany({
       where: { gameId: input.gameId, poolId: { not: null } },
-      select: { poolId: true, teamAId: true, teamBId: true, teamAScore: true, teamBScore: true },
+      select: { poolId: true, teamAId: true, teamBId: true, teamAScore: true, teamBScore: true, isWalkover: true, winnerId: true },
     });
 
     const advancingTeamIds: string[] = [];
@@ -48,11 +48,15 @@ export async function POST(request: Request) {
       const teamIds = pool.teams.map((t) => t.id);
       if (teamIds.length === 0) continue;
 
-      const results: MatchResult[] = allMatchPools
-        .filter((mp) => mp.poolId === pool.id && mp.teamAScore !== null && mp.teamBScore !== null)
+      const poolMatchPools = allMatchPools.filter((mp) => mp.poolId === pool.id);
+      const results: MatchResult[] = poolMatchPools
+        .filter((mp) => !mp.isWalkover && mp.teamAScore !== null && mp.teamBScore !== null)
         .map((mp) => ({ teamAId: mp.teamAId, teamBId: mp.teamBId, teamAScore: mp.teamAScore as number, teamBScore: mp.teamBScore as number }));
+      const walkovers: WalkoverResult[] = poolMatchPools
+        .filter((mp) => mp.isWalkover && mp.winnerId !== null)
+        .map((mp) => ({ teamAId: mp.teamAId, teamBId: mp.teamBId, winnerId: mp.winnerId as string }));
 
-      const standings = computeStandings(teamIds, results, game.sport);
+      const standings = computeStandings(teamIds, results, game.sport, walkovers);
       advancingTeamIds.push(...standings.slice(0, input.topPerPool).map((row) => row.teamId));
     }
 

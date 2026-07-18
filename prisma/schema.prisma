@@ -450,6 +450,12 @@ model MatchPool {
   teamAScore Int?
   teamBScore Int?
   winnerId   String?
+  // True when this fixture was decided by one team failing to turn up rather
+  // than being played out. winnerId still names the awarded (present) team;
+  // teamAScore/teamBScore stay null since no match was actually played, and
+  // computeStandings excludes the absent team from that game's standings
+  // entirely unless it has at least one other real (non-walkover) match.
+  isWalkover Boolean   @default(false)
   notes      String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

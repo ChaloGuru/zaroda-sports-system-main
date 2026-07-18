@@ -11,6 +11,11 @@ const matchPoolUpdateSchema = z.object({
   teamAScore: z.number().int().min(0).nullable().optional(),
   teamBScore: z.number().int().min(0).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  // Marks the fixture as decided by one team failing to turn up. When true,
+  // walkoverWinnerId (one of the fixture's two teams) is required and any
+  // scoreline is cleared; when false, reverts to a normal scored fixture.
+  isWalkover: z.boolean().optional(),
+  walkoverWinnerId: z.string().uuid().nullable().optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
@@ -23,13 +28,28 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const body: unknown = await request.json();
     const input = matchPoolUpdateSchema.parse(body);
 
-    const teamAScore = input.teamAScore ?? existing.teamAScore;
-    const teamBScore = input.teamBScore ?? existing.teamBScore;
+    let isWalkover = existing.isWalkover;
     let winnerId: string | null = existing.winnerId;
-    if (teamAScore !== null && teamBScore !== null) {
-      if (teamAScore > teamBScore) winnerId = existing.teamAId;
-      else if (teamBScore > teamAScore) winnerId = existing.teamBId;
-      else winnerId = null; // draw
+    let teamAScore = existing.teamAScore;
+    let teamBScore = existing.teamBScore;
+
+    if (input.isWalkover === true) {
+      if (input.walkoverWinnerId !== existing.teamAId && input.walkoverWinnerId !== existing.teamBId) {
+        return NextResponse.json({ error: "walkoverWinnerId must be one of this fixture's two teams" }, { status: 400 });
+      }
+      isWalkover = true;
+      winnerId = input.walkoverWinnerId;
+      teamAScore = null;
+      teamBScore = null;
+    } else {
+      if (input.isWalkover === false) isWalkover = false;
+      teamAScore = input.teamAScore ?? teamAScore;
+      teamBScore = input.teamBScore ?? teamBScore;
+      if (teamAScore !== null && teamBScore !== null) {
+        if (teamAScore > teamBScore) winnerId = existing.teamAId;
+        else if (teamBScore > teamAScore) winnerId = existing.teamBId;
+        else winnerId = null; // draw
+      }
     }
 
     const updated = await withAudit({
@@ -41,10 +61,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         tx.matchPool.update({
           where: { id: params.id },
           data: {
-            teamAScore: input.teamAScore,
-            teamBScore: input.teamBScore,
+            teamAScore,
+            teamBScore,
             notes: input.notes,
             winnerId,
+            isWalkover,
             ...(input.matchDate !== undefined ? { matchDate: input.matchDate } : {}),
           },
         }),

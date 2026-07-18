@@ -203,7 +203,9 @@ export default async function GameDetailPage({ params }: { params: { gameId: str
                         {teamNames.get(mp.teamAId) ?? "Unknown team"} vs {teamNames.get(mp.teamBId) ?? "Unknown team"}
                       </TableCell>
                       <TableCell className="font-mono tabular-nums">
-                        {mp.teamAScore ?? "-"} : {mp.teamBScore ?? "-"}
+                        {mp.isWalkover
+                          ? `W/O - ${teamNames.get(mp.winnerId ?? "") ?? "Unknown team"} awarded the win`
+                          : `${mp.teamAScore ?? "-"} : ${mp.teamBScore ?? "-"}`}
                       </TableCell>
                     </TableRow>
                   ))}

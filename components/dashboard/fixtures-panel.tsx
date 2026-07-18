@@ -15,7 +15,7 @@ import { LaneChip } from "@/components/ui/lane-chip";
 import { PrintButton } from "@/components/ui/print-button";
 import { ShareButton } from "@/components/ui/share-button";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
-import { computeStandings, type BallSport, type MatchResult, type StandingRow } from "@/lib/scoring";
+import { computeStandings, type BallSport, type MatchResult, type StandingRow, type WalkoverResult } from "@/lib/scoring";
 import { buildResultsShareMessage } from "@/lib/share-message";
 import { isHigherLevel, LEVEL_LABELS } from "@/lib/utils";
 import type { Level } from "@prisma/client";
@@ -54,6 +54,18 @@ interface MatchPoolRow {
   teamAScore: number | null;
   teamBScore: number | null;
   winnerId: string | null;
+  isWalkover: boolean;
+}
+
+/** Splits fixtures into normal MatchResults + WalkoverResults for computeStandings. */
+function toStandingsInputs(fixtures: MatchPoolRow[]): { results: MatchResult[]; walkovers: WalkoverResult[] } {
+  const results: MatchResult[] = fixtures
+    .filter((f) => !f.isWalkover && f.teamAScore !== null && f.teamBScore !== null)
+    .map((f) => ({ teamAId: f.teamAId, teamBId: f.teamBId, teamAScore: f.teamAScore as number, teamBScore: f.teamBScore as number }));
+  const walkovers: WalkoverResult[] = fixtures
+    .filter((f) => f.isWalkover && f.winnerId !== null)
+    .map((f) => ({ teamAId: f.teamAId, teamBId: f.teamBId, winnerId: f.winnerId as string }));
+  return { results, walkovers };
 }
 
 const BALL_SPORTS: BallSport[] = [
@@ -99,6 +111,7 @@ function FixtureRow({ fixture, onChanged, showMatchDay }: { fixture: MatchPoolRo
     setSaving(true);
     try {
       await apiPatch(`/api/match-pools/${fixture.id}`, {
+        isWalkover: false,
         teamAScore: scoreA === "" ? null : Number(scoreA),
         teamBScore: scoreB === "" ? null : Number(scoreB),
         matchDate: matchDate === "" ? null : matchDate,
@@ -107,6 +120,19 @@ function FixtureRow({ fixture, onChanged, showMatchDay }: { fixture: MatchPoolRo
       onChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save score");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function markWalkover(walkoverWinnerId: string) {
+    setSaving(true);
+    try {
+      await apiPatch(`/api/match-pools/${fixture.id}`, { isWalkover: true, walkoverWinnerId });
+      toast.success("Marked as walkover");
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to mark walkover");
     } finally {
       setSaving(false);
     }
@@ -136,23 +162,50 @@ function FixtureRow({ fixture, onChanged, showMatchDay }: { fixture: MatchPoolRo
         </TableCell>
       )}
       <TableCell className={fixture.winnerId === fixture.teamAId ? "font-semibold text-primary" : ""}>{fixture.teamAName}</TableCell>
-      <TableCell>
-        <Input type="number" min={0} className="h-8 w-16 font-mono tabular-nums" value={scoreA} onChange={(e) => setScoreA(e.target.value)} />
-      </TableCell>
-      <TableCell className="text-muted">-</TableCell>
-      <TableCell>
-        <Input type="number" min={0} className="h-8 w-16 font-mono tabular-nums" value={scoreB} onChange={(e) => setScoreB(e.target.value)} />
-      </TableCell>
+      {fixture.isWalkover ? (
+        <>
+          <TableCell colSpan={3} className="text-center text-sm text-muted">
+            Walkover - {fixture.winnerId === fixture.teamAId ? fixture.teamAName : fixture.teamBName} awarded the win
+          </TableCell>
+        </>
+      ) : (
+        <>
+          <TableCell>
+            <Input type="number" min={0} className="h-8 w-16 font-mono tabular-nums" value={scoreA} onChange={(e) => setScoreA(e.target.value)} />
+          </TableCell>
+          <TableCell className="text-muted">-</TableCell>
+          <TableCell>
+            <Input type="number" min={0} className="h-8 w-16 font-mono tabular-nums" value={scoreB} onChange={(e) => setScoreB(e.target.value)} />
+          </TableCell>
+        </>
+      )}
       <TableCell className={fixture.winnerId === fixture.teamBId ? "font-semibold text-primary" : ""}>{fixture.teamBName}</TableCell>
       <TableCell>
-        {fixture.winnerId === null && fixture.teamAScore !== null && fixture.teamBScore !== null && (
+        {!fixture.isWalkover && fixture.winnerId === null && fixture.teamAScore !== null && fixture.teamBScore !== null && (
           <span className="text-sm text-muted">Draw</span>
         )}
       </TableCell>
       <TableCell className="text-right">
-        <Button size="sm" variant="secondary" onClick={saveScores} disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
+        {fixture.isWalkover ? (
+          <Button size="sm" variant="secondary" onClick={saveScores} disabled={saving}>
+            Undo walkover
+          </Button>
+        ) : (
+          <>
+            <Button size="sm" variant="secondary" onClick={saveScores} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+            <Select onValueChange={(teamId) => markWalkover(teamId)}>
+              <SelectTrigger className="ml-2 inline-flex h-8 w-32 align-middle text-xs" disabled={saving}>
+                <SelectValue placeholder="Walkover..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={fixture.teamAId}>{fixture.teamAName} present</SelectItem>
+                <SelectItem value={fixture.teamBId}>{fixture.teamBName} present</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        )}
         <Button size="icon" variant="ghost" onClick={remove} className="ml-2">
           <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
@@ -428,10 +481,8 @@ function PoolSection({
 }) {
   const standings = React.useMemo(() => {
     if (!sport) return [];
-    const results: MatchResult[] = fixtures
-      .filter((f) => f.teamAScore !== null && f.teamBScore !== null)
-      .map((f) => ({ teamAId: f.teamAId, teamBId: f.teamBId, teamAScore: f.teamAScore as number, teamBScore: f.teamBScore as number }));
-    return computeStandings(teams.map((t) => t.id), results, sport);
+    const { results, walkovers } = toStandingsInputs(fixtures);
+    return computeStandings(teams.map((t) => t.id), results, sport, walkovers);
   }, [fixtures, teams, sport]);
   const teamColorById = React.useMemo(() => new Map(teams.map((t) => [t.id, t.teamColor])), [teams]);
 
@@ -843,10 +894,8 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
     if (!selectedGame?.sport) return map;
     for (const pool of pools) {
       const poolTeamIds = teams.filter((t) => t.poolId === pool.id).map((t) => t.id);
-      const results: MatchResult[] = fixtures
-        .filter((f) => f.poolId === pool.id && f.teamAScore !== null && f.teamBScore !== null)
-        .map((f) => ({ teamAId: f.teamAId, teamBId: f.teamBId, teamAScore: f.teamAScore as number, teamBScore: f.teamBScore as number }));
-      map.set(pool.id, computeStandings(poolTeamIds, results, selectedGame.sport as BallSport));
+      const { results, walkovers } = toStandingsInputs(fixtures.filter((f) => f.poolId === pool.id));
+      map.set(pool.id, computeStandings(poolTeamIds, results, selectedGame.sport as BallSport, walkovers));
     }
     return map;
   }, [pools, teams, fixtures, selectedGame]);
@@ -923,10 +972,10 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
   function standingsFor(teamIds: string[]): StandingRow[] {
     if (!selectedGame?.sport || teamIds.length === 0) return [];
     const teamIdSet = new Set(teamIds);
-    const results: MatchResult[] = fixtures
-      .filter((f) => f.teamAScore !== null && f.teamBScore !== null && teamIdSet.has(f.teamAId) && teamIdSet.has(f.teamBId))
-      .map((f) => ({ teamAId: f.teamAId, teamBId: f.teamBId, teamAScore: f.teamAScore as number, teamBScore: f.teamBScore as number }));
-    return computeStandings(teamIds, results, selectedGame.sport);
+    const { results, walkovers } = toStandingsInputs(
+      fixtures.filter((f) => teamIdSet.has(f.teamAId) && teamIdSet.has(f.teamBId)),
+    );
+    return computeStandings(teamIds, results, selectedGame.sport, walkovers);
   }
 
   const unpooledTeams = teams.filter((t) => !t.poolId);

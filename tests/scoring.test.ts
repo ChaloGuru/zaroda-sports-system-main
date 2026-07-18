@@ -242,6 +242,37 @@ describe("computeStandings", () => {
     const standings = computeStandings(["A", "B"], results, sport);
     expect(standings.every((s) => s.points === 0)).toBe(true);
   });
+
+  it("awards the present team a win with no goals for a walkover, and excludes a team that only ever defaulted", () => {
+    // A never plays a real match against anyone - both its fixtures are walkovers, so it never actually
+    // competed in this game and shouldn't appear ranked (the Nyatike West scenario).
+    const standings = computeStandings(
+      ["A", "B", "C"],
+      [],
+      "FOOTBALL",
+      [
+        { teamAId: "A", teamBId: "B", winnerId: "B" },
+        { teamAId: "A", teamBId: "C", winnerId: "C" },
+      ],
+    );
+    expect(standings.map((s) => s.teamId).sort()).toEqual(["B", "C"]);
+    const b = standings.find((s) => s.teamId === "B")!;
+    expect(b).toMatchObject({ played: 1, won: 1, lost: 0, gf: 0, ga: 0, points: 3 });
+  });
+
+  it("charges a defaulting team a loss (not exclusion) if it has at least one real match in the same standings scope", () => {
+    const standings = computeStandings(
+      ["A", "B", "C"],
+      [{ teamAId: "A", teamBId: "C", teamAScore: 1, teamBScore: 0 }],
+      "FOOTBALL",
+      [{ teamAId: "A", teamBId: "B", winnerId: "B" }],
+    );
+    expect(standings.map((s) => s.teamId).sort()).toEqual(["A", "B", "C"]);
+    const a = standings.find((s) => s.teamId === "A")!;
+    expect(a).toMatchObject({ played: 2, won: 1, lost: 1, gf: 1, ga: 0, points: 3 });
+    const b = standings.find((s) => s.teamId === "B")!;
+    expect(b).toMatchObject({ played: 1, won: 1, lost: 0, gf: 0, ga: 0, points: 3 });
+  });
 });
 
 function allPairs(teamIds: string[]): Set<string> {
