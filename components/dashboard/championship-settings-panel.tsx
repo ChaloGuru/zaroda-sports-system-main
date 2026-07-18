@@ -15,6 +15,7 @@ import { apiGet, apiPatch, apiDelete } from "@/lib/api-client";
 interface ChampionshipDetail {
   id: string;
   name: string;
+  category: string;
   county: string;
   location: string;
   startDate: string;
@@ -26,6 +27,8 @@ interface TenantOption {
   id: string;
   organizationName: string;
 }
+
+const CATEGORIES = ["BALL_GAMES", "ATHLETICS", "MUSIC", "OTHER_GAMES"];
 
 function toDateInput(value: string): string {
   return value.slice(0, 10);
@@ -86,12 +89,26 @@ export function ChampionshipSettingsPanel({ championshipId, isSuperAdmin }: { ch
     queryFn: () => apiGet<{ championship: ChampionshipDetail }>(`/api/championships/${championshipId}`),
   });
 
-  const [form, setForm] = React.useState<{ name: string; county: string; location: string; startDate: string; endDate: string } | null>(null);
+  const [form, setForm] = React.useState<{
+    name: string;
+    category: string;
+    county: string;
+    location: string;
+    startDate: string;
+    endDate: string;
+  } | null>(null);
 
   React.useEffect(() => {
     if (data?.championship && !form) {
       const c = data.championship;
-      setForm({ name: c.name, county: c.county, location: c.location, startDate: toDateInput(c.startDate), endDate: toDateInput(c.endDate) });
+      setForm({
+        name: c.name,
+        category: c.category,
+        county: c.county,
+        location: c.location,
+        startDate: toDateInput(c.startDate),
+        endDate: toDateInput(c.endDate),
+      });
     }
   }, [data, form]);
 
@@ -129,12 +146,27 @@ export function ChampionshipSettingsPanel({ championshipId, isSuperAdmin }: { ch
       <Card>
         <CardHeader>
           <CardTitle>Championship details</CardTitle>
-          <CardDescription>Basic details can be corrected here. Level, category, and school level are fixed after creation.</CardDescription>
+          <CardDescription>Basic details can be corrected here. Level and school level are fixed after creation.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <Label htmlFor="settings-name">Name</Label>
             <Input id="settings-name" className="mt-1.5" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </div>
+          <div>
+            <Label>Category</Label>
+            <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+              <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>{c.replace("_", " ")}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1.5 text-xs text-muted">
+              Controls which dashboard tab shows for this championship - Participants (Athletics/Music) or Teams (Ball
+              Games/Other Games). Changing it doesn&apos;t touch existing games, which each keep their own category.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
