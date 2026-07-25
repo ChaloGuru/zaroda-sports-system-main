@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
+import { requireGameAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { participantCreateSchema } from "@/lib/validations";
 import { assignNextBibNumber, parseTimeToSeconds } from "@/lib/scoring";
 
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       }
       ctx = await requireTeamAccess(input.championshipId, team.name);
     } else {
-      ctx = await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+      ctx = await requireGameAccess(input.gameId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
     }
 
     if (input.schoolId) {
