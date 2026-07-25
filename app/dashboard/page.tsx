@@ -16,6 +16,44 @@ export default async function DashboardOverviewPage() {
   if (isSuperAdmin) redirect("/admin");
 
   if (!ctx.tenantId) {
+    // Championship-scoped officials (Scorekeeper, Coordinator, etc.) have no
+    // tenant/overview of their own - take them straight to the championship
+    // they were assigned to, rather than a dead end.
+    const scopedChampionshipIds = Array.from(
+      new Set(ctx.roles.map((r) => r.championshipId).filter((id): id is string => id !== null)),
+    );
+
+    if (scopedChampionshipIds.length === 1) {
+      redirect(`/dashboard/championships/${scopedChampionshipIds[0]}`);
+    }
+
+    if (scopedChampionshipIds.length > 1) {
+      const assignedChampionships = await prisma.championship.findMany({
+        where: { id: { in: scopedChampionshipIds } },
+        select: { id: true, name: true, level: true },
+      });
+      return (
+        <div className="mx-auto max-w-lg space-y-4 py-16">
+          <p className="text-center text-muted">You&apos;re assigned to more than one championship - pick one to continue.</p>
+          <div className="space-y-3">
+            {assignedChampionships.map((c) => (
+              <Link
+                key={c.id}
+                href={`/dashboard/championships/${c.id}`}
+                className="flex items-center justify-between rounded-md border border-border p-4 transition-colors hover:border-primary/50"
+              >
+                <div>
+                  <p className="font-medium text-foreground">{c.name}</p>
+                  <p className="text-sm text-muted">{c.level.replace("_", " ")}</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="mx-auto max-w-lg py-16 text-center">
         <p className="text-muted">
