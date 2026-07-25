@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
-import { Building2, Trophy, Banknote, Users } from "lucide-react";
+import { Building2, Trophy, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PanelErrorBoundary } from "@/components/error-boundary";
 import { OverviewCharts } from "@/components/admin/overview-charts";
+import {
+  RevenueStatCard,
+  RevenueVisibilityProvider,
+  RevenueVisibilityToggle,
+} from "@/components/admin/revenue-visibility";
 import { requireRole } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 
@@ -57,27 +62,28 @@ export default async function AdminOverviewPage() {
   const levelCounts = championships.map((c) => ({ level: c.level.replace("_", " "), count: c._count.level }));
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Platform overview</h1>
-        <p className="text-muted">Cross-tenant metrics across the whole Zaroda platform.</p>
-      </div>
+    <RevenueVisibilityProvider>
+      <div className="space-y-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Platform overview</h1>
+            <p className="text-muted">Cross-tenant metrics across the whole Zaroda platform.</p>
+          </div>
+          <RevenueVisibilityToggle />
+        </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={<Building2 className="h-5 w-5 text-primary" />} label="Tenants" value={tenantCount} />
-        <StatCard icon={<Trophy className="h-5 w-5 text-primary" />} label="Championships" value={championshipCount} />
-        <StatCard icon={<Users className="h-5 w-5 text-primary" />} label="Participants" value={participantCount} />
-        <StatCard
-          icon={<Banknote className="h-5 w-5 text-primary" />}
-          label="Revenue (6mo, KES)"
-          value={paidTransactions.reduce((sum, tx) => sum + tx.amountKes, 0)}
-        />
-      </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard icon={<Building2 className="h-5 w-5 text-primary" />} label="Tenants" value={tenantCount} />
+          <StatCard icon={<Trophy className="h-5 w-5 text-primary" />} label="Championships" value={championshipCount} />
+          <StatCard icon={<Users className="h-5 w-5 text-primary" />} label="Participants" value={participantCount} />
+          <RevenueStatCard value={paidTransactions.reduce((sum, tx) => sum + tx.amountKes, 0)} />
+        </div>
 
-      <PanelErrorBoundary fallbackTitle="Charts failed to load">
-        <OverviewCharts signups={signups} levelCounts={levelCounts} revenue={revenue} />
-      </PanelErrorBoundary>
-    </div>
+        <PanelErrorBoundary fallbackTitle="Charts failed to load">
+          <OverviewCharts signups={signups} levelCounts={levelCounts} revenue={revenue} />
+        </PanelErrorBoundary>
+      </div>
+    </RevenueVisibilityProvider>
   );
 }
 
