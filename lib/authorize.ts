@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import type { Level, Role } from "@prisma/client";
 import { authOptions, type SessionRole } from "./auth";
 import { prisma } from "./prisma";
+import { roleMatchesGameScope } from "./role-scope";
 
 export class AuthorizationError extends Error {
   status: number;
@@ -129,20 +130,6 @@ export async function requireChampionshipAccess(
   );
 }
 
-/** True if `role`'s optional sport/discipline scoping fields (if any are set) match `game`. */
-function scopedRoleMatchesGame(
-  role: SessionRole,
-  game: { category: string; sport: string | null; isTimed: boolean },
-): boolean {
-  if (role.gameCategory && role.gameCategory !== game.category) return false;
-  if (role.gameCategory === "BALL_GAMES" && role.ballSport && role.ballSport !== game.sport) return false;
-  if (role.gameCategory === "ATHLETICS" && role.athleticsType) {
-    const isTrack = role.athleticsType === "TRACK";
-    if (isTrack !== game.isTimed) return false;
-  }
-  return true;
-}
-
 /**
  * Throws unless the caller is SUPER_ADMIN, the TENANT_OWNER of the game's
  * championship's tenant, or holds one of `roles` scoped to this championship
@@ -164,7 +151,7 @@ export async function requireGameAccess(gameId: string, roles: Role[]): Promise<
   if (!game) throw new AuthorizationError("Game not found", 404);
 
   const scopedRole = ctx.roles.find(
-    (r) => r.championshipId === game.championshipId && roles.includes(r.role) && scopedRoleMatchesGame(r, game),
+    (r) => r.championshipId === game.championshipId && roles.includes(r.role) && roleMatchesGameScope(r, game),
   );
   if (scopedRole && (await isChampionshipRoleActive(game.championshipId))) return ctx;
 

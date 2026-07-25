@@ -15,10 +15,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { participantCreateSchema, type ParticipantCreateInput } from "@/lib/validations";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
+import { useCanManageGame } from "@/hooks/use-game-access";
+import type { Role } from "@prisma/client";
+
+// Only the school-ladder registration path (no tournamentTeamId) goes
+// through requireGameAccess with these roles - open-tournament team
+// registration is authorized separately via requireTeamAccess, unrelated to
+// sport/discipline scope (see app/api/participants/route.ts).
+const PARTICIPANT_ROLES: Role[] = ["TOURNAMENT_ADMIN", "SCOREKEEPER"];
 
 interface GameOption {
   id: string;
   name: string;
+  category: string;
+  sport: string | null;
   isTimed: boolean;
 }
 
@@ -232,6 +242,12 @@ export function ParticipantsPanel({
     }
   }
 
+  const selectedGame = (gamesData?.games ?? []).find((g) => g.id === gameId);
+  // Open-tournament registration is team-scoped (requireTeamAccess), not
+  // sport-scoped, so it's exempt from this game-scope gate.
+  const gameScopeOk = useCanManageGame(championshipId, PARTICIPANT_ROLES, selectedGame);
+  const canManage = isOpenTournament || gameScopeOk;
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
@@ -253,7 +269,7 @@ export function ParticipantsPanel({
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" disabled={!gameId}>
+            <Button size="sm" disabled={!gameId || !canManage}>
               <UserPlus className="h-4 w-4" /> Register
             </Button>
           </DialogTrigger>
@@ -347,6 +363,9 @@ export function ParticipantsPanel({
       </CardHeader>
       <CardContent>
         {!gameId && <p className="text-muted">Select a game to view its participants.</p>}
+        {gameId && !canManage && (
+          <p className="mb-3 text-sm text-[#B45309]">You don&apos;t have access to manage this sport/discipline.</p>
+        )}
         {gameId && isLoading && <p className="text-muted">Loading participants...</p>}
         {gameId && !isLoading && (
           <Table>
@@ -369,10 +388,10 @@ export function ParticipantsPanel({
                   <TableCell>{p.gender}</TableCell>
                   <TableCell>{p.status.replace(/_/g, " ")}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" onClick={() => setEditingParticipant(p)}>
+                    <Button size="icon" variant="ghost" disabled={!canManage} onClick={() => setEditingParticipant(p)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={() => confirmDelete(p)}>
+                    <Button size="icon" variant="ghost" disabled={!canManage} onClick={() => confirmDelete(p)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>

@@ -12,10 +12,16 @@ import { GenderBadge } from "@/components/ui/gender-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LaneChip } from "@/components/ui/lane-chip";
 import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
+import { useCanManageGame } from "@/hooks/use-game-access";
+import type { Role } from "@prisma/client";
+
+const CALL_ROOM_ROLES: Role[] = ["TOURNAMENT_ADMIN", "SCOREKEEPER", "OFFICIAL", "CHIEF_CALLROOM_MANAGER", "CHIEF_TRACK_JUDGE", "CHIEF_FIELD_JUDGE", "CHIEF_RECORDER"];
 
 interface GameOption {
   id: string;
   name: string;
+  category: string;
+  sport: string | null;
   isTimed: boolean;
 }
 
@@ -73,7 +79,7 @@ function heatLabel(heat: HeatRow): string {
  * a call-room decision, not an automatic cutoff, even though the backend
  * pre-computes a suggested top-N by finishing position as a starting point.
  */
-function HeatsSection({ gameId, candidates }: { gameId: string; candidates: ParticipantRow[] }) {
+function HeatsSection({ gameId, candidates, canManage }: { gameId: string; candidates: ParticipantRow[]; canManage: boolean }) {
   const queryClient = useQueryClient();
   const [heatType, setHeatType] = React.useState("heat");
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -181,7 +187,7 @@ function HeatsSection({ gameId, candidates }: { gameId: string; candidates: Part
             ))}
             {candidates.length === 0 && <p className="text-sm text-muted">No checked-in athletes yet.</p>}
           </div>
-          <Button size="sm" disabled={selected.size === 0 || createHeatMutation.isPending} onClick={() => createHeatMutation.mutate()}>
+          <Button size="sm" disabled={!canManage || selected.size === 0 || createHeatMutation.isPending} onClick={() => createHeatMutation.mutate()}>
             <Shuffle className="h-4 w-4" /> {createHeatMutation.isPending ? "Creating..." : `Create heat with ${selected.size} athlete${selected.size === 1 ? "" : "s"}`}
           </Button>
         </div>
@@ -214,7 +220,7 @@ function HeatsSection({ gameId, candidates }: { gameId: string; candidates: Part
         ))}
 
         {scoredNonFinalHeats.length > 0 && !finalAlreadyExists && !showFinalPicker && (
-          <Button size="sm" variant="secondary" onClick={openFinalPicker}>
+          <Button size="sm" variant="secondary" disabled={!canManage} onClick={openFinalPicker}>
             <ArrowUpRight className="h-4 w-4" /> Qualify finalists from scored heats
           </Button>
         )}
@@ -240,7 +246,7 @@ function HeatsSection({ gameId, candidates }: { gameId: string; candidates: Part
               </div>
             ))}
             <div className="flex gap-2 pt-2">
-              <Button size="sm" disabled={finalSelected.size === 0 || createFinalMutation.isPending} onClick={() => createFinalMutation.mutate()}>
+              <Button size="sm" disabled={!canManage || finalSelected.size === 0 || createFinalMutation.isPending} onClick={() => createFinalMutation.mutate()}>
                 {createFinalMutation.isPending ? "Creating Final..." : `Create Final with ${finalSelected.size} finalist${finalSelected.size === 1 ? "" : "s"}`}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setShowFinalPicker(false)}>Cancel</Button>
@@ -258,7 +264,7 @@ function HeatsSection({ gameId, candidates }: { gameId: string; candidates: Part
  * position) are entered by the Chief Track Judge on the Track Results tab
  * once the race has actually run, not here.
  */
-function ParticipantRowEditor({ participant, gameId }: { participant: ParticipantRow; gameId: string }) {
+function ParticipantRowEditor({ participant, gameId, canManage }: { participant: ParticipantRow; gameId: string; canManage: boolean }) {
   const queryClient = useQueryClient();
 
   const patchMutation = useMutation({
@@ -292,6 +298,7 @@ function ParticipantRowEditor({ participant, gameId }: { participant: Participan
             size="default"
             variant="outline"
             className="h-11"
+            disabled={!canManage}
             onClick={() => patchMutation.mutate({ status: "REGISTERED" })}
           >
             <Undo2 className="h-4 w-4" /> Undo check-in
@@ -301,12 +308,13 @@ function ParticipantRowEditor({ participant, gameId }: { participant: Participan
             size="default"
             variant="outline"
             className="h-11"
+            disabled={!canManage}
             onClick={() => patchMutation.mutate({ status: "CONFIRMED_IN_CALL_ROOM" })}
           >
             <CheckCircle2 className="h-4 w-4" /> Check in - push to track
           </Button>
         )}
-        <Button size="default" variant="destructive" className="h-11" onClick={() => patchMutation.mutate({ status: "DISQUALIFIED" })}>
+        <Button size="default" variant="destructive" className="h-11" disabled={!canManage} onClick={() => patchMutation.mutate({ status: "DISQUALIFIED" })}>
           <Ban className="h-4 w-4" /> DQ
         </Button>
       </div>
@@ -334,6 +342,7 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
   );
   const checkedIn = (participantsData?.participants ?? []).filter((p) => p.status === "CONFIRMED_IN_CALL_ROOM");
   const selectedGame = (gamesData?.games ?? []).find((g) => g.id === gameId);
+  const canManage = useCanManageGame(championshipId, CALL_ROOM_ROLES, selectedGame);
 
   return (
     <div className="space-y-6">
@@ -364,15 +373,18 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
         </CardHeader>
         <CardContent className="space-y-3 pt-6">
           {!gameId && <p className="text-white/70">Select a game to open its call room.</p>}
+          {gameId && !canManage && (
+            <p className="text-sm text-[#F0B429]">You don&apos;t have access to manage this sport/discipline.</p>
+          )}
           {gameId && filtered.length === 0 && <p className="text-white/70">No matching participants.</p>}
           {gameId &&
             filtered.map((p) => (
-              <ParticipantRowEditor key={p.id} participant={p} gameId={gameId} />
+              <ParticipantRowEditor key={p.id} participant={p} gameId={gameId} canManage={canManage} />
             ))}
         </CardContent>
       </Card>
 
-      {gameId && selectedGame?.isTimed && <HeatsSection gameId={gameId} candidates={checkedIn} />}
+      {gameId && selectedGame?.isTimed && <HeatsSection gameId={gameId} candidates={checkedIn} canManage={canManage} />}
     </div>
   );
 }

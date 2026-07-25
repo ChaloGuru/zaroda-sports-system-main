@@ -18,7 +18,10 @@ import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { computeStandings, type BallSport, type MatchResult, type StandingRow, type WalkoverResult } from "@/lib/scoring";
 import { buildResultsShareMessage } from "@/lib/share-message";
 import { isHigherLevel, LEVEL_LABELS } from "@/lib/utils";
-import type { Level } from "@prisma/client";
+import { useCanManageGame } from "@/hooks/use-game-access";
+import type { Level, Role } from "@prisma/client";
+
+const FIXTURES_ROLES: Role[] = ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"];
 
 interface GameOption {
   id: string;
@@ -101,7 +104,7 @@ function sportLabel(sport: string): string {
     .join(" ");
 }
 
-function FixtureRow({ fixture, onChanged, showMatchDay }: { fixture: MatchPoolRow; onChanged: () => void; showMatchDay: boolean }) {
+function FixtureRow({ fixture, onChanged, showMatchDay, canManage }: { fixture: MatchPoolRow; onChanged: () => void; showMatchDay: boolean; canManage: boolean }) {
   const [scoreA, setScoreA] = React.useState(fixture.teamAScore?.toString() ?? "");
   const [scoreB, setScoreB] = React.useState(fixture.teamBScore?.toString() ?? "");
   const [matchDate, setMatchDate] = React.useState(fixture.matchDate ? fixture.matchDate.slice(0, 10) : "");
@@ -187,16 +190,16 @@ function FixtureRow({ fixture, onChanged, showMatchDay }: { fixture: MatchPoolRo
       </TableCell>
       <TableCell className="text-right">
         {fixture.isWalkover ? (
-          <Button size="sm" variant="secondary" onClick={saveScores} disabled={saving}>
+          <Button size="sm" variant="secondary" onClick={saveScores} disabled={!canManage || saving}>
             Undo walkover
           </Button>
         ) : (
           <>
-            <Button size="sm" variant="secondary" onClick={saveScores} disabled={saving}>
+            <Button size="sm" variant="secondary" onClick={saveScores} disabled={!canManage || saving}>
               {saving ? "Saving..." : "Save"}
             </Button>
             <Select onValueChange={(teamId) => markWalkover(teamId)}>
-              <SelectTrigger className="ml-2 inline-flex h-8 w-32 align-middle text-xs" disabled={saving}>
+              <SelectTrigger className="ml-2 inline-flex h-8 w-32 align-middle text-xs" disabled={!canManage || saving}>
                 <SelectValue placeholder="Walkover..." />
               </SelectTrigger>
               <SelectContent>
@@ -206,7 +209,7 @@ function FixtureRow({ fixture, onChanged, showMatchDay }: { fixture: MatchPoolRo
             </Select>
           </>
         )}
-        <Button size="icon" variant="ghost" onClick={remove} className="ml-2">
+        <Button size="icon" variant="ghost" disabled={!canManage} onClick={remove} className="ml-2">
           <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
       </TableCell>
@@ -219,11 +222,13 @@ function FixturesTable({
   onChanged,
   emptyMessage,
   showMatchDay,
+  canManage,
 }: {
   fixtures: MatchPoolRow[];
   onChanged: () => void;
   emptyMessage: string;
   showMatchDay: boolean;
+  canManage: boolean;
 }) {
   if (fixtures.length === 0) return <p className="text-muted">{emptyMessage}</p>;
   return (
@@ -243,7 +248,7 @@ function FixturesTable({
       </TableHeader>
       <TableBody>
         {fixtures.map((f) => (
-          <FixtureRow key={f.id} fixture={f} onChanged={onChanged} showMatchDay={showMatchDay} />
+          <FixtureRow key={f.id} fixture={f} onChanged={onChanged} showMatchDay={showMatchDay} canManage={canManage} />
         ))}
       </TableBody>
     </Table>
@@ -340,6 +345,7 @@ function AddFixtureDialog({
   showMatchDay,
   minDate,
   maxDate,
+  canManage,
 }: {
   triggerLabel?: string;
   title: string;
@@ -351,6 +357,7 @@ function AddFixtureDialog({
   showMatchDay?: boolean;
   minDate?: string;
   maxDate?: string;
+  canManage: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [teamAId, setTeamAId] = React.useState("");
@@ -376,7 +383,7 @@ function AddFixtureDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" disabled={teams.length < 2}>
+        <Button size="sm" disabled={!canManage || teams.length < 2}>
           <Plus className="h-4 w-4" /> {triggerLabel}
         </Button>
       </DialogTrigger>
@@ -465,6 +472,7 @@ function PoolSection({
   showMatchDay,
   minDate,
   maxDate,
+  canManage,
 }: {
   pool: PoolOption;
   teams: TeamOption[];
@@ -478,6 +486,7 @@ function PoolSection({
   showMatchDay: boolean;
   minDate?: string;
   maxDate?: string;
+  canManage: boolean;
 }) {
   const standings = React.useMemo(() => {
     if (!sport) return [];
@@ -496,7 +505,7 @@ function PoolSection({
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="secondary" disabled={teams.length < 2 || generating} onClick={onGenerate}>
+          <Button size="sm" variant="secondary" disabled={!canManage || teams.length < 2 || generating} onClick={onGenerate}>
             <Shuffle className="h-4 w-4" /> Generate round robin
           </Button>
           <AddFixtureDialog
@@ -508,6 +517,7 @@ function PoolSection({
             showMatchDay={showMatchDay}
             minDate={minDate}
             maxDate={maxDate}
+            canManage={canManage}
           />
         </div>
       </CardHeader>
@@ -517,6 +527,7 @@ function PoolSection({
           onChanged={onChanged}
           emptyMessage="No fixtures yet in this pool - generate a round robin or add one manually above. Fixtures are visible to the public as soon as they're added, even before scores are entered, so schedule them ahead of match day."
           showMatchDay={showMatchDay}
+          canManage={canManage}
         />
         {sport && (
           <StandingsTable
@@ -551,6 +562,7 @@ function SemifinalRulesCard({
   onRulesChange,
   onGenerate,
   generating,
+  canManage,
 }: {
   pools: PoolOption[];
   poolStandingsById: Map<string, StandingRow[]>;
@@ -559,6 +571,7 @@ function SemifinalRulesCard({
   onRulesChange: (rules: SemifinalRule[]) => void;
   onGenerate: () => void;
   generating: boolean;
+  canManage: boolean;
 }) {
   function addRule() {
     onRulesChange([
@@ -660,10 +673,10 @@ function SemifinalRulesCard({
           </div>
         ))}
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" disabled={pools.length === 0} onClick={addRule}>
+          <Button size="sm" variant="outline" disabled={!canManage || pools.length === 0} onClick={addRule}>
             <Plus className="h-4 w-4" /> Add pairing rule
           </Button>
-          <Button size="sm" disabled={rules.length === 0 || generating} onClick={onGenerate}>
+          <Button size="sm" disabled={!canManage || rules.length === 0 || generating} onClick={onGenerate}>
             <ArrowUpRight className="h-4 w-4" /> {generating ? "Generating..." : "Generate fixtures from rules"}
           </Button>
         </div>
@@ -791,6 +804,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
     ? fixtureGames.filter((g) => g.name.toLowerCase().includes(gameSearch.trim().toLowerCase()))
     : fixtureGames;
   const selectedGame = fixtureGames.find((g) => g.id === gameId);
+  const canManage = useCanManageGame(championshipId, FIXTURES_ROLES, selectedGame);
 
   const { data: teamsData } = useQuery({
     queryKey: ["tournament-teams", championshipId, gameId],
@@ -1099,7 +1113,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                   onChange={(e) => setNewPoolName(e.target.value)}
                 />
               </div>
-              <Button size="sm" disabled={!newPoolName.trim() || addPoolMutation.isPending} onClick={() => addPoolMutation.mutate()}>
+              <Button size="sm" disabled={!canManage || !newPoolName.trim() || addPoolMutation.isPending} onClick={() => addPoolMutation.mutate()}>
                 <Plus className="h-4 w-4" /> Add pool
               </Button>
             </div>
@@ -1112,7 +1126,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                       <p className="font-medium text-foreground">{pool.name}</p>
                       <p className="text-sm text-muted">{pool._count.teams} team{pool._count.teams === 1 ? "" : "s"}</p>
                     </div>
-                    <Button size="icon" variant="ghost" onClick={() => deletePoolMutation.mutate(pool.id)}>
+                    <Button size="icon" variant="ghost" disabled={!canManage} onClick={() => deletePoolMutation.mutate(pool.id)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -1148,7 +1162,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={unpooledTeams.length < 2 || generateMutation.isPending}
+                disabled={!canManage || unpooledTeams.length < 2 || generateMutation.isPending}
                 onClick={() => generateMutation.mutate(null)}
               >
                 <Shuffle className="h-4 w-4" /> Generate round robin for unpooled teams ({unpooledTeams.length})
@@ -1173,6 +1187,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
           showMatchDay={isMultiDay}
           minDate={championshipStart}
           maxDate={championshipEnd}
+          canManage={canManage}
         />
       ))}
 
@@ -1185,6 +1200,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
           onRulesChange={setSemifinalRules}
           onGenerate={() => generateFromRulesMutation.mutate()}
           generating={generateFromRulesMutation.isPending}
+          canManage={canManage}
         />
       )}
 
@@ -1211,7 +1227,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                       <SelectItem value="3">Top 3 per pool</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button size="sm" onClick={() => advanceMutation.mutate()} disabled={advanceMutation.isPending}>
+                  <Button size="sm" onClick={() => advanceMutation.mutate()} disabled={!canManage || advanceMutation.isPending}>
                     <ArrowUpRight className="h-4 w-4" /> {advanceMutation.isPending ? "Advancing..." : "Advance to knockout"}
                   </Button>
                 </>
@@ -1228,7 +1244,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                   </Select>
                   <Button
                     size="sm"
-                    disabled={!roundToAdvance || advanceRoundMutation.isPending}
+                    disabled={!canManage || !roundToAdvance || advanceRoundMutation.isPending}
                     onClick={() => advanceRoundMutation.mutate(roundToAdvance)}
                   >
                     <ArrowUpRight className="h-4 w-4" /> {advanceRoundMutation.isPending ? "Advancing..." : "Advance winners"}
@@ -1238,7 +1254,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={(pools.length > 0 ? unpooledTeams.length : teams.length) < 2 || generateMutation.isPending}
+                disabled={!canManage || (pools.length > 0 ? unpooledTeams.length : teams.length) < 2 || generateMutation.isPending}
                 onClick={() => generateMutation.mutate(null)}
               >
                 <Shuffle className="h-4 w-4" />
@@ -1254,10 +1270,14 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                 showMatchDay={isMultiDay}
                 minDate={championshipStart}
                 maxDate={championshipEnd}
+                canManage={canManage}
               />
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {!canManage && (
+              <p className="text-sm text-[#B45309]">You don&apos;t have access to manage this sport/discipline.</p>
+            )}
             {blockedRounds.length > 0 && (
               <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700">
                 {blockedRounds.map((r) => (
@@ -1281,6 +1301,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                     : "No fixtures yet. Add one manually or generate a round robin above - fixtures are visible to the public as soon as they're added, even before scores are entered, so schedule them ahead of match day."
                 }
                 showMatchDay={isMultiDay}
+                canManage={canManage}
               />
             )}
             {pools.length === 0 && selectedGame?.sport && (

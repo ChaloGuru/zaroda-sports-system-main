@@ -12,10 +12,16 @@ import { GenderBadge } from "@/components/ui/gender-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LaneChip } from "@/components/ui/lane-chip";
 import { apiGet, apiPatch } from "@/lib/api-client";
+import { useCanManageGame } from "@/hooks/use-game-access";
+import type { Role } from "@prisma/client";
+
+const TRACK_RESULTS_ROLES: Role[] = ["TOURNAMENT_ADMIN", "SCOREKEEPER", "OFFICIAL", "CHIEF_CALLROOM_MANAGER", "CHIEF_TRACK_JUDGE", "CHIEF_FIELD_JUDGE", "CHIEF_RECORDER"];
 
 interface GameOption {
   id: string;
   name: string;
+  category: string;
+  sport: string | null;
   isTimed: boolean;
 }
 
@@ -70,7 +76,7 @@ function heatLabel(heat: HeatRow): string {
  * happened in the race; heat/lane assignment and who qualifies for the next
  * round are Call Room decisions made elsewhere.
  */
-function HeatResultsForm({ heat, gameId, isTimed }: { heat: HeatRow; gameId: string; isTimed: boolean }) {
+function HeatResultsForm({ heat, gameId, isTimed, canManage }: { heat: HeatRow; gameId: string; isTimed: boolean; canManage: boolean }) {
   const queryClient = useQueryClient();
   const [values, setValues] = React.useState<Record<string, { result: string; position: string }>>(() =>
     Object.fromEntries(
@@ -127,7 +133,7 @@ function HeatResultsForm({ heat, gameId, isTimed }: { heat: HeatRow; gameId: str
           />
         </div>
       ))}
-      <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+      <Button size="sm" onClick={() => saveMutation.mutate()} disabled={!canManage || saveMutation.isPending}>
         <Save className="h-4 w-4" /> {saveMutation.isPending ? "Saving..." : `Save ${heatLabel(heat)} results`}
       </Button>
     </div>
@@ -135,7 +141,7 @@ function HeatResultsForm({ heat, gameId, isTimed }: { heat: HeatRow; gameId: str
 }
 
 /** Direct-final mode (no heats for this game) - unchanged flat participant entry. */
-function ResultRowEditor({ participant, gameId, isTimed }: { participant: ParticipantRow; gameId: string; isTimed: boolean }) {
+function ResultRowEditor({ participant, gameId, isTimed, canManage }: { participant: ParticipantRow; gameId: string; isTimed: boolean; canManage: boolean }) {
   const queryClient = useQueryClient();
   const [resultValue, setResultValue] = React.useState(isTimed ? "" : (participant.score ?? ""));
   const [position, setPosition] = React.useState(participant.position?.toString() ?? "");
@@ -180,6 +186,7 @@ function ResultRowEditor({ participant, gameId, isTimed }: { participant: Partic
           size="default"
           variant="secondary"
           className="h-11"
+          disabled={!canManage}
           onClick={() =>
             patchMutation.mutate({
               timeInput: isTimed && resultValue ? resultValue : undefined,
@@ -224,6 +231,7 @@ export function TrackResultsPanel({ championshipId }: { championshipId: string }
   );
   const selectedGame = (gamesData?.games ?? []).find((g) => g.id === gameId);
   const notYetPushed = (participantsData?.participants ?? []).length - onTrack.length - (participantsData?.participants ?? []).filter((p) => p.status === "DISQUALIFIED").length;
+  const canManage = useCanManageGame(championshipId, TRACK_RESULTS_ROLES, selectedGame);
 
   return (
     <Card>
@@ -263,6 +271,10 @@ export function TrackResultsPanel({ championshipId }: { championshipId: string }
 
         {gameId && heatsLoading && <p className="text-muted">Loading...</p>}
 
+        {gameId && !canManage && (
+          <p className="text-sm text-[#B45309]">You don&apos;t have access to manage this sport/discipline.</p>
+        )}
+
         {gameId && !heatsLoading && usesHeats && (
           <>
             <p className="text-sm text-muted">
@@ -270,7 +282,7 @@ export function TrackResultsPanel({ championshipId }: { championshipId: string }
               qualifies for the next round/final.
             </p>
             {heats.map((heat) => (
-              <HeatResultsForm key={heat.id} heat={heat} gameId={gameId} isTimed={selectedGame?.isTimed ?? true} />
+              <HeatResultsForm key={heat.id} heat={heat} gameId={gameId} isTimed={selectedGame?.isTimed ?? true} canManage={canManage} />
             ))}
           </>
         )}
@@ -285,7 +297,7 @@ export function TrackResultsPanel({ championshipId }: { championshipId: string }
               <p className="text-sm text-muted">{notYetPushed} more athlete{notYetPushed === 1 ? "" : "s"} still waiting in the call room.</p>
             )}
             {filtered.map((p) => (
-              <ResultRowEditor key={p.id} participant={p} gameId={gameId} isTimed={selectedGame?.isTimed ?? true} />
+              <ResultRowEditor key={p.id} participant={p} gameId={gameId} isTimed={selectedGame?.isTimed ?? true} canManage={canManage} />
             ))}
           </>
         )}
