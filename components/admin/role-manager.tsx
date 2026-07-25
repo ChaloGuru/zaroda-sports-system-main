@@ -21,6 +21,11 @@ interface ChampionshipOption {
   tenant: { organizationName: string };
 }
 
+interface TeamOption {
+  id: string;
+  name: string;
+}
+
 interface RoleRow {
   id: string;
   role: string;
@@ -31,16 +36,23 @@ interface RoleRow {
   user: { id: string; name: string; email: string };
 }
 
-const ASSIGNABLE_ROLES = [
+// Roles every championship can use, regardless of category.
+const UNIVERSAL_ROLES = [
   { value: "TOURNAMENT_ADMIN", label: "Tournament Admin" },
   { value: "SCOREKEEPER", label: "Scorekeeper" },
   { value: "OFFICIAL", label: "Official" },
-  { value: "GAME_COORDINATOR", label: "Game Coordinator (e.g. Football Coordinator)" },
+  { value: "TEAM_MANAGER", label: "Team Manager (single organization only)" },
+];
+
+// Only meaningful for a Ball Games championship - a Chief Track Judge etc.
+// makes no sense where there are no athletics events, and vice versa.
+const BALL_GAMES_ROLES = [{ value: "GAME_COORDINATOR", label: "Game Coordinator (e.g. Football Coordinator)" }];
+
+const ATHLETICS_ROLES = [
   { value: "CHIEF_CALLROOM_MANAGER", label: "Chief Callroom Manager (Athletics)" },
   { value: "CHIEF_TRACK_JUDGE", label: "Chief Track Judge (Athletics)" },
   { value: "CHIEF_FIELD_JUDGE", label: "Chief Field Judge (Athletics)" },
   { value: "CHIEF_RECORDER", label: "Chief Recorder (Athletics)" },
-  { value: "TEAM_MANAGER", label: "Team Manager (single organization only)" },
 ];
 
 // Roles that TOURNAMENT_ADMIN/TEAM_MANAGER don't need scoping for - the
@@ -161,10 +173,31 @@ export function RoleManager() {
   // championship's would silently match nothing, so only offer its actual
   // category instead of all four.
   const availableGameCategories = GAME_CATEGORIES.filter((c) => !selectedChampionship || c.value === selectedChampionship.category);
+  const availableRoles = [
+    ...UNIVERSAL_ROLES,
+    ...(!selectedChampionship || selectedChampionship.category === "BALL_GAMES" ? BALL_GAMES_ROLES : []),
+    ...(!selectedChampionship || selectedChampionship.category === "ATHLETICS" ? ATHLETICS_ROLES : []),
+  ];
+
+  const { data: teamsData } = useQuery({
+    queryKey: ["championship-teams-picker", championshipId],
+    queryFn: () => apiGet<{ teams: TeamOption[] }>(`/api/tournament-teams?championshipId=${championshipId}`),
+    enabled: !!championshipId && form.role === "TEAM_MANAGER",
+  });
+  const teams = teamsData?.teams ?? [];
+  const [organizationNameMode, setOrganizationNameMode] = React.useState<"select" | "manual">("select");
 
   React.useEffect(() => {
-    setForm((f) => ({ ...f, gameCategory: "", ballSport: "", athleticsType: "" }));
+    setForm((f) => ({ ...f, gameCategory: "", ballSport: "", athleticsType: "", organizationName: "" }));
+    setOrganizationNameMode("select");
   }, [championshipId]);
+
+  React.useEffect(() => {
+    if (!availableRoles.some((r) => r.value === form.role)) {
+      setForm((f) => ({ ...f, role: "TOURNAMENT_ADMIN" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChampionship?.category]);
 
   function copyChampionshipLink() {
     const url = `${window.location.origin}/dashboard/championships/${championshipId}`;
@@ -238,7 +271,7 @@ export function RoleManager() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ASSIGNABLE_ROLES.map((r) => (
+                {availableRoles.map((r) => (
                   <SelectItem key={r.value} value={r.value}>
                     {r.label}
                   </SelectItem>
@@ -316,11 +349,53 @@ export function RoleManager() {
           {form.role === "TEAM_MANAGER" && (
             <div className="space-y-2">
               <Label>Organization / team name</Label>
-              <Input
-                value={form.organizationName}
-                onChange={(e) => setForm({ ...form, organizationName: e.target.value })}
-                placeholder="Must match the team's registered name exactly"
-              />
+              {organizationNameMode === "select" ? (
+                <>
+                  <Select
+                    value={form.organizationName}
+                    onValueChange={(v) => setForm({ ...form, organizationName: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={teams.length === 0 ? "No teams registered yet" : "Select a registered team"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((t) => (
+                        <SelectItem key={t.id} value={t.name}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline"
+                    onClick={() => {
+                      setOrganizationNameMode("manual");
+                      setForm({ ...form, organizationName: "" });
+                    }}
+                  >
+                    Team not registered yet - type the name manually
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Input
+                    value={form.organizationName}
+                    onChange={(e) => setForm({ ...form, organizationName: e.target.value })}
+                    placeholder="Must match the team's registered name exactly"
+                  />
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline"
+                    onClick={() => {
+                      setOrganizationNameMode("select");
+                      setForm({ ...form, organizationName: "" });
+                    }}
+                  >
+                    Choose from registered teams instead
+                  </button>
+                </>
+              )}
               <p className="text-xs text-muted">
                 Scopes this manager to only add/edit/delete their own organization's team rows - never anyone else's.
               </p>
