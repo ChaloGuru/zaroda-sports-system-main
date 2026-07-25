@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { requireChampionshipAccess, requireGameAccess, toErrorResponse } from "@/lib/authorize";
 import { timeInputSchema } from "@/lib/validations";
 import { parseTimeToSeconds } from "@/lib/scoring";
 
@@ -26,7 +26,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const heat = await prisma.heat.findUnique({ where: { id: params.id }, include: { game: true } });
     if (!heat) return NextResponse.json({ error: "Heat not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(heat.game.championshipId, [
+    const ctx = await requireGameAccess(heat.gameId, [
       "TOURNAMENT_ADMIN",
       "SCOREKEEPER",
       "CHIEF_TRACK_JUDGE",

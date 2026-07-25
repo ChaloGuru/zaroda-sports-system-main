@@ -129,6 +129,60 @@ export async function requireChampionshipAccess(
   );
 }
 
+/** True if `role`'s optional sport/discipline scoping fields (if any are set) match `game`. */
+function scopedRoleMatchesGame(
+  role: SessionRole,
+  game: { category: string; sport: string | null; isTimed: boolean },
+): boolean {
+  if (role.gameCategory && role.gameCategory !== game.category) return false;
+  if (role.gameCategory === "BALL_GAMES" && role.ballSport && role.ballSport !== game.sport) return false;
+  if (role.gameCategory === "ATHLETICS" && role.athleticsType) {
+    const isTrack = role.athleticsType === "TRACK";
+    if (isTrack !== game.isTimed) return false;
+  }
+  return true;
+}
+
+/**
+ * Throws unless the caller is SUPER_ADMIN, the TENANT_OWNER of the game's
+ * championship's tenant, or holds one of `roles` scoped to this championship
+ * (and, if the role has sport/discipline scoping set, matching this game's
+ * category/sport/track-or-field). Use this instead of
+ * requireChampionshipAccess whenever the write targets a specific Game (or a
+ * row that belongs to one), so e.g. a GAME_COORDINATOR scoped to Football
+ * can't touch a basketball fixture, and a CHIEF_TRACK_JUDGE scoped to Track
+ * can't touch a field event.
+ */
+export async function requireGameAccess(gameId: string, roles: Role[]): Promise<AuthContext> {
+  const ctx = await requireAuth();
+  if (isSuperAdmin(ctx)) return ctx;
+
+  const game = await prisma.game.findUnique({
+    where: { id: gameId },
+    select: { championshipId: true, category: true, sport: true, isTimed: true },
+  });
+  if (!game) throw new AuthorizationError("Game not found", 404);
+
+  const scopedRole = ctx.roles.find(
+    (r) => r.championshipId === game.championshipId && roles.includes(r.role) && scopedRoleMatchesGame(r, game),
+  );
+  if (scopedRole && (await isChampionshipRoleActive(game.championshipId))) return ctx;
+
+  if (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId) {
+    const championship = await prisma.championship.findUnique({
+      where: { id: game.championshipId },
+      select: { tenantId: true },
+    });
+    if (championship?.tenantId === ctx.tenantId) return ctx;
+  }
+
+  throw new AuthorizationError(
+    scopedRole
+      ? "Your role for this championship has expired now that the championship has ended"
+      : "You do not have access to this game",
+  );
+}
+
 /**
  * Throws unless the caller can manage the given team: SUPER_ADMIN, the
  * TENANT_OWNER of the championship's tenant, a championship-scoped

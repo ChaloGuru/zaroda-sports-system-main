@@ -150,9 +150,9 @@ model User {
 
   roles                UserRole[]
   tenant               Tenant?
-  createdChampionships Championship[] @relation("ChampionshipCreatedBy")
-  sentMessages         AdminMessage[] @relation("MessageSender")
-  receivedMessages     AdminMessage[] @relation("MessageRecipient")
+  createdChampionships Championship[]         @relation("ChampionshipCreatedBy")
+  sentMessages         AdminMessage[]         @relation("MessageSender")
+  receivedMessages     AdminMessage[]         @relation("MessageRecipient")
   notifications        Notification[]
   auditLogs            AuditLog[]
   postedCirculars      ChampionshipCircular[]
@@ -161,17 +161,24 @@ model User {
 }
 
 model UserRole {
-  id             String   @id @default(uuid())
-  userId         String
-  role           Role
-  championshipId String?
+  id               String         @id @default(uuid())
+  userId           String
+  role             Role
+  championshipId   String?
   // Only set (and only meaningful) for TEAM_MANAGER - scopes the role to a
   // single organization's team rows within the championship (matched by
   // trimmed/lowercased TournamentTeam.name, the same org-identity convention
   // used elsewhere - see lib/organization-rankings.ts).
   organizationName String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  // Optional sport/discipline scoping for operational roles (e.g. a
+  // GAME_COORDINATOR limited to Football, or a CHIEF_TRACK_JUDGE limited to
+  // track events). Null in any of these fields means "unscoped" for that
+  // dimension - the historical/default behavior, still championship-wide.
+  gameCategory     GameCategory?
+  ballSport        BallSport?
+  athleticsType    AthleticsType?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   championship Championship? @relation(fields: [championshipId], references: [id], onDelete: Cascade)
@@ -179,6 +186,11 @@ model UserRole {
   @@index([userId])
   @@index([championshipId])
   @@map("user_roles")
+}
+
+enum AthleticsType {
+  TRACK
+  FIELD
 }
 
 model Tenant {
@@ -200,12 +212,12 @@ model Tenant {
   // every team_fee payment settles here (percentage_charge: 0, see
   // lib/paystack.ts createPaystackSubaccount), never to Zaroda's main
   // account. Entirely separate from subscriptions/PaymentTransaction above.
-  paystackSubaccountCode  String?           @unique
+  paystackSubaccountCode  String?          @unique
   settlementBankCode      String?
   settlementBankName      String?
   settlementAccountNumber String?
   settlementAccountName   String?
-  subaccountStatus        SubaccountStatus  @default(NOT_CONFIGURED)
+  subaccountStatus        SubaccountStatus @default(NOT_CONFIGURED)
 
   user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   championships       Championship[]
@@ -288,41 +300,41 @@ model Pool {
 }
 
 model TournamentTeam {
-  id             String   @id @default(uuid())
-  championshipId String
+  id                 String   @id @default(uuid())
+  championshipId     String
   // The game a team is registered for - gender is derived from this game
   // rather than asked separately. Nullable because the public team_fee
   // self-registration flow (no specific game chosen) doesn't set it.
-  gameId         String?
+  gameId             String?
   // Optional group-stage pool within that game (e.g. "Pool A").
-  poolId         String?
-  name           String
-  teamCode       String?
-  gender         Gender   @default(MIXED)
-  teamColor      String?
-  contactName    String?
-  contactEmail   String?
-  contactPhone   String?
-  notes          String?
+  poolId             String?
+  name               String
+  teamCode           String?
+  gender             Gender   @default(MIXED)
+  teamColor          String?
+  contactName        String?
+  contactEmail       String?
+  contactPhone       String?
+  notes              String?
   // Self-reported county of the registering institution/organization - used
   // to enforce the championship's geographic scope (see requireGeographicScope
   // in lib/authorize.ts) for BASE/ZONE/SUB_COUNTY/COUNTY-level championships.
-  county         String?
+  county             String?
   // Set when this team row was auto-created by promoting a winning team from
   // a lower-level championship (see /api/tournament-teams/promote) - points
   // at the origin TournamentTeam row in the other championship, for
   // traceability beyond just matching on name.
   promotedFromTeamId String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  championship  Championship     @relation(fields: [championshipId], references: [id], onDelete: Cascade)
-  game          Game?            @relation(fields: [gameId], references: [id], onDelete: SetNull)
-  pool          Pool?            @relation(fields: [poolId], references: [id], onDelete: SetNull)
-  participants  Participant[]
-  feePayments   TeamFeePayment[]
-  promotedFrom  TournamentTeam?  @relation("TeamPromotion", fields: [promotedFromTeamId], references: [id], onDelete: SetNull)
-  promotedTo    TournamentTeam[] @relation("TeamPromotion")
+  championship Championship     @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  game         Game?            @relation(fields: [gameId], references: [id], onDelete: SetNull)
+  pool         Pool?            @relation(fields: [poolId], references: [id], onDelete: SetNull)
+  participants Participant[]
+  feePayments  TeamFeePayment[]
+  promotedFrom TournamentTeam?  @relation("TeamPromotion", fields: [promotedFromTeamId], references: [id], onDelete: SetNull)
+  promotedTo   TournamentTeam[] @relation("TeamPromotion")
 
   @@unique([championshipId, teamCode])
   @@index([poolId])
@@ -356,36 +368,36 @@ model Game {
 }
 
 model Participant {
-  id               String            @id @default(uuid())
-  championshipId   String
-  gameId           String
-  schoolId         String?
-  tournamentTeamId String?
-  firstName        String
-  lastName         String
-  gender           Gender
-  dateOfBirth      DateTime?
-  bibNumber        Int
-  laneNumber       Int?
-  personalBest     Decimal?          @db.Decimal(10, 3)
-  timeTaken        Decimal?          @db.Decimal(10, 3)
-  position         Int?
-  score            Decimal?          @db.Decimal(10, 3)
-  isQualified      Boolean           @default(false)
-  status           ParticipantStatus @default(REGISTERED)
-  notes            String?
+  id                        String            @id @default(uuid())
+  championshipId            String
+  gameId                    String
+  schoolId                  String?
+  tournamentTeamId          String?
+  firstName                 String
+  lastName                  String
+  gender                    Gender
+  dateOfBirth               DateTime?
+  bibNumber                 Int
+  laneNumber                Int?
+  personalBest              Decimal?          @db.Decimal(10, 3)
+  timeTaken                 Decimal?          @db.Decimal(10, 3)
+  position                  Int?
+  score                     Decimal?          @db.Decimal(10, 3)
+  isQualified               Boolean           @default(false)
+  status                    ParticipantStatus @default(REGISTERED)
+  notes                     String?
   // Ball-game team roster fields - a squad player's shirt number (unique
   // only within the team, unlike bibNumber which is unique championship-wide)
   // and playing position (e.g. "Striker", "Goalkeeper"). Both optional.
-  jerseyNumber     Int?
-  playingPosition  String?
+  jerseyNumber              Int?
+  playingPosition           String?
   // Set when this participant row was auto-created by promoting a qualifying
   // finalist from a lower-level championship (see /api/participants/promote)
   // - points at the origin Participant row in the other championship, so
   // re-running promotion skips athletes already carried forward.
   promotedFromParticipantId String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
 
   championship       Championship      @relation(fields: [championshipId], references: [id], onDelete: Cascade)
   game               Game              @relation(fields: [gameId], references: [id], onDelete: Cascade)
@@ -511,20 +523,20 @@ model SubscriptionPlan {
 }
 
 model ChampionshipSubscription {
-  id             String             @id @default(uuid())
-  tenantId       String
-  planId         String
-  championshipId String?
-  category       GameCategory?
-  status         SubscriptionStatus @default(TRIAL)
-  trialStartedAt DateTime           @default(now())
-  trialEndsAt    DateTime
-  paidAt         DateTime?
-  expiresAt      DateTime?
-  amountPaidKes  Int?
+  id                String             @id @default(uuid())
+  tenantId          String
+  planId            String
+  championshipId    String?
+  category          GameCategory?
+  status            SubscriptionStatus @default(TRIAL)
+  trialStartedAt    DateTime           @default(now())
+  trialEndsAt       DateTime
+  paidAt            DateTime?
+  expiresAt         DateTime?
+  amountPaidKes     Int?
   paystackReference String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   plan         SubscriptionPlan @relation(fields: [planId], references: [id])

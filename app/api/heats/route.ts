@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { requireGameAccess, toErrorResponse } from "@/lib/authorize";
 import { seedLanes, DEFAULT_LANE_PRIORITY } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     const game = await prisma.game.findUnique({ where: { id: input.gameId } });
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "CHIEF_CALLROOM_MANAGER"]);
+    const ctx = await requireGameAccess(game.id, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "CHIEF_CALLROOM_MANAGER"]);
 
     const participants = await prisma.participant.findMany({
       where: { id: { in: input.participantIds } },

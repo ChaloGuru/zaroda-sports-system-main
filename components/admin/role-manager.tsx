@@ -24,6 +24,9 @@ interface RoleRow {
   id: string;
   role: string;
   organizationName: string | null;
+  gameCategory: string | null;
+  ballSport: string | null;
+  athleticsType: string | null;
   user: { id: string; name: string; email: string };
 }
 
@@ -39,10 +42,71 @@ const ASSIGNABLE_ROLES = [
   { value: "TEAM_MANAGER", label: "Team Manager (single organization only)" },
 ];
 
+// Roles that TOURNAMENT_ADMIN/TEAM_MANAGER don't need scoping for - the
+// former is meant to oversee the whole championship, the latter is already
+// scoped by organizationName.
+const SCOPABLE_ROLES = new Set([
+  "SCOREKEEPER",
+  "OFFICIAL",
+  "GAME_COORDINATOR",
+  "CHIEF_CALLROOM_MANAGER",
+  "CHIEF_TRACK_JUDGE",
+  "CHIEF_FIELD_JUDGE",
+  "CHIEF_RECORDER",
+]);
+
+const GAME_CATEGORIES = [
+  { value: "BALL_GAMES", label: "Ball Games" },
+  { value: "ATHLETICS", label: "Athletics" },
+  { value: "MUSIC", label: "Music" },
+  { value: "OTHER_GAMES", label: "Other Games" },
+];
+
+const BALL_SPORTS = [
+  { value: "FOOTBALL", label: "Football" },
+  { value: "BASKETBALL", label: "Basketball" },
+  { value: "VOLLEYBALL", label: "Volleyball" },
+  { value: "HANDBALL", label: "Handball" },
+  { value: "RUGBY", label: "Rugby" },
+  { value: "NETBALL", label: "Netball" },
+  { value: "CHESS", label: "Chess" },
+  { value: "TABLE_TENNIS", label: "Table Tennis" },
+  { value: "BADMINTON", label: "Badminton" },
+];
+
+const ATHLETICS_TYPES = [
+  { value: "TRACK", label: "Track" },
+  { value: "FIELD", label: "Field" },
+];
+
+function scopeLabel(r: RoleRow): string | null {
+  if (r.gameCategory === "BALL_GAMES") {
+    const sport = BALL_SPORTS.find((s) => s.value === r.ballSport);
+    return sport ? sport.label : "Ball Games (any sport)";
+  }
+  if (r.gameCategory === "ATHLETICS") {
+    const type = ATHLETICS_TYPES.find((t) => t.value === r.athleticsType);
+    return type ? type.label : "Athletics (track & field)";
+  }
+  if (r.gameCategory) {
+    return GAME_CATEGORIES.find((c) => c.value === r.gameCategory)?.label ?? r.gameCategory;
+  }
+  return null;
+}
+
 export function RoleManager() {
   const queryClient = useQueryClient();
   const [championshipId, setChampionshipId] = React.useState<string>("");
-  const [form, setForm] = React.useState({ email: "", name: "", password: "", role: "TOURNAMENT_ADMIN", organizationName: "" });
+  const [form, setForm] = React.useState({
+    email: "",
+    name: "",
+    password: "",
+    role: "TOURNAMENT_ADMIN",
+    organizationName: "",
+    gameCategory: "",
+    ballSport: "",
+    athleticsType: "",
+  });
 
   const { data: championshipsData } = useQuery({
     queryKey: ["admin-championships-picker"],
@@ -64,10 +128,23 @@ export function RoleManager() {
         name: form.name || undefined,
         password: form.password || undefined,
         organizationName: form.role === "TEAM_MANAGER" ? form.organizationName : undefined,
+        gameCategory: SCOPABLE_ROLES.has(form.role) && form.gameCategory ? form.gameCategory : undefined,
+        ballSport: SCOPABLE_ROLES.has(form.role) && form.gameCategory === "BALL_GAMES" && form.ballSport ? form.ballSport : undefined,
+        athleticsType:
+          SCOPABLE_ROLES.has(form.role) && form.gameCategory === "ATHLETICS" && form.athleticsType ? form.athleticsType : undefined,
       }),
     onSuccess: () => {
       copyChampionshipLink();
-      setForm({ email: "", name: "", password: "", role: "TOURNAMENT_ADMIN", organizationName: "" });
+      setForm({
+        email: "",
+        name: "",
+        password: "",
+        role: "TOURNAMENT_ADMIN",
+        organizationName: "",
+        gameCategory: "",
+        ballSport: "",
+        athleticsType: "",
+      });
       queryClient.invalidateQueries({ queryKey: ["championship-roles", championshipId] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to assign role"),
@@ -156,6 +233,72 @@ export function RoleManager() {
             </Select>
           </div>
 
+          {SCOPABLE_ROLES.has(form.role) && (
+            <div className="space-y-2">
+              <Label>Scope to sport/discipline (optional)</Label>
+              <Select
+                value={form.gameCategory || "ANY"}
+                onValueChange={(gameCategory) =>
+                  setForm({ ...form, gameCategory: gameCategory === "ANY" ? "" : gameCategory, ballSport: "", athleticsType: "" })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ANY">Any (whole championship)</SelectItem>
+                  {GAME_CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {form.gameCategory === "BALL_GAMES" && (
+                <Select
+                  value={form.ballSport || "ANY"}
+                  onValueChange={(ballSport) => setForm({ ...form, ballSport: ballSport === "ANY" ? "" : ballSport })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Any ball sport" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ANY">Any ball sport</SelectItem>
+                    {BALL_SPORTS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {form.gameCategory === "ATHLETICS" && (
+                <Select
+                  value={form.athleticsType || "ANY"}
+                  onValueChange={(athleticsType) => setForm({ ...form, athleticsType: athleticsType === "ANY" ? "" : athleticsType })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Track & field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ANY">Track &amp; field</SelectItem>
+                    {ATHLETICS_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <p className="text-xs text-muted">
+                Leave as &quot;Any&quot; for championship-wide access. Scoping restricts this person to only enter results
+                for the chosen sport/discipline.
+              </p>
+            </div>
+          )}
+
           {form.role === "TEAM_MANAGER" && (
             <div className="space-y-2">
               <Label>Organization / team name</Label>
@@ -209,7 +352,10 @@ export function RoleManager() {
                     {r.organizationName ? ` - ${r.organizationName}` : ""}
                   </p>
                 </div>
-                <Badge variant="secondary">{r.role.replace("_", " ")}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{r.role.replace("_", " ")}</Badge>
+                  {scopeLabel(r) && <Badge variant="outline">{scopeLabel(r)}</Badge>}
+                </div>
               </div>
             ))}
           {championshipId && (rolesData?.roles ?? []).length === 0 && !rolesLoading && (

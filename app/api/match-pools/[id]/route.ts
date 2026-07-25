@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { requireChampionshipAccess, requireGameAccess, toErrorResponse } from "@/lib/authorize";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const existing = await prisma.matchPool.findUnique({ where: { id: params.id }, include: { game: true } });
     if (!existing) return NextResponse.json({ error: "Fixture not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(existing.game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"]);
+    const ctx = await requireGameAccess(existing.gameId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"]);
 
     const body: unknown = await request.json();
     const input = matchPoolUpdateSchema.parse(body);

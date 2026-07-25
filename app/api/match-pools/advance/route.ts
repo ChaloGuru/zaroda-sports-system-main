@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { requireGameAccess, toErrorResponse } from "@/lib/authorize";
 import { advanceTopTeamsSchema } from "@/lib/validations";
 import { computeStandings, generateRoundRobinSchedule, type MatchResult, type WalkoverResult } from "@/lib/scoring";
 import { distributeMatchDatesFromEnd } from "@/lib/match-day";
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     if (!game.sport) return NextResponse.json({ error: "This game has no sport set - standings can't be computed" }, { status: 400 });
 
-    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"]);
+    const ctx = await requireGameAccess(game.id, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"]);
 
     const pools = await prisma.pool.findMany({
       where: { gameId: input.gameId },

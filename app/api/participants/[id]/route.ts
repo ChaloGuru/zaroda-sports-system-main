@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, requireTeamAccess, toErrorResponse } from "@/lib/authorize";
+import { requireChampionshipAccess, requireGameAccess, requireTeamAccess, toErrorResponse } from "@/lib/authorize";
 import { participantStatusSchema, timeInputSchema, genderSchema } from "@/lib/validations";
 import { parseTimeToSeconds } from "@/lib/scoring";
 
@@ -31,7 +31,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
     let ctx;
     try {
-      ctx = await requireChampionshipAccess(existing.championshipId, [
+      ctx = await requireGameAccess(existing.gameId, [
         "TOURNAMENT_ADMIN",
         "SCOREKEEPER",
         "OFFICIAL",

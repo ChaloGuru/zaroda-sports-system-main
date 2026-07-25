@@ -331,6 +331,13 @@ export const roleAssignmentSchema = z
     // Required for TEAM_MANAGER only - the organization/team name this
     // assignment is scoped to (matches TournamentTeam.name, trimmed/lowercased).
     organizationName: z.string().min(1).max(200).optional(),
+    // Optional sport/discipline scoping for operational roles - omitted/null
+    // means unscoped (championship-wide) for that dimension.
+    gameCategory: z.enum(["BALL_GAMES", "ATHLETICS", "MUSIC", "OTHER_GAMES"]).optional(),
+    ballSport: z
+      .enum(["FOOTBALL", "BASKETBALL", "VOLLEYBALL", "HANDBALL", "RUGBY", "NETBALL", "CHESS", "TABLE_TENNIS", "BADMINTON"])
+      .optional(),
+    athleticsType: z.enum(["TRACK", "FIELD"]).optional(),
   })
   .refine((data) => data.role !== "TEAM_MANAGER" || !!data.organizationName?.trim(), {
     message: "An organization name is required for the Team Manager role",

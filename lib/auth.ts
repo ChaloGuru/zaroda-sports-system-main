@@ -2,13 +2,17 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
-import type { Role } from "@prisma/client";
+import type { AthleticsType, BallSport, GameCategory, Role } from "@prisma/client";
 
 export interface SessionRole {
   role: Role;
   championshipId: string | null;
   /** Only set for TEAM_MANAGER - the organization this role is scoped to. */
   organizationName: string | null;
+  /** Optional sport/discipline scoping - null in a field means unscoped for that dimension. */
+  gameCategory: GameCategory | null;
+  ballSport: BallSport | null;
+  athleticsType: AthleticsType | null;
 }
 
 declare module "next-auth" {
@@ -65,7 +69,14 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           tenantId: user.tenant?.id ?? null,
-          roles: user.roles.map((r) => ({ role: r.role, championshipId: r.championshipId, organizationName: r.organizationName })),
+          roles: user.roles.map((r) => ({
+            role: r.role,
+            championshipId: r.championshipId,
+            organizationName: r.organizationName,
+            gameCategory: r.gameCategory,
+            ballSport: r.ballSport,
+            athleticsType: r.athleticsType,
+          })),
         };
       },
     }),

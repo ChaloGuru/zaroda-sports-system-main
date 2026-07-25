@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { requireGameAccess, toErrorResponse } from "@/lib/authorize";
 import { generateFixturesSchema } from "@/lib/validations";
 import { generateRoundRobinSchedule } from "@/lib/scoring";
 import { distributeMatchDates } from "@/lib/match-day";
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     });
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(game.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"]);
+    const ctx = await requireGameAccess(game.id, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"]);
 
     let poolName: string | null = null;
     if (input.poolId) {
