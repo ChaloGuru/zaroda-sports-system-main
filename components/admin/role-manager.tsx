@@ -17,6 +17,7 @@ interface ChampionshipOption {
   id: string;
   name: string;
   level: string;
+  category: string;
   tenant: { organizationName: string };
 }
 
@@ -110,7 +111,10 @@ export function RoleManager() {
 
   const { data: championshipsData } = useQuery({
     queryKey: ["admin-championships-picker"],
-    queryFn: () => apiGet<{ championships: ChampionshipOption[] }>("/api/championships"),
+    // mine=true - only championships this caller actually owns/administers,
+    // not every published championship platform-wide (this picker assigns
+    // roles, it isn't the public discovery list).
+    queryFn: () => apiGet<{ championships: ChampionshipOption[] }>("/api/championships?mine=true"),
   });
 
   const { data: rolesData, isLoading: rolesLoading } = useQuery({
@@ -151,6 +155,16 @@ export function RoleManager() {
   });
 
   const championships = championshipsData?.championships ?? [];
+  const selectedChampionship = championships.find((c) => c.id === championshipId);
+  // A championship only ever runs games in its own category (schema enforces
+  // this at creation) - scoping a role to a category that isn't this
+  // championship's would silently match nothing, so only offer its actual
+  // category instead of all four.
+  const availableGameCategories = GAME_CATEGORIES.filter((c) => !selectedChampionship || c.value === selectedChampionship.category);
+
+  React.useEffect(() => {
+    setForm((f) => ({ ...f, gameCategory: "", ballSport: "", athleticsType: "" }));
+  }, [championshipId]);
 
   function copyChampionshipLink() {
     const url = `${window.location.origin}/dashboard/championships/${championshipId}`;
@@ -247,7 +261,7 @@ export function RoleManager() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ANY">Any (whole championship)</SelectItem>
-                  {GAME_CATEGORIES.map((c) => (
+                  {availableGameCategories.map((c) => (
                     <SelectItem key={c.value} value={c.value}>
                       {c.label}
                     </SelectItem>

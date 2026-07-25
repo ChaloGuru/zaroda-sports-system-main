@@ -27,6 +27,11 @@ export async function GET(request: Request) {
     const county = searchParams.get("county");
     const ongoing = searchParams.get("ongoing") === "true";
     const upcoming = searchParams.get("upcoming") === "true";
+    // Set by callers that are picking one of the caller's OWN championships
+    // (e.g. the Roles & Officials assignment picker) - excludes every other
+    // tenant's published championships, which the public-discovery default
+    // below deliberately includes.
+    const mine = searchParams.get("mine") === "true";
     const ctx = await getAuthContext();
 
     const where: Record<string, unknown> = {};
@@ -48,7 +53,11 @@ export async function GET(request: Request) {
     } else if (isSuperAdmin(ctx)) {
       // no extra restriction
     } else if (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId) {
-      where.OR = [{ isPublished: true }, { tenantId: ctx.tenantId }];
+      if (mine) {
+        where.tenantId = ctx.tenantId;
+      } else {
+        where.OR = [{ isPublished: true }, { tenantId: ctx.tenantId }];
+      }
     } else {
       where.isPublished = true;
     }
