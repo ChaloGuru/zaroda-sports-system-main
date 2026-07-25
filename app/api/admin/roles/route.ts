@@ -25,13 +25,22 @@ export async function POST(request: Request) {
       const existingUser = await prisma.user.findUnique({ where: { email: input.email.toLowerCase().trim() } });
       if (existingUser) {
         userId = existingUser.id;
+        // Let the admin fill in/correct the official's name and phone even
+        // when reusing an existing account - only touches fields actually
+        // provided on this assignment.
+        if (input.name || input.phone) {
+          await prisma.user.update({
+            where: { id: existingUser.id },
+            data: { ...(input.name ? { name: input.name } : {}), ...(input.phone ? { phone: input.phone } : {}) },
+          });
+        }
       } else {
         if (!input.password || !input.name) {
           throw new Error("name and password are required to create a new official/admin account");
         }
         const passwordHash = await bcrypt.hash(input.password, 12);
         const created = await prisma.user.create({
-          data: { email: input.email.toLowerCase().trim(), passwordHash, name: input.name },
+          data: { email: input.email.toLowerCase().trim(), passwordHash, name: input.name, phone: input.phone || null },
         });
         userId = created.id;
       }
@@ -74,7 +83,7 @@ export async function GET(request: Request) {
 
     const roles = await prisma.userRole.findMany({
       where: { championshipId },
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: { user: { select: { id: true, name: true, email: true, phone: true } } },
     });
 
     return NextResponse.json({ roles });

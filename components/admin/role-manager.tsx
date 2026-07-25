@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Link2 } from "lucide-react";
+import { Link2, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 
 interface ChampionshipOption {
   id: string;
@@ -33,7 +34,7 @@ interface RoleRow {
   gameCategory: string | null;
   ballSport: string | null;
   athleticsType: string | null;
-  user: { id: string; name: string; email: string };
+  user: { id: string; name: string; email: string; phone: string | null };
 }
 
 // Roles every championship can use, regardless of category.
@@ -107,12 +108,202 @@ function scopeLabel(r: RoleRow): string | null {
   return null;
 }
 
+function EditRoleDialog({
+  role,
+  availableRoles,
+  availableGameCategories,
+  teams,
+  onClose,
+  onSaved,
+}: {
+  role: RoleRow;
+  availableRoles: { value: string; label: string }[];
+  availableGameCategories: { value: string; label: string }[];
+  teams: TeamOption[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = React.useState({
+    role: role.role,
+    organizationName: role.organizationName ?? "",
+    gameCategory: role.gameCategory ?? "",
+    ballSport: role.ballSport ?? "",
+    athleticsType: role.athleticsType ?? "",
+  });
+  const [organizationNameMode, setOrganizationNameMode] = React.useState<"select" | "manual">(
+    role.organizationName && !teams.some((t) => t.name === role.organizationName) ? "manual" : "select",
+  );
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      apiPatch(`/api/admin/roles/${role.id}`, {
+        role: form.role,
+        organizationName: form.role === "TEAM_MANAGER" ? form.organizationName : undefined,
+        gameCategory: SCOPABLE_ROLES.has(form.role) && form.gameCategory ? form.gameCategory : undefined,
+        ballSport: SCOPABLE_ROLES.has(form.role) && form.gameCategory === "BALL_GAMES" && form.ballSport ? form.ballSport : undefined,
+        athleticsType:
+          SCOPABLE_ROLES.has(form.role) && form.gameCategory === "ATHLETICS" && form.athleticsType ? form.athleticsType : undefined,
+      }),
+    onSuccess: () => {
+      toast.success("Role assignment updated");
+      onSaved();
+      onClose();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update role"),
+  });
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit role for {role.user.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Role</Label>
+            <Select
+              value={form.role}
+              onValueChange={(v) => setForm({ ...form, role: v, gameCategory: "", ballSport: "", athleticsType: "" })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableRoles.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {SCOPABLE_ROLES.has(form.role) && (
+            <div className="space-y-2">
+              <Label>Scope to sport/discipline (optional)</Label>
+              <Select
+                value={form.gameCategory || "ANY"}
+                onValueChange={(gameCategory) =>
+                  setForm({ ...form, gameCategory: gameCategory === "ANY" ? "" : gameCategory, ballSport: "", athleticsType: "" })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ANY">Any (whole championship)</SelectItem>
+                  {availableGameCategories.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {form.gameCategory === "BALL_GAMES" && (
+                <Select
+                  value={form.ballSport || "ANY"}
+                  onValueChange={(ballSport) => setForm({ ...form, ballSport: ballSport === "ANY" ? "" : ballSport })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Any ball sport" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ANY">Any ball sport</SelectItem>
+                    {BALL_SPORTS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {form.gameCategory === "ATHLETICS" && (
+                <Select
+                  value={form.athleticsType || "ANY"}
+                  onValueChange={(athleticsType) => setForm({ ...form, athleticsType: athleticsType === "ANY" ? "" : athleticsType })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Track & field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ANY">Track &amp; field</SelectItem>
+                    {ATHLETICS_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          {form.role === "TEAM_MANAGER" && (
+            <div className="space-y-2">
+              <Label>Organization / team name</Label>
+              {organizationNameMode === "select" ? (
+                <>
+                  <Select value={form.organizationName} onValueChange={(v) => setForm({ ...form, organizationName: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={teams.length === 0 ? "No teams registered yet" : "Select a registered team"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((t) => (
+                        <SelectItem key={t.id} value={t.name}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline"
+                    onClick={() => setOrganizationNameMode("manual")}
+                  >
+                    Team not registered yet - type the name manually
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Input
+                    value={form.organizationName}
+                    onChange={(e) => setForm({ ...form, organizationName: e.target.value })}
+                    placeholder="Must match the team's registered name exactly"
+                  />
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline"
+                    onClick={() => setOrganizationNameMode("select")}
+                  >
+                    Choose from registered teams instead
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          <Button
+            className="w-full"
+            disabled={(form.role === "TEAM_MANAGER" && !form.organizationName.trim()) || saveMutation.isPending}
+            onClick={() => saveMutation.mutate()}
+          >
+            {saveMutation.isPending ? "Saving..." : "Save changes"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function RoleManager() {
   const queryClient = useQueryClient();
   const [championshipId, setChampionshipId] = React.useState<string>("");
   const [form, setForm] = React.useState({
     email: "",
     name: "",
+    phone: "",
     password: "",
     role: "TOURNAMENT_ADMIN",
     organizationName: "",
@@ -135,6 +326,23 @@ export function RoleManager() {
     enabled: !!championshipId,
   });
 
+  const [editingRole, setEditingRole] = React.useState<RoleRow | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (roleId: string) => apiDelete(`/api/admin/roles/${roleId}`),
+    onSuccess: () => {
+      toast.success("Role assignment removed");
+      queryClient.invalidateQueries({ queryKey: ["championship-roles", championshipId] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to remove role"),
+  });
+
+  function confirmDeleteRole(r: RoleRow) {
+    if (window.confirm(`Remove ${r.role.replace(/_/g, " ")} access for ${r.user.name}?`)) {
+      deleteMutation.mutate(r.id);
+    }
+  }
+
   const assignMutation = useMutation({
     mutationFn: () =>
       apiPost("/api/admin/roles", {
@@ -142,6 +350,7 @@ export function RoleManager() {
         role: form.role,
         email: form.email,
         name: form.name || undefined,
+        phone: form.phone || undefined,
         password: form.password || undefined,
         organizationName: form.role === "TEAM_MANAGER" ? form.organizationName : undefined,
         gameCategory: SCOPABLE_ROLES.has(form.role) && form.gameCategory ? form.gameCategory : undefined,
@@ -154,6 +363,7 @@ export function RoleManager() {
       setForm({
         email: "",
         name: "",
+        phone: "",
         password: "",
         role: "TOURNAMENT_ADMIN",
         organizationName: "",
@@ -182,7 +392,10 @@ export function RoleManager() {
   const { data: teamsData } = useQuery({
     queryKey: ["championship-teams-picker", championshipId],
     queryFn: () => apiGet<{ teams: TeamOption[] }>(`/api/tournament-teams?championshipId=${championshipId}`),
-    enabled: !!championshipId && form.role === "TEAM_MANAGER",
+    // Needed both by the create form's Team Manager picker and the edit
+    // dialog, so fetch whenever a championship is selected rather than
+    // gating on the create form's current role.
+    enabled: !!championshipId,
   });
   const teams = teamsData?.teams ?? [];
   const [organizationNameMode, setOrganizationNameMode] = React.useState<"select" | "manual">("select");
@@ -248,20 +461,31 @@ export function RoleManager() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Name (new accounts only)</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Label>Name of official</Label>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Required for new accounts" />
             </div>
             <div className="space-y-2">
-              <Label>Password (new accounts only)</Label>
-              <PasswordInput
-                autoComplete="new-password"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              <Label>Phone (optional)</Label>
+              <Input
+                type="tel"
+                autoComplete="tel"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="07..."
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Password (new accounts only)</Label>
+            <PasswordInput
+              autoComplete="new-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
           </div>
 
           <div className="space-y-2">
@@ -438,12 +662,19 @@ export function RoleManager() {
                   <p className="text-sm font-medium text-foreground">{r.user.name}</p>
                   <p className="text-xs text-muted">
                     {r.user.email}
+                    {r.user.phone ? ` - ${r.user.phone}` : ""}
                     {r.organizationName ? ` - ${r.organizationName}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{r.role.replace("_", " ")}</Badge>
                   {scopeLabel(r) && <Badge variant="outline">{scopeLabel(r)}</Badge>}
+                  <Button size="icon" variant="ghost" onClick={() => setEditingRole(r)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => confirmDeleteRole(r)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
               </div>
             ))}
@@ -452,6 +683,17 @@ export function RoleManager() {
           )}
         </CardContent>
       </Card>
+
+      {editingRole && (
+        <EditRoleDialog
+          role={editingRole}
+          availableRoles={availableRoles}
+          availableGameCategories={availableGameCategories}
+          teams={teams}
+          onClose={() => setEditingRole(null)}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ["championship-roles", championshipId] })}
+        />
+      )}
     </div>
   );
 }

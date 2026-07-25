@@ -315,6 +315,7 @@ export const roleAssignmentSchema = z
     userId: z.string().uuid().optional(),
     email: optionalEmail,
     name: z.string().max(200).optional(),
+    phone: z.string().max(30).optional(),
     password: passwordSchema.optional(),
     role: z.enum([
       "TOURNAMENT_ADMIN",
@@ -344,6 +345,34 @@ export const roleAssignmentSchema = z
     path: ["organizationName"],
   });
 export type RoleAssignmentInput = z.infer<typeof roleAssignmentSchema>;
+
+// Editing an existing assignment - just the role/scope fields, no
+// user-creation fields (email/name/phone/password aren't touched here).
+export const roleUpdateSchema = z
+  .object({
+    role: z.enum([
+      "TOURNAMENT_ADMIN",
+      "SCOREKEEPER",
+      "OFFICIAL",
+      "GAME_COORDINATOR",
+      "CHIEF_CALLROOM_MANAGER",
+      "CHIEF_TRACK_JUDGE",
+      "CHIEF_FIELD_JUDGE",
+      "CHIEF_RECORDER",
+      "TEAM_MANAGER",
+    ]),
+    organizationName: z.string().min(1).max(200).optional(),
+    gameCategory: z.enum(["BALL_GAMES", "ATHLETICS", "MUSIC", "OTHER_GAMES"]).optional(),
+    ballSport: z
+      .enum(["FOOTBALL", "BASKETBALL", "VOLLEYBALL", "HANDBALL", "RUGBY", "NETBALL", "CHESS", "TABLE_TENNIS", "BADMINTON"])
+      .optional(),
+    athleticsType: z.enum(["TRACK", "FIELD"]).optional(),
+  })
+  .refine((data) => data.role !== "TEAM_MANAGER" || !!data.organizationName?.trim(), {
+    message: "An organization name is required for the Team Manager role",
+    path: ["organizationName"],
+  });
+export type RoleUpdateInput = z.infer<typeof roleUpdateSchema>;
 
 export const championshipFeeSchema = z.object({
   championshipId: z.string().uuid(),
