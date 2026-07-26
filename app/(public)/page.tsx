@@ -77,7 +77,7 @@ export default async function LandingPage() {
           <span className="rounded-full border border-white/30 bg-white/15 px-4 py-1 text-sm font-medium text-white backdrop-blur-sm">
             Built for Kenyan school &amp; open championships
           </span>
-          <h1 className="max-w-3xl text-4xl font-extrabold tracking-tight text-white drop-shadow-[0_2px_16px_rgba(6,15,46,0.9)] sm:text-6xl">
+          <h1 className="max-w-3xl font-heading text-4xl font-extrabold tracking-wide text-gold drop-shadow-[0_2px_16px_rgba(6,15,46,0.9)] sm:text-6xl">
             RUN YOUR CHAMPIONSHIP LIKE A PRO from team registration to final champions digitally
           </h1>
           <p className="max-w-2xl text-lg text-white/90 drop-shadow-[0_2px_10px_rgba(6,15,46,0.9)]">
