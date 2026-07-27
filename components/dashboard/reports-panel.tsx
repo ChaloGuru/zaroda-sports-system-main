@@ -36,12 +36,19 @@ interface TeamStandingRow {
   points: number;
 }
 
+interface PoolStandings {
+  poolId: string;
+  poolName: string;
+  standings: TeamStandingRow[];
+}
+
 interface GameStandings {
   gameId: string;
   gameName: string;
   gender: string;
   sport: string;
   standings: TeamStandingRow[];
+  pools: PoolStandings[];
 }
 
 const SCHOOL_LEVEL_FILTERS = [{ value: "OVERALL", label: "Overall" }, ...GAME_SCHOOL_LEVELS];
@@ -81,24 +88,32 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
       } else if (teamStandings.length > 0) {
         for (const game of teamStandings) {
           const gameTitleEndY = addPdfTitle(doc, game.gameName, nextY, 11);
-          autoTable(doc, {
-            startY: gameTitleEndY,
-            head: [["#", "Team", "P", "W", "D", "L", "GF", "GA", "GD", "Pts"]],
-            body: game.standings.map((row, index) => [
-              index + 1,
-              row.teamName,
-              row.played,
-              row.won,
-              row.drawn,
-              row.lost,
-              row.gf,
-              row.ga,
-              row.gd,
-              row.points,
-            ]),
-          });
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          nextY = (doc as any).lastAutoTable.finalY + 10;
+          nextY = gameTitleEndY;
+          const pools = (game.pools.length > 0 ? game.pools : [{ poolId: game.gameId, poolName: "Pool", standings: game.standings }]).filter(
+            (pool) => pool.standings.length > 0,
+          );
+          for (const pool of pools) {
+            const poolTitleEndY = addPdfTitle(doc, pool.poolName, nextY, 9);
+            autoTable(doc, {
+              startY: poolTitleEndY,
+              head: [["#", "Team", "P", "W", "D", "L", "GF", "GA", "GD", "Pts"]],
+              body: pool.standings.map((row, index) => [
+                index + 1,
+                row.teamName,
+                row.played,
+                row.won,
+                row.drawn,
+                row.lost,
+                row.gf,
+                row.ga,
+                row.gd,
+                row.points,
+              ]),
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            nextY = (doc as any).lastAutoTable.finalY + 8;
+          }
+          nextY += 2;
         }
       } else {
         autoTable(doc, { startY: nextY, head: [["Institution", "Boys Total", "Girls Total", "Grand Total"]], body: [] });

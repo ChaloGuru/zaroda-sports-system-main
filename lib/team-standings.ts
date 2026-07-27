@@ -7,6 +7,12 @@ export interface TeamStandingRow extends StandingRow {
   teamColor: string | null;
 }
 
+export interface PoolStandings {
+  poolId: string;
+  poolName: string;
+  standings: TeamStandingRow[];
+}
+
 export interface GameStandings {
   gameId: string;
   gameName: string;
@@ -14,6 +20,8 @@ export interface GameStandings {
   schoolLevel: string;
   sport: BallSport;
   standings: TeamStandingRow[];
+  /** Same results broken down per pool - what Reports/standings display per pool per game. */
+  pools: PoolStandings[];
 }
 
 /**
@@ -27,7 +35,8 @@ export async function computeChampionshipTeamStandings(championshipId: string): 
     where: { championshipId, isTimed: false, sport: { not: null } },
     include: {
       matchPools: true,
-      tournamentTeams: { select: { id: true, name: true, teamColor: true } },
+      tournamentTeams: { select: { id: true, name: true, teamColor: true, poolId: true } },
+      pools: { orderBy: { name: "asc" } },
     },
     orderBy: { name: "asc" },
   });
@@ -41,6 +50,15 @@ export async function computeChampionshipTeamStandings(championshipId: string): 
       schoolLevel: game.schoolLevel,
       sport: game.sport as BallSport,
       standings: computeGameStandings(game.tournamentTeams, game.matchPools, game.sport as BallSport),
+      pools: game.pools.map((pool) => ({
+        poolId: pool.id,
+        poolName: pool.name,
+        standings: computeGameStandings(
+          game.tournamentTeams.filter((t) => t.poolId === pool.id),
+          game.matchPools.filter((mp) => mp.poolId === pool.id),
+          game.sport as BallSport,
+        ),
+      })),
     }));
 }
 

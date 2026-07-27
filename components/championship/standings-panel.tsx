@@ -45,12 +45,19 @@ interface TeamStandingRow {
   points: number;
 }
 
+interface PoolStandings {
+  poolId: string;
+  poolName: string;
+  standings: TeamStandingRow[];
+}
+
 interface GameStandings {
   gameId: string;
   gameName: string;
   gender: string;
   sport: string;
   standings: TeamStandingRow[];
+  pools: PoolStandings[];
 }
 
 interface OrganizationRankingRow {
@@ -105,65 +112,77 @@ function OrganizationRankingsTable({ rows, isLoading }: { rows: OrganizationRank
   );
 }
 
+function PoolStandingsSubtable({ pool }: { pool: PoolStandings }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-semibold text-foreground">{pool.poolName}</p>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>#</TableHead>
+            <TableHead>Team</TableHead>
+            <TableHead>P</TableHead>
+            <TableHead>W</TableHead>
+            <TableHead>D</TableHead>
+            <TableHead>L</TableHead>
+            <TableHead>GF</TableHead>
+            <TableHead>GA</TableHead>
+            <TableHead>GD</TableHead>
+            <TableHead>Pts</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {pool.standings.map((row, index) => (
+            <TableRow
+              key={row.teamId}
+              style={row.teamColor ? { borderLeft: `4px solid ${row.teamColor}` } : undefined}
+            >
+              <TableCell>
+                <LaneChip value={index + 1} rank={index + 1} />
+              </TableCell>
+              <TableCell className="font-medium">
+                <span className="flex items-center gap-2">
+                  {row.teamColor && (
+                    <span
+                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                      style={{ backgroundColor: row.teamColor }}
+                    />
+                  )}
+                  {row.teamName}
+                </span>
+              </TableCell>
+              <TableCell className="font-mono tabular-nums">{row.played}</TableCell>
+              <TableCell className="font-mono tabular-nums">{row.won}</TableCell>
+              <TableCell className="font-mono tabular-nums">{row.drawn}</TableCell>
+              <TableCell className="font-mono tabular-nums">{row.lost}</TableCell>
+              <TableCell className="font-mono tabular-nums">{row.gf}</TableCell>
+              <TableCell className="font-mono tabular-nums">{row.ga}</TableCell>
+              <TableCell className="font-mono tabular-nums">{row.gd}</TableCell>
+              <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.points}</TableCell>
+            </TableRow>
+          ))}
+          {pool.standings.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={10} className="text-center text-muted">No fixtures played yet.</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 function TeamStandingsTable({ game }: { game: GameStandings }) {
+  const pools = game.pools.length > 0 ? game.pools : [{ poolId: game.gameId, poolName: "Standings", standings: game.standings }];
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">{game.gameName}</CardTitle>
       </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>Team</TableHead>
-              <TableHead>P</TableHead>
-              <TableHead>W</TableHead>
-              <TableHead>D</TableHead>
-              <TableHead>L</TableHead>
-              <TableHead>GF</TableHead>
-              <TableHead>GA</TableHead>
-              <TableHead>GD</TableHead>
-              <TableHead>Pts</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {game.standings.map((row, index) => (
-              <TableRow
-                key={row.teamId}
-                style={row.teamColor ? { borderLeft: `4px solid ${row.teamColor}` } : undefined}
-              >
-                <TableCell>
-                  <LaneChip value={index + 1} rank={index + 1} />
-                </TableCell>
-                <TableCell className="font-medium">
-                  <span className="flex items-center gap-2">
-                    {row.teamColor && (
-                      <span
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                        style={{ backgroundColor: row.teamColor }}
-                      />
-                    )}
-                    {row.teamName}
-                  </span>
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">{row.played}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.won}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.drawn}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.lost}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.gf}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.ga}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.gd}</TableCell>
-                <TableCell className="font-mono text-base font-bold tabular-nums text-primary">{row.points}</TableCell>
-              </TableRow>
-            ))}
-            {game.standings.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center text-muted">No fixtures played yet.</TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+      <CardContent className="space-y-6">
+        {pools.map((pool) => (
+          <PoolStandingsSubtable key={pool.poolId} pool={pool} />
+        ))}
       </CardContent>
     </Card>
   );
