@@ -64,10 +64,14 @@ export default async function DashboardOverviewPage() {
     );
   }
 
+  const assignedChampionshipIds = Array.from(
+    new Set(ctx.roles.map((r) => r.championshipId).filter((id): id is string => id !== null)),
+  );
+
   const [tenant, championships, activeSubscriptions] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: ctx.tenantId } }),
     prisma.championship.findMany({
-      where: { tenantId: ctx.tenantId },
+      where: { OR: [{ tenantId: ctx.tenantId }, { id: { in: assignedChampionshipIds } }] },
       orderBy: { createdAt: "desc" },
       include: { _count: { select: { games: true, participants: true } } },
     }),
@@ -140,6 +144,7 @@ export default async function DashboardOverviewPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {c.tenantId !== ctx.tenantId && <Badge variant="outline">Assigned to you</Badge>}
                 <Badge variant={c.isPublished ? "success" : "outline"}>{c.isPublished ? "Published" : "Draft"}</Badge>
                 <ArrowRight className="h-4 w-4 text-muted" />
               </div>
