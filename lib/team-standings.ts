@@ -13,6 +13,19 @@ export interface PoolStandings {
   standings: TeamStandingRow[];
 }
 
+export interface KnockoutFixtureRow {
+  matchId: string;
+  roundName: string;
+  teamAId: string;
+  teamAName: string;
+  teamBId: string;
+  teamBName: string;
+  teamAScore: number | null;
+  teamBScore: number | null;
+  isWalkover: boolean;
+  winnerId: string | null;
+}
+
 export interface GameStandings {
   gameId: string;
   gameName: string;
@@ -22,6 +35,10 @@ export interface GameStandings {
   standings: TeamStandingRow[];
   /** Same results broken down per pool - what Reports/standings display per pool per game. */
   pools: PoolStandings[];
+  /** Knockout-stage fixtures (semis, final, etc.) - not pool-scoped, so a
+   * standings/points table doesn't apply; these are shown as match results
+   * instead, in the order they were created. */
+  knockout: KnockoutFixtureRow[];
 }
 
 /**
@@ -43,23 +60,43 @@ export async function computeChampionshipTeamStandings(championshipId: string): 
 
   return games
     .filter((game) => game.sport !== null)
-    .map((game) => ({
-      gameId: game.id,
-      gameName: game.name,
-      gender: game.gender,
-      schoolLevel: game.schoolLevel,
-      sport: game.sport as BallSport,
-      standings: computeGameStandings(game.tournamentTeams, game.matchPools, game.sport as BallSport),
-      pools: game.pools.map((pool) => ({
-        poolId: pool.id,
-        poolName: pool.name,
-        standings: computeGameStandings(
-          game.tournamentTeams.filter((t) => t.poolId === pool.id),
-          game.matchPools.filter((mp) => mp.poolId === pool.id),
-          game.sport as BallSport,
-        ),
-      })),
-    }));
+    .map((game) => {
+      const teamNameById = new Map(game.tournamentTeams.map((t) => [t.id, t.name]));
+      const knockout: KnockoutFixtureRow[] = game.matchPools
+        .filter((mp) => mp.poolId === null)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .map((mp) => ({
+          matchId: mp.id,
+          roundName: mp.roundName,
+          teamAId: mp.teamAId,
+          teamAName: teamNameById.get(mp.teamAId) ?? "Unknown team",
+          teamBId: mp.teamBId,
+          teamBName: teamNameById.get(mp.teamBId) ?? "Unknown team",
+          teamAScore: mp.teamAScore,
+          teamBScore: mp.teamBScore,
+          isWalkover: mp.isWalkover,
+          winnerId: mp.winnerId,
+        }));
+
+      return {
+        gameId: game.id,
+        gameName: game.name,
+        gender: game.gender,
+        schoolLevel: game.schoolLevel,
+        sport: game.sport as BallSport,
+        standings: computeGameStandings(game.tournamentTeams, game.matchPools, game.sport as BallSport),
+        pools: game.pools.map((pool) => ({
+          poolId: pool.id,
+          poolName: pool.name,
+          standings: computeGameStandings(
+            game.tournamentTeams.filter((t) => t.poolId === pool.id),
+            game.matchPools.filter((mp) => mp.poolId === pool.id),
+            game.sport as BallSport,
+          ),
+        })),
+        knockout,
+      };
+    });
 }
 
 export async function computeSingleGameStandings(gameId: string): Promise<TeamStandingRow[] | null> {

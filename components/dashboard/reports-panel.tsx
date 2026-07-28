@@ -53,6 +53,19 @@ interface PoolStandings {
   standings: TeamStandingRow[];
 }
 
+interface KnockoutFixtureRow {
+  matchId: string;
+  roundName: string;
+  teamAId: string;
+  teamAName: string;
+  teamBId: string;
+  teamBName: string;
+  teamAScore: number | null;
+  teamBScore: number | null;
+  isWalkover: boolean;
+  winnerId: string | null;
+}
+
 interface GameStandings {
   gameId: string;
   gameName: string;
@@ -60,6 +73,7 @@ interface GameStandings {
   sport: string;
   standings: TeamStandingRow[];
   pools: PoolStandings[];
+  knockout: KnockoutFixtureRow[];
 }
 
 const SCHOOL_LEVEL_FILTERS = [{ value: "OVERALL", label: "Overall" }, ...GAME_SCHOOL_LEVELS];
@@ -134,6 +148,26 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
               row.gd,
               row.points,
             ]),
+          });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          nextY = (doc as any).lastAutoTable.finalY + 8;
+        }
+        if (game.knockout.length > 0) {
+          const knockoutTitleEndY = addPdfTitle(doc, "Knockout Stage", nextY, 9);
+          autoTable(doc, {
+            startY: knockoutTitleEndY,
+            head: [["Round", "Team A", "Score", "Team B", "Result"]],
+            body: game.knockout.map((f) => {
+              const decided = f.isWalkover || (f.teamAScore !== null && f.teamBScore !== null);
+              const winnerName = f.winnerId === f.teamAId ? f.teamAName : f.winnerId === f.teamBId ? f.teamBName : null;
+              return [
+                f.roundName,
+                f.teamAName,
+                f.isWalkover ? "Walkover" : decided ? `${f.teamAScore} - ${f.teamBScore}` : "vs",
+                f.teamBName,
+                winnerName ? `${winnerName} won` : decided ? "Draw" : "Pending",
+              ];
+            }),
           });
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           nextY = (doc as any).lastAutoTable.finalY + 8;

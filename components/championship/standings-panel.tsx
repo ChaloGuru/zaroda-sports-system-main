@@ -51,6 +51,19 @@ interface PoolStandings {
   standings: TeamStandingRow[];
 }
 
+interface KnockoutFixtureRow {
+  matchId: string;
+  roundName: string;
+  teamAName: string;
+  teamBName: string;
+  teamAScore: number | null;
+  teamBScore: number | null;
+  isWalkover: boolean;
+  winnerId: string | null;
+  teamAId: string;
+  teamBId: string;
+}
+
 interface GameStandings {
   gameId: string;
   gameName: string;
@@ -58,6 +71,7 @@ interface GameStandings {
   sport: string;
   standings: TeamStandingRow[];
   pools: PoolStandings[];
+  knockout: KnockoutFixtureRow[];
 }
 
 interface OrganizationRankingRow {
@@ -172,6 +186,48 @@ function PoolStandingsSubtable({ pool }: { pool: PoolStandings }) {
   );
 }
 
+function KnockoutResultsTable({ fixtures }: { fixtures: KnockoutFixtureRow[] }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-semibold text-foreground">Knockout Stage</p>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Round</TableHead>
+            <TableHead>Team A</TableHead>
+            <TableHead>Score</TableHead>
+            <TableHead>Team B</TableHead>
+            <TableHead>Result</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {fixtures.map((f) => {
+            const decided = f.isWalkover || (f.teamAScore !== null && f.teamBScore !== null);
+            const winnerName = f.winnerId === f.teamAId ? f.teamAName : f.winnerId === f.teamBId ? f.teamBName : null;
+            return (
+              <TableRow key={f.matchId}>
+                <TableCell className="font-medium">{f.roundName}</TableCell>
+                <TableCell className={f.winnerId === f.teamAId ? "font-semibold text-foreground" : undefined}>
+                  {f.teamAName}
+                </TableCell>
+                <TableCell className="font-mono tabular-nums">
+                  {f.isWalkover ? "Walkover" : decided ? `${f.teamAScore} - ${f.teamBScore}` : "vs"}
+                </TableCell>
+                <TableCell className={f.winnerId === f.teamBId ? "font-semibold text-foreground" : undefined}>
+                  {f.teamBName}
+                </TableCell>
+                <TableCell className="text-sm text-muted">
+                  {winnerName ? `${winnerName} won` : decided ? "Draw" : "Pending"}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 function TeamStandingsTable({ game }: { game: GameStandings }) {
   const pools = game.pools.length > 0 ? game.pools : [{ poolId: game.gameId, poolName: "Standings", standings: game.standings }];
   return (
@@ -183,6 +239,7 @@ function TeamStandingsTable({ game }: { game: GameStandings }) {
         {pools.map((pool) => (
           <PoolStandingsSubtable key={pool.poolId} pool={pool} />
         ))}
+        {game.knockout.length > 0 && <KnockoutResultsTable fixtures={game.knockout} />}
       </CardContent>
     </Card>
   );
