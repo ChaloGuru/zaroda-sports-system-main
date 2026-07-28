@@ -163,7 +163,7 @@ export function AnalyticsPanel({ championshipId }: { championshipId: string }) {
         <StatTile label="Games" value={data.totals.games} />
         <StatTile label="Participants" value={data.totals.participants} />
         <StatTile label="Teams" value={data.totals.teams} />
-        <StatTile label="Qualified" value={data.totals.qualified} />
+        <StatTile label="Qualified" value={`${data.totals.qualified}/${data.totals.games}`} />
       </div>
 
       <Card>

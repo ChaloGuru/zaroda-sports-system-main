@@ -141,7 +141,21 @@ export async function GET(request: Request) {
 
     const participantsByGender = tallyBy(participants, (p) => p.gender);
     const participantsByStatus = tallyBy(participants, (p) => p.status);
-    const qualifiedCount = participants.filter((p) => p.isQualified).length;
+
+    // "Qualified" here means the game's championship decider is done - its
+    // Final round (or straight athletics final) has every match/race scored,
+    // i.e. a winning team/athlete has actually emerged. Matched with a word
+    // boundary so "Semifinal"/"Quarterfinal" don't count as a "Final".
+    const FINAL_ROUND_PATTERN = /\bfinal\b/i;
+    let qualifiedCount = 0;
+    for (const rounds of roundsByGame.values()) {
+      for (const [roundName, counts] of rounds) {
+        if (FINAL_ROUND_PATTERN.test(roundName) && counts.total > 0 && counts.scored === counts.total) {
+          qualifiedCount++;
+          break;
+        }
+      }
+    }
 
     const teamsByGender = tallyBy(teams, (t) => t.gender);
     const teamsByCounty = tallyBy(teams, (t) => t.county ?? "Unknown");
