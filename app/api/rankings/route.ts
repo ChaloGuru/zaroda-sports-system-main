@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthContext, isSuperAdmin, hasRole, toErrorResponse } from "@/lib/authorize";
 import { pointsForPosition } from "@/lib/scoring";
 import { computeChampionshipTeamStandings } from "@/lib/team-standings";
-import { computeOrganizationRankings, computeOrganizationRankingsByGame } from "@/lib/organization-rankings";
+import { computeOrganizationRankings } from "@/lib/organization-rankings";
 
 export const dynamic = "force-dynamic";
 
@@ -117,12 +117,7 @@ export async function GET(request: Request) {
       gender: genderParam as "BOYS" | "GIRLS" | "OVERALL" | undefined,
       schoolLevel: schoolLevelParam ?? undefined,
     });
-    const organizationRankingsByGame = await computeOrganizationRankingsByGame(championshipId, {
-      gender: genderParam as "BOYS" | "GIRLS" | "OVERALL" | undefined,
-      schoolLevel: schoolLevelParam ?? undefined,
-    });
-
-    return NextResponse.json({ standings, teamStandings, organizationRankings, organizationRankingsByGame });
+    return NextResponse.json({ standings, teamStandings, organizationRankings });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

@@ -15,7 +15,6 @@ import {
   downloadOrganizationRankingsPdf,
   buildOrganizationRankingsDoc,
   type OrganizationRankingPdfRow,
-  type GameOrganizationRankingPdfSection,
 } from "@/lib/export-organization-rankings-pdf";
 import { downloadJsGameWinnersPdf, buildJsGameWinnersDoc } from "@/lib/export-js-game-winners-pdf";
 
@@ -212,22 +211,17 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
   }
 
   async function fetchOrganizationRankingsForExport() {
-    const { organizationRankings, organizationRankingsByGame } = await apiGet<{
-      organizationRankings: OrganizationRankingPdfRow[];
-      organizationRankingsByGame: Array<{ gameName: string; rankings: OrganizationRankingPdfRow[] }>;
-    }>(`/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`);
-    const byGame: GameOrganizationRankingPdfSection[] = organizationRankingsByGame.map((game) => ({
-      gameName: game.gameName,
-      rankings: game.rankings,
-    }));
-    return { organizationRankings, byGame };
+    const { organizationRankings } = await apiGet<{ organizationRankings: OrganizationRankingPdfRow[] }>(
+      `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`,
+    );
+    return { organizationRankings };
   }
 
   async function exportOrganizationRankings() {
     setExportingRankings(true);
     try {
-      const { organizationRankings, byGame } = await fetchOrganizationRankingsForExport();
-      await downloadOrganizationRankingsPdf(championshipName, organizationRankings, filterLabel(), byGame);
+      const { organizationRankings } = await fetchOrganizationRankingsForExport();
+      await downloadOrganizationRankingsPdf(championshipName, organizationRankings, filterLabel());
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to export rankings");
     } finally {
@@ -238,8 +232,8 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
   async function printOrganizationRankings() {
     setPrintingRankings(true);
     try {
-      const { organizationRankings, byGame } = await fetchOrganizationRankingsForExport();
-      const { doc } = await buildOrganizationRankingsDoc(championshipName, organizationRankings, filterLabel(), byGame);
+      const { organizationRankings } = await fetchOrganizationRankingsForExport();
+      const { doc } = await buildOrganizationRankingsDoc(championshipName, organizationRankings, filterLabel());
       printPdfDoc(doc);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to prepare rankings for printing");
