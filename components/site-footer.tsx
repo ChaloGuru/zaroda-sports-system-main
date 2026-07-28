@@ -11,6 +11,9 @@ export function SiteFooter() {
           <Link href="/contacts" className="hover:text-foreground">Contact</Link>
         </div>
       </div>
+      <div className="border-t border-border py-3 text-center text-xs text-muted">
+        Powered by <span className="font-semibold text-foreground">ZARODA SOLUTIONS</span> - Innovative. Reliable. Forward. 0781230805
+      </div>
     </footer>
   );
 }
