@@ -85,3 +85,46 @@ export async function computeOrganizationRankings(
     .sort((a, b) => b.points - a.points)
     .map((row, index) => ({ ...row, position: index + 1 }));
 }
+
+export interface GameOrganizationRankings {
+  gameId: string;
+  gameName: string;
+  gender: string;
+  schoolLevel: string;
+  rankings: OrganizationRankingRow[];
+}
+
+/**
+ * Same organization leaderboard as computeOrganizationRankings, but scoped to
+ * one ball-game/indoor-game at a time instead of summed across the whole
+ * championship - lets Reports show "who topped Football Boys JS" alongside
+ * the overall table.
+ */
+export async function computeOrganizationRankingsByGame(
+  championshipId: string,
+  filters: OrganizationRankingsFilters = {},
+): Promise<GameOrganizationRankings[]> {
+  const genderFilter = !filters.gender || filters.gender === "OVERALL" ? null : filters.gender;
+  const schoolLevelFilter = !filters.schoolLevel || filters.schoolLevel === "OVERALL" ? null : filters.schoolLevel;
+
+  const gameStandings = await computeChampionshipTeamStandings(championshipId);
+  const allNames = gameStandings.flatMap((game) => game.standings.map((row) => row.teamName));
+  const canonicalNames = buildCanonicalNameMap(allNames);
+
+  return gameStandings
+    .filter((game) => (!genderFilter || game.gender === genderFilter) && (!schoolLevelFilter || game.schoolLevel === schoolLevelFilter))
+    .map((game) => {
+      const points = new Map<string, number>();
+      for (const row of game.standings) {
+        if (row.points === 0) continue;
+        const name = canonicalNames.get(row.teamName.trim()) ?? row.teamName.trim();
+        points.set(name, (points.get(name) ?? 0) + row.points);
+      }
+      const rankings = Array.from(points.entries())
+        .map(([name, total]) => ({ name, points: total }))
+        .sort((a, b) => b.points - a.points)
+        .map((row, index) => ({ ...row, position: index + 1 }));
+      return { gameId: game.gameId, gameName: game.gameName, gender: game.gender, schoolLevel: game.schoolLevel, rankings };
+    })
+    .filter((game) => game.rankings.length > 0);
+}

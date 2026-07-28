@@ -12,7 +12,11 @@ import { apiGet } from "@/lib/api-client";
 import { GAME_SCHOOL_LEVELS } from "@/lib/school-levels";
 import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "@/lib/pdf-logo";
 import { buildResultsShareMessage } from "@/lib/share-message";
-import { downloadOrganizationRankingsPdf, type OrganizationRankingPdfRow } from "@/lib/export-organization-rankings-pdf";
+import {
+  downloadOrganizationRankingsPdf,
+  type OrganizationRankingPdfRow,
+  type GameOrganizationRankingPdfSection,
+} from "@/lib/export-organization-rankings-pdf";
 import { downloadJsGameWinnersPdf } from "@/lib/export-js-game-winners-pdf";
 
 interface RankingRow {
@@ -52,27 +56,39 @@ interface GameStandings {
 }
 
 const SCHOOL_LEVEL_FILTERS = [{ value: "OVERALL", label: "Overall" }, ...GAME_SCHOOL_LEVELS];
+const GENDER_FILTERS = [
+  { value: "OVERALL", label: "Overall" },
+  { value: "BOYS", label: "Boys" },
+  { value: "GIRLS", label: "Girls" },
+];
 
 export function ReportsPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   const [schoolLevel, setSchoolLevel] = React.useState("OVERALL");
+  const [gender, setGender] = React.useState("OVERALL");
   const [exporting, setExporting] = React.useState(false);
   const [exportingRankings, setExportingRankings] = React.useState(false);
   const [exportingJsWinners, setExportingJsWinners] = React.useState(false);
 
   const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/championship/${championshipId}` : "";
 
+  function filterLabel(): string {
+    const genderLabel = GENDER_FILTERS.find((g) => g.value === gender)?.label ?? "Overall";
+    const schoolLevelLabel = SCHOOL_LEVEL_FILTERS.find((l) => l.value === schoolLevel)?.label ?? "Overall";
+    return gender === "OVERALL" && schoolLevel === "OVERALL" ? "Overall" : `${genderLabel} - ${schoolLevelLabel}`;
+  }
+
   async function exportStandings() {
     setExporting(true);
     try {
       const { standings, teamStandings } = await apiGet<{ standings: RankingRow[]; teamStandings: GameStandings[] }>(
-        `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}`,
+        `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`,
       );
 
       const { default: jsPDF } = await import("jspdf");
       const autoTable = (await import("jspdf-autotable")).default;
       const doc = new jsPDF();
       const contentY = await addPdfLogoHeader(doc);
-      const titleEndY = addPdfTitle(doc, `${championshipName} - Official Standings (${schoolLevel.replace("_", " ")})`, contentY + 6);
+      const titleEndY = addPdfTitle(doc, `${championshipName} - Official Standings (${filterLabel()})`, contentY + 6);
 
       // Athletics events produce Participant.position rows (the `standings`
       // table); ball-games/indoor-games team fixtures don't - those results
@@ -130,11 +146,15 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
   async function exportOrganizationRankings() {
     setExportingRankings(true);
     try {
-      const { organizationRankings } = await apiGet<{ organizationRankings: OrganizationRankingPdfRow[] }>(
-        `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=OVERALL`,
-      );
-      const filterLabel = schoolLevel === "OVERALL" ? "Overall" : schoolLevel.replace("_", " ");
-      await downloadOrganizationRankingsPdf(championshipName, organizationRankings, filterLabel);
+      const { organizationRankings, organizationRankingsByGame } = await apiGet<{
+        organizationRankings: OrganizationRankingPdfRow[];
+        organizationRankingsByGame: Array<{ gameName: string; rankings: OrganizationRankingPdfRow[] }>;
+      }>(`/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`);
+      const byGame: GameOrganizationRankingPdfSection[] = organizationRankingsByGame.map((game) => ({
+        gameName: game.gameName,
+        rankings: game.rankings,
+      }));
+      await downloadOrganizationRankingsPdf(championshipName, organizationRankings, filterLabel(), byGame);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to export rankings");
     } finally {
@@ -185,6 +205,16 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
         </div>
       </CardHeader>
       <CardContent className="flex flex-wrap items-end gap-3">
+        <div>
+          <Select value={gender} onValueChange={setGender}>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {GENDER_FILTERS.map((g) => (
+                <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div>
           <Select value={schoolLevel} onValueChange={setSchoolLevel}>
             <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
