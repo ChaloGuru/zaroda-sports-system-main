@@ -166,7 +166,14 @@ export function addPdfFooter(doc: jsPDF): void {
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
-    doc.setTextColor(140);
-    doc.text("Powered by Zaroda Solutions", pageWidth / 2, pageHeight - 8, { align: "center" });
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(90);
+    doc.text(
+      "Powered by ZARODA SOLUTIONS - Innovative. Reliable. Forward. - 0781230805",
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: "center" },
+    );
+    doc.setFont("helvetica", "normal");
   }
 }
