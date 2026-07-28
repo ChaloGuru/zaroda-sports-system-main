@@ -252,14 +252,24 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
     const { teamStandings } = await apiGet<{ teamStandings: GameStandings[] }>(
       `/api/rankings?championshipId=${championshipId}&schoolLevel=JS`,
     );
+    // Word-boundary match so "Semifinal"/"Quarterfinal" don't count as the Final.
+    const FINAL_ROUND_PATTERN = /\bfinal\b/i;
     return teamStandings
       .filter((game) => game.standings.length > 0)
-      .map((game) => ({
-        gameName: game.gameName,
-        sport: game.sport,
-        gender: game.gender,
-        winningTeam: game.standings[0]!.teamName,
-      }));
+      .map((game) => {
+        const finalMatch = game.knockout.find((f) => FINAL_ROUND_PATTERN.test(f.roundName) && f.winnerId !== null);
+        const winningTeam = finalMatch
+          ? finalMatch.winnerId === finalMatch.teamAId
+            ? finalMatch.teamAName
+            : finalMatch.teamBName
+          : "Pending";
+        return {
+          gameName: game.gameName,
+          sport: game.sport,
+          gender: game.gender,
+          winningTeam,
+        };
+      });
   }
 
   async function exportJsGameWinners() {
