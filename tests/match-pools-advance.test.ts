@@ -4,7 +4,7 @@ const gameFindUnique = vi.fn();
 const poolFindMany = vi.fn();
 const matchPoolFindMany = vi.fn();
 const matchPoolCreateMany = vi.fn();
-const requireChampionshipAccessMock = vi.fn();
+const requireGameAccessMock = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -23,7 +23,7 @@ vi.mock("@/lib/authorize", async () => {
   const actual = await vi.importActual<typeof import("@/lib/authorize")>("@/lib/authorize");
   return {
     ...actual,
-    requireChampionshipAccess: (...args: unknown[]) => requireChampionshipAccessMock(...args),
+    requireGameAccess: (...args: unknown[]) => requireGameAccessMock(...args),
   };
 });
 
@@ -52,7 +52,7 @@ const TEAM_B2 = "bbbbbbbb-0000-0000-0000-000000000002";
 describe("POST /api/match-pools/advance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireChampionshipAccessMock.mockResolvedValue({ userId: "user-1", email: "a@b.com", tenantId: "t1", roles: [] });
+    requireGameAccessMock.mockResolvedValue({ userId: "user-1", email: "a@b.com", tenantId: "t1", roles: [] });
     matchPoolCreateMany.mockResolvedValue({ count: 1 });
   });
 

@@ -951,9 +951,14 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
           ? `Created ${created} fixture${created === 1 ? "" : "s"} from rules${skipped > 0 ? ` (${skipped} skipped - pool not decided yet or already exists)` : ""}`
           : "No new fixtures - pool standings aren't final yet, or these matches already exist",
       );
-      refetchAll();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to generate fixtures from rules"),
+    // The mutationFn creates fixtures one rule at a time - if a later rule
+    // fails, the earlier ones are already persisted server-side. Refetch on
+    // both success AND failure so those already-created fixtures still show
+    // up instead of only appearing after some unrelated action happens to
+    // invalidate this query.
+    onSettled: () => refetchAll(),
   });
 
   const [roundToAdvance, setRoundToAdvance] = React.useState("");

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const gameFindUnique = vi.fn();
 const matchPoolFindMany = vi.fn();
 const matchPoolCreateMany = vi.fn();
-const requireChampionshipAccessMock = vi.fn();
+const requireGameAccessMock = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -21,7 +21,7 @@ vi.mock("@/lib/authorize", async () => {
   const actual = await vi.importActual<typeof import("@/lib/authorize")>("@/lib/authorize");
   return {
     ...actual,
-    requireChampionshipAccess: (...args: unknown[]) => requireChampionshipAccessMock(...args),
+    requireGameAccess: (...args: unknown[]) => requireGameAccessMock(...args),
   };
 });
 
@@ -48,7 +48,7 @@ function fixture(id: string, teamAId: string, teamBId: string, winnerId: string 
 describe("POST /api/match-pools/advance-round", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireChampionshipAccessMock.mockResolvedValue({ userId: "user-1", email: "a@b.com", tenantId: "t1", roles: [] });
+    requireGameAccessMock.mockResolvedValue({ userId: "user-1", email: "a@b.com", tenantId: "t1", roles: [] });
     matchPoolCreateMany.mockImplementation((args: { data: unknown[] }) => Promise.resolve({ count: args.data.length }));
     gameFindUnique.mockResolvedValue({ id: GAME_ID, championshipId: "champ-1" });
   });
