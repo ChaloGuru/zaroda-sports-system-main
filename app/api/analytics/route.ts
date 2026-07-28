@@ -13,6 +13,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const championshipId = searchParams.get("championshipId");
+    const schoolLevelParam = searchParams.get("schoolLevel"); // Game.schoolLevel | null=all
+    const genderParam = searchParams.get("gender"); // BOYS | GIRLS | null=all
     if (!championshipId) return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
 
     const ctx = await getAuthContext();
@@ -27,17 +29,33 @@ export async function GET(request: Request) {
     );
     if (!isFullAdmin && !hasOperationalRole) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
 
-    const [games, participants, teams, payments, matchPools, heats] = await Promise.all([
+    const schoolLevelFilter = !schoolLevelParam || schoolLevelParam === "OVERALL" ? null : schoolLevelParam;
+    const genderFilter = !genderParam || genderParam === "OVERALL" ? null : genderParam;
+
+    const [allGames, allParticipants, allTeams, allPayments, allMatchPools, allHeats] = await Promise.all([
       prisma.game.findMany({
         where: { championshipId },
         select: { id: true, name: true, category: true, gender: true, schoolLevel: true, isTimed: true, sport: true },
       }),
       prisma.participant.findMany({
         where: { championshipId },
-        select: { gameId: true, gender: true, status: true, isQualified: true, position: true },
+        select: {
+          gameId: true,
+          gender: true,
+          status: true,
+          isQualified: true,
+          position: true,
+          game: { select: { schoolLevel: true } },
+        },
       }),
-      prisma.tournamentTeam.findMany({ where: { championshipId }, select: { id: true, gender: true, county: true } }),
-      prisma.teamFeePayment.findMany({ where: { championshipId }, select: { amountKes: true, status: true } }),
+      prisma.tournamentTeam.findMany({
+        where: { championshipId },
+        select: { id: true, gender: true, county: true, game: { select: { schoolLevel: true } } },
+      }),
+      prisma.teamFeePayment.findMany({
+        where: { championshipId },
+        select: { amountKes: true, status: true, team: { select: { gender: true, game: { select: { schoolLevel: true } } } } },
+      }),
       prisma.matchPool.findMany({
         where: { game: { championshipId } },
         select: { gameId: true, roundName: true, teamAScore: true, teamBScore: true, isWalkover: true },
@@ -52,6 +70,25 @@ export async function GET(request: Request) {
         },
       }),
     ]);
+
+    const games = allGames.filter(
+      (g) => (!schoolLevelFilter || g.schoolLevel === schoolLevelFilter) && (!genderFilter || g.gender === genderFilter),
+    );
+    const gameIds = new Set(games.map((g) => g.id));
+    const participants = allParticipants.filter(
+      (p) =>
+        (!schoolLevelFilter || p.game.schoolLevel === schoolLevelFilter) && (!genderFilter || p.gender === genderFilter),
+    );
+    const teams = allTeams.filter(
+      (t) => (!schoolLevelFilter || t.game?.schoolLevel === schoolLevelFilter) && (!genderFilter || t.gender === genderFilter),
+    );
+    const payments = allPayments.filter(
+      (p) =>
+        (!schoolLevelFilter || p.team.game?.schoolLevel === schoolLevelFilter) &&
+        (!genderFilter || p.team.gender === genderFilter),
+    );
+    const matchPools = allMatchPools.filter((mp) => gameIds.has(mp.gameId));
+    const heats = allHeats.filter((h) => gameIds.has(h.gameId));
 
     const gamesByCategory = tallyBy(games, (g) => g.category);
     const gamesByGender = tallyBy(games, (g) => g.gender);

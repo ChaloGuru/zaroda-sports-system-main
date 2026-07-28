@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
@@ -15,7 +16,16 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet } from "@/lib/api-client";
+import { GAME_SCHOOL_LEVELS } from "@/lib/school-levels";
+
+const SCHOOL_LEVEL_FILTERS = [{ value: "OVERALL", label: "Overall" }, ...GAME_SCHOOL_LEVELS];
+const GENDER_FILTERS = [
+  { value: "OVERALL", label: "Overall" },
+  { value: "BOYS", label: "Boys" },
+  { value: "GIRLS", label: "Girls" },
+];
 
 // Matches the categorical order already used by components/admin/overview-charts.tsx.
 const COLORS = ["#D4A017", "#1A3A8F", "#8B949E", "#DA3633", "#2EA043", "#58A6FF"];
@@ -94,20 +104,61 @@ function DistributionCard({
 }
 
 export function AnalyticsPanel({ championshipId }: { championshipId: string }) {
+  const [schoolLevel, setSchoolLevel] = React.useState("OVERALL");
+  const [gender, setGender] = React.useState("OVERALL");
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["analytics", championshipId],
-    queryFn: () => apiGet<AnalyticsData>(`/api/analytics?championshipId=${championshipId}`),
+    queryKey: ["analytics", championshipId, schoolLevel, gender],
+    queryFn: () =>
+      apiGet<AnalyticsData>(
+        `/api/analytics?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`,
+      ),
   });
 
-  if (isLoading) return <p className="text-sm text-muted">Loading analytics...</p>;
+  const filters = (
+    <div className="flex flex-wrap items-end gap-3">
+      <Select value={gender} onValueChange={setGender}>
+        <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {GENDER_FILTERS.map((g) => (
+            <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={schoolLevel} onValueChange={setSchoolLevel}>
+        <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {SCHOOL_LEVEL_FILTERS.map((level) => (
+            <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {filters}
+        <p className="text-sm text-muted">Loading analytics...</p>
+      </div>
+    );
+  }
   if (error || !data) {
-    return <p className="text-sm text-destructive">Failed to load analytics.</p>;
+    return (
+      <div className="space-y-6">
+        {filters}
+        <p className="text-sm text-destructive">Failed to load analytics.</p>
+      </div>
+    );
   }
 
   const countyData = toChartData(data.teams.byCounty).sort((a, b) => b.value - a.value).slice(0, 10);
 
   return (
     <div className="space-y-6">
+      {filters}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Games" value={data.totals.games} />
         <StatTile label="Participants" value={data.totals.participants} />
