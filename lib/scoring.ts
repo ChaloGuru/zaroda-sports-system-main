@@ -172,7 +172,7 @@ export const SPORT_CONFIGS: Record<BallSport, SportConfig> = {
   VOLLEYBALL: { drawAllowed: false, winPoints: 3, drawPoints: 0, lossPoints: 0, scoreLabel: "Sets" },
   HANDBALL: { drawAllowed: true, winPoints: 2, drawPoints: 1, lossPoints: 0, scoreLabel: "Goals" },
   RUGBY: { drawAllowed: true, winPoints: 4, drawPoints: 2, lossPoints: 0, scoreLabel: "Points" },
-  NETBALL: { drawAllowed: false, winPoints: 3, drawPoints: 0, lossPoints: 0, scoreLabel: "Goals" },
+  NETBALL: { drawAllowed: true, winPoints: 2, drawPoints: 1, lossPoints: 0, scoreLabel: "Goals" },
   // Indoor/dual-match games run at higher competition levels. Defaults below
   // are a reasonable starting point (chess team matches commonly split board
   // points and can be drawn; table tennis/badminton are decided by games won

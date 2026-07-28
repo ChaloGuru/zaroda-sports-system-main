@@ -14,7 +14,7 @@ describe("addPdfFooter", () => {
     // jsPDF's internal text stream doesn't expose a clean "get text on page"
     // API, so assert via the raw PDF output containing our footer string.
     const output = doc.output();
-    const occurrences = output.split("Powered by Zaroda Solutions").length - 1;
+    const occurrences = output.split("Powered by ZARODA SOLUTIONS").length - 1;
     expect(occurrences).toBe(2);
   });
 });
