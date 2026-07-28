@@ -12,7 +12,10 @@ export function SiteFooter() {
         </div>
       </div>
       <div className="border-t border-border py-3 text-center text-xs text-muted">
-        Powered by <span className="font-semibold text-foreground">ZARODA SOLUTIONS</span> - Innovative. Reliable. Forward. 0781230805
+        Powered by <span className="font-semibold text-foreground">ZARODA SOLUTIONS</span> - Innovative. Reliable. Forward.{" "}
+        <a href="https://wa.me/254781230805" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
+          0781230805
+        </a>
       </div>
     </footer>
   );
