@@ -45,5 +45,6 @@ export async function downloadOrganizationRankingsPdf(
   }
 
   addPdfFooter(doc);
-  doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-rankings.pdf`);
+  const filterSlug = filterLabel.replace(/\s+/g, "-").toLowerCase();
+  doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-rankings-${filterSlug}.pdf`);
 }

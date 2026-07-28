@@ -135,7 +135,8 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
         autoTable(doc, { startY: nextY, head: [["Institution", "Boys Total", "Girls Total", "Grand Total"]], body: [] });
       }
       addPdfFooter(doc);
-      doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-standings.pdf`);
+      const filterSlug = filterLabel().replace(/\s+/g, "-").toLowerCase();
+      doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-standings-${filterSlug}.pdf`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to export standings");
     } finally {
