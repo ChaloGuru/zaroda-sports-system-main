@@ -229,6 +229,17 @@ export function AppShell({
         </header>
         <IdentityBar />
         <main className="flex-1 bg-background p-6">{children}</main>
+        <footer className="no-print border-t border-border bg-surface-raised px-6 py-3 text-center text-xs font-semibold text-muted">
+          Powered by <span className="text-foreground">ZARODA SOLUTIONS</span> - Innovative. Reliable. Forward. -{" "}
+          <a
+            href="https://wa.me/254781230805"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground hover:underline"
+          >
+            0781230805
+          </a>
+        </footer>
       </div>
     </div>
     </AppShellContextProvider>
