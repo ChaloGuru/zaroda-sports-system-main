@@ -1,3 +1,4 @@
+import type jsPDF from "jspdf";
 import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "./pdf-logo";
 
 export interface JsGameWinnerRow {
@@ -7,11 +8,11 @@ export interface JsGameWinnerRow {
   winningTeam: string;
 }
 
-/** Builds and triggers a download of the JS-level winning team per ball game as a branded PDF. */
-export async function downloadJsGameWinnersPdf(
+/** Builds the JS ball games winners PDF without saving/opening it. */
+export async function buildJsGameWinnersDoc(
   championshipName: string,
   rows: JsGameWinnerRow[],
-): Promise<void> {
+): Promise<{ doc: jsPDF; filename: string }> {
   const { default: jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF();
@@ -23,5 +24,15 @@ export async function downloadJsGameWinnersPdf(
     body: rows.map((row) => [row.gameName, row.sport, row.gender, row.winningTeam]),
   });
   addPdfFooter(doc);
-  doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-js-ball-games-winners.pdf`);
+  const filename = `${championshipName.replace(/\s+/g, "-").toLowerCase()}-js-ball-games-winners.pdf`;
+  return { doc, filename };
+}
+
+/** Builds and triggers a download of the JS-level winning team per ball game as a branded PDF. */
+export async function downloadJsGameWinnersPdf(
+  championshipName: string,
+  rows: JsGameWinnerRow[],
+): Promise<void> {
+  const { doc, filename } = await buildJsGameWinnersDoc(championshipName, rows);
+  doc.save(filename);
 }

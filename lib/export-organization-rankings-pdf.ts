@@ -1,3 +1,4 @@
+import type jsPDF from "jspdf";
 import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "./pdf-logo";
 
 export interface OrganizationRankingPdfRow {
@@ -11,15 +12,20 @@ export interface GameOrganizationRankingPdfSection {
   rankings: OrganizationRankingPdfRow[];
 }
 
-/** Builds and triggers a download of the organization rankings table as a branded PDF. */
-export async function downloadOrganizationRankingsPdf(
+function organizationRankingsFilename(championshipName: string, filterLabel: string): string {
+  const filterSlug = filterLabel.replace(/\s+/g, "-").toLowerCase();
+  return `${championshipName.replace(/\s+/g, "-").toLowerCase()}-rankings-${filterSlug}.pdf`;
+}
+
+/** Builds the organization rankings PDF (overall + per-game breakdown) without saving/opening it. */
+export async function buildOrganizationRankingsDoc(
   championshipName: string,
   rows: OrganizationRankingPdfRow[],
   /** e.g. "Boys - Senior School" or "Overall" - the standings filter that was applied when exporting. */
   filterLabel: string = "Overall",
   /** Per-game breakdown, rendered as separate tables below the overall one. */
   byGame: GameOrganizationRankingPdfSection[] = [],
-): Promise<void> {
+): Promise<{ doc: jsPDF; filename: string }> {
   const { default: jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF();
@@ -45,6 +51,16 @@ export async function downloadOrganizationRankingsPdf(
   }
 
   addPdfFooter(doc);
-  const filterSlug = filterLabel.replace(/\s+/g, "-").toLowerCase();
-  doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-rankings-${filterSlug}.pdf`);
+  return { doc, filename: organizationRankingsFilename(championshipName, filterLabel) };
+}
+
+/** Builds and triggers a download of the organization rankings table as a branded PDF. */
+export async function downloadOrganizationRankingsPdf(
+  championshipName: string,
+  rows: OrganizationRankingPdfRow[],
+  filterLabel: string = "Overall",
+  byGame: GameOrganizationRankingPdfSection[] = [],
+): Promise<void> {
+  const { doc, filename } = await buildOrganizationRankingsDoc(championshipName, rows, filterLabel, byGame);
+  doc.save(filename);
 }

@@ -13,10 +13,18 @@ import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "@/lib/pdf-logo";
 import { buildResultsShareMessage } from "@/lib/share-message";
 import {
   downloadOrganizationRankingsPdf,
+  buildOrganizationRankingsDoc,
   type OrganizationRankingPdfRow,
   type GameOrganizationRankingPdfSection,
 } from "@/lib/export-organization-rankings-pdf";
-import { downloadJsGameWinnersPdf } from "@/lib/export-js-game-winners-pdf";
+import { downloadJsGameWinnersPdf, buildJsGameWinnersDoc } from "@/lib/export-js-game-winners-pdf";
+
+/** Opens a jsPDF doc in a new tab flagged to auto-invoke the browser's print dialog. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function printPdfDoc(doc: any) {
+  doc.autoPrint();
+  window.open(doc.output("bloburl"), "_blank");
+}
 
 interface RankingRow {
   position: number;
@@ -67,7 +75,9 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
   const [exporting, setExporting] = React.useState(false);
   const [printing, setPrinting] = React.useState(false);
   const [exportingRankings, setExportingRankings] = React.useState(false);
+  const [printingRankings, setPrintingRankings] = React.useState(false);
   const [exportingJsWinners, setExportingJsWinners] = React.useState(false);
+  const [printingJsWinners, setPrintingJsWinners] = React.useState(false);
 
   const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/championship/${championshipId}` : "";
 
@@ -159,8 +169,7 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
     setPrinting(true);
     try {
       const { doc } = await buildStandingsDoc();
-      doc.autoPrint();
-      window.open(doc.output("bloburl"), "_blank");
+      printPdfDoc(doc);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to prepare standings for printing");
     } finally {
@@ -168,17 +177,22 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
     }
   }
 
+  async function fetchOrganizationRankingsForExport() {
+    const { organizationRankings, organizationRankingsByGame } = await apiGet<{
+      organizationRankings: OrganizationRankingPdfRow[];
+      organizationRankingsByGame: Array<{ gameName: string; rankings: OrganizationRankingPdfRow[] }>;
+    }>(`/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`);
+    const byGame: GameOrganizationRankingPdfSection[] = organizationRankingsByGame.map((game) => ({
+      gameName: game.gameName,
+      rankings: game.rankings,
+    }));
+    return { organizationRankings, byGame };
+  }
+
   async function exportOrganizationRankings() {
     setExportingRankings(true);
     try {
-      const { organizationRankings, organizationRankingsByGame } = await apiGet<{
-        organizationRankings: OrganizationRankingPdfRow[];
-        organizationRankingsByGame: Array<{ gameName: string; rankings: OrganizationRankingPdfRow[] }>;
-      }>(`/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`);
-      const byGame: GameOrganizationRankingPdfSection[] = organizationRankingsByGame.map((game) => ({
-        gameName: game.gameName,
-        rankings: game.rankings,
-      }));
+      const { organizationRankings, byGame } = await fetchOrganizationRankingsForExport();
       await downloadOrganizationRankingsPdf(championshipName, organizationRankings, filterLabel(), byGame);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to export rankings");
@@ -187,20 +201,37 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
     }
   }
 
+  async function printOrganizationRankings() {
+    setPrintingRankings(true);
+    try {
+      const { organizationRankings, byGame } = await fetchOrganizationRankingsForExport();
+      const { doc } = await buildOrganizationRankingsDoc(championshipName, organizationRankings, filterLabel(), byGame);
+      printPdfDoc(doc);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to prepare rankings for printing");
+    } finally {
+      setPrintingRankings(false);
+    }
+  }
+
+  async function fetchJsGameWinnersForExport() {
+    const { teamStandings } = await apiGet<{ teamStandings: GameStandings[] }>(
+      `/api/rankings?championshipId=${championshipId}&schoolLevel=JS`,
+    );
+    return teamStandings
+      .filter((game) => game.standings.length > 0)
+      .map((game) => ({
+        gameName: game.gameName,
+        sport: game.sport,
+        gender: game.gender,
+        winningTeam: game.standings[0]!.teamName,
+      }));
+  }
+
   async function exportJsGameWinners() {
     setExportingJsWinners(true);
     try {
-      const { teamStandings } = await apiGet<{ teamStandings: GameStandings[] }>(
-        `/api/rankings?championshipId=${championshipId}&schoolLevel=JS`,
-      );
-      const rows = teamStandings
-        .filter((game) => game.standings.length > 0)
-        .map((game) => ({
-          gameName: game.gameName,
-          sport: game.sport,
-          gender: game.gender,
-          winningTeam: game.standings[0]!.teamName,
-        }));
+      const rows = await fetchJsGameWinnersForExport();
       if (rows.length === 0) {
         toast.error("No JS ball games with results yet");
         return;
@@ -213,6 +244,23 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
     }
   }
 
+  async function printJsGameWinners() {
+    setPrintingJsWinners(true);
+    try {
+      const rows = await fetchJsGameWinnersForExport();
+      if (rows.length === 0) {
+        toast.error("No JS ball games with results yet");
+        return;
+      }
+      const { doc } = await buildJsGameWinnersDoc(championshipName, rows);
+      printPdfDoc(doc);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to prepare JS game winners for printing");
+    } finally {
+      setPrintingJsWinners(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
@@ -221,9 +269,6 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
           <CardDescription>Printable, official-format exports of championship results.</CardDescription>
         </div>
         <div className="no-print flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={printStandings} disabled={printing}>
-            <Printer className="h-4 w-4" /> {printing ? "Preparing..." : "Print"}
-          </Button>
           <ShareButton
             title={championshipName}
             message={buildResultsShareMessage(championshipName, publicUrl)}
@@ -252,15 +297,44 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={exportStandings} disabled={exporting}>
-          <FileDown className="h-4 w-4" /> {exporting ? "Exporting..." : "Export final standings (PDF)"}
-        </Button>
-        <Button variant="secondary" onClick={exportOrganizationRankings} disabled={exportingRankings}>
-          <FileDown className="h-4 w-4" /> {exportingRankings ? "Exporting..." : "Export organization rankings (PDF)"}
-        </Button>
-        <Button variant="secondary" onClick={exportJsGameWinners} disabled={exportingJsWinners}>
-          <FileDown className="h-4 w-4" /> {exportingJsWinners ? "Exporting..." : "Download JS ball games winners (PDF)"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={exportStandings} disabled={exporting}>
+            <FileDown className="h-4 w-4" /> {exporting ? "Exporting..." : "Export final standings (PDF)"}
+          </Button>
+          <Button variant="outline" size="icon" onClick={printStandings} disabled={printing} title="Print final standings" aria-label="Print final standings">
+            <Printer className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={exportOrganizationRankings} disabled={exportingRankings}>
+            <FileDown className="h-4 w-4" /> {exportingRankings ? "Exporting..." : "Export organization rankings (PDF)"}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={printOrganizationRankings}
+            disabled={printingRankings}
+            title="Print organization rankings"
+            aria-label="Print organization rankings"
+          >
+            <Printer className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={exportJsGameWinners} disabled={exportingJsWinners}>
+            <FileDown className="h-4 w-4" /> {exportingJsWinners ? "Exporting..." : "Download JS ball games winners (PDF)"}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={printJsGameWinners}
+            disabled={printingJsWinners}
+            title="Print JS ball games winners"
+            aria-label="Print JS ball games winners"
+          >
+            <Printer className="h-4 w-4" />
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
