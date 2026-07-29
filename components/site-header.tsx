@@ -17,6 +17,7 @@ const NAV_LINKS = [
   { href: "/category/ball_games", label: "Ball Games" },
   { href: "/rankings", label: "Rankings" },
   { href: "/medal-table", label: "Medal Table" },
+  { href: "/scoring-rules", label: "Scoring Rules" },
   { href: "/circulars", label: "Circulars" },
   { href: "/pricing", label: "Pricing" },
   { href: "/guide", label: "User Guide" },
