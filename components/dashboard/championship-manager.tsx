@@ -97,6 +97,7 @@ export function ChampionshipManager({
           <TeamsPanel
             championshipId={championshipId}
             championshipName={name}
+            level={level}
             restrictToOrganizationName={restrictToOrganizationName}
           />
         </PanelErrorBoundary>
@@ -172,7 +173,7 @@ export function ChampionshipManager({
         {showsTeams && (
           <TabsContent value="teams">
             <PanelErrorBoundary fallbackTitle="Teams panel failed to load">
-              <TeamsPanel championshipId={championshipId} championshipName={name} />
+              <TeamsPanel championshipId={championshipId} championshipName={name} level={level} />
             </PanelErrorBoundary>
           </TabsContent>
         )}

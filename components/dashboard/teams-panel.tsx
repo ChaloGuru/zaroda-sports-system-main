@@ -15,7 +15,7 @@ import { GenderBadge } from "@/components/ui/gender-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TeamRosterDialog } from "@/components/dashboard/team-roster-dialog";
-import { dashboardTournamentTeamSchema, type TournamentTeamInput } from "@/lib/validations";
+import { dashboardTournamentTeamSchema, COUNTY_REQUIRED_LEVELS, type TournamentTeamInput } from "@/lib/validations";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 
 interface GameOption {
@@ -44,13 +44,17 @@ function emptyDefaults(championshipId: string, restrictToOrganizationName?: stri
 export function TeamsPanel({
   championshipId,
   championshipName,
+  level,
   restrictToOrganizationName,
 }: {
   championshipId: string;
   championshipName: string;
+  /** Championship.level - gates whether county is required (not meaningful for Regional/National/Open Tournament). */
+  level?: string;
   /** Team Manager view - only this organization's teams are shown/editable. */
   restrictToOrganizationName?: string | null;
 }) {
+  const countyRequired = !level || COUNTY_REQUIRED_LEVELS.includes(level);
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -91,7 +95,14 @@ export function TeamsPanel({
     reset,
     formState: { errors },
   } = useForm<TournamentTeamInput>({
-    resolver: zodResolver(dashboardTournamentTeamSchema),
+    resolver: zodResolver(
+      countyRequired
+        ? dashboardTournamentTeamSchema.refine((data) => !!data.county && data.county.trim().length > 0, {
+            message: "County is required",
+            path: ["county"],
+          })
+        : dashboardTournamentTeamSchema,
+    ),
     defaultValues: emptyDefaults(championshipId, restrictToOrganizationName),
   });
 
@@ -299,12 +310,13 @@ export function TeamsPanel({
               </div>
 
               <div>
-                <Label htmlFor="county">County *</Label>
+                <Label htmlFor="county">County{countyRequired ? " *" : " (optional)"}</Label>
                 <Input id="county" className="mt-1.5" {...register("county")} placeholder="e.g. Kisumu" />
                 {errors.county && <p className="mt-1 text-sm text-red-400">{errors.county.message}</p>}
                 <p className="mt-1 text-xs text-muted">
-                  Used to confirm the team is within the championship's geographic scope for Base/Zone/Sub-County/County
-                  level events.
+                  {countyRequired
+                    ? "Used to confirm the team is within the championship's geographic scope for Base/Zone/Sub-County/County level events."
+                    : "Not required at this championship level - only used for Base/Zone/Sub-County/County level events."}
                 </p>
               </div>
 

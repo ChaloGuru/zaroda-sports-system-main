@@ -114,21 +114,25 @@ describe("tournamentTeamSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects a team payload missing county", () => {
+  // County isn't required at the base schema level - it's only mandatory for
+  // Base/Zone/Sub-County/County championships, enforced by the dashboard form
+  // (COUNTY_REQUIRED_LEVELS) and by assertWithinGeographicScope server-side.
+  // Regional/National/Open Tournament teams have no meaningful county.
+  it("accepts a team payload missing county", () => {
     const result = tournamentTeamSchema.safeParse({
       championshipId: "11111111-1111-1111-1111-111111111111",
       name: "Thunder FC",
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
-  it("rejects an empty-string county", () => {
+  it("accepts an empty-string county", () => {
     const result = tournamentTeamSchema.safeParse({
       championshipId: "11111111-1111-1111-1111-111111111111",
       name: "Thunder FC",
       county: "",
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it("dashboardTournamentTeamSchema requires a gameId, unlike the base schema", () => {

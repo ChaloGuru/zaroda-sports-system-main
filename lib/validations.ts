@@ -221,9 +221,19 @@ export const tournamentTeamSchema = z.object({
   contactEmail: optionalEmail,
   contactPhone: z.string().max(20).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
-  county: z.string().min(1, "County is required").max(100),
+  // Not required at this base level - National/Open Tournament championships
+  // have no meaningful county scope. dashboardCountyRequiredSchema below
+  // re-adds the requirement for the levels where it matters.
+  county: z.string().max(100).nullable().optional(),
 });
 export type TournamentTeamInput = z.infer<typeof tournamentTeamSchema>;
+
+// Levels where a team's county is used to confirm it falls within the
+// championship's geographic scope - kept in sync with
+// GEOGRAPHICALLY_RESTRICTED_LEVELS in lib/authorize.ts, which enforces this
+// server-side. Regional/National/Open Tournament championships draw from
+// anywhere, so county isn't required for those.
+export const COUNTY_REQUIRED_LEVELS = ["BASE", "ZONE", "SUB_COUNTY", "COUNTY"];
 
 // Dashboard team creation (TeamsPanel) requires picking a game, unlike the
 // public self-registration flow above.
