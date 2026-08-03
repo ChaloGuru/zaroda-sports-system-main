@@ -1029,7 +1029,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="sticky top-16 z-30 shadow-md print:static print:shadow-none">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle>Fixtures &amp; Pooling</CardTitle>
