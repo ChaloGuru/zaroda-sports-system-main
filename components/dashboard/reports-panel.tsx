@@ -86,9 +86,15 @@ const GENDER_FILTERS = [
   { value: "GIRLS", label: "Girls" },
 ];
 
+const POINTS_SCOPE_FILTERS = [
+  { value: "ALL", label: "League points (all matches)" },
+  { value: "KNOCKOUT_ONLY", label: "Knockout points only" },
+];
+
 export function ReportsPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   const [schoolLevel, setSchoolLevel] = React.useState("OVERALL");
   const [gender, setGender] = React.useState("OVERALL");
+  const [pointsScope, setPointsScope] = React.useState("ALL");
   const [exporting, setExporting] = React.useState(false);
   const [printing, setPrinting] = React.useState(false);
   const [exportingRankings, setExportingRankings] = React.useState(false);
@@ -216,7 +222,7 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
 
   async function fetchOrganizationRankingsForExport() {
     const { organizationRankings } = await apiGet<{ organizationRankings: OrganizationRankingPdfRow[] }>(
-      `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`,
+      `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}&pointsScope=${pointsScope}`,
     );
     return { organizationRankings };
   }
@@ -326,6 +332,16 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
         </div>
       </CardHeader>
       <CardContent className="flex flex-wrap items-end gap-3">
+        <div>
+          <Select value={pointsScope} onValueChange={setPointsScope}>
+            <SelectTrigger className="w-60"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {POINTS_SCOPE_FILTERS.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div>
           <Select value={gender} onValueChange={setGender}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>

@@ -28,6 +28,7 @@ export async function GET(request: Request) {
     const championshipId = searchParams.get("championshipId");
     const schoolLevelParam = searchParams.get("schoolLevel"); // PRIMARY_JS | SENIOR_SCHOOL | TERTIARY | null=OVERALL
     const genderParam = searchParams.get("gender"); // BOYS | GIRLS | null=OVERALL
+    const pointsScopeParam = searchParams.get("pointsScope"); // ALL | KNOCKOUT_ONLY | null=ALL
     if (!championshipId) return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
 
     const championship = await prisma.championship.findUnique({ where: { id: championshipId } });
@@ -116,6 +117,7 @@ export async function GET(request: Request) {
     const organizationRankings = await computeOrganizationRankings(championshipId, {
       gender: genderParam as "BOYS" | "GIRLS" | "OVERALL" | undefined,
       schoolLevel: schoolLevelParam ?? undefined,
+      pointsScope: pointsScopeParam === "KNOCKOUT_ONLY" ? "KNOCKOUT_ONLY" : "ALL",
     });
     return NextResponse.json({ standings, teamStandings, organizationRankings });
   } catch (error) {

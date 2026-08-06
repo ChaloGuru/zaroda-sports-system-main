@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { pointsForPosition } from "./scoring";
-import { computeChampionshipTeamStandings } from "./team-standings";
+import { computeChampionshipTeamStandings, type TeamStandingsScope } from "./team-standings";
 import { buildCanonicalNameMap } from "./org-name";
 
 export interface OrganizationRankingRow {
@@ -14,6 +14,8 @@ export interface OrganizationRankingsFilters {
   gender?: "BOYS" | "GIRLS" | "OVERALL";
   /** Game.schoolLevel value (PRIMARY | JS | SENIOR_SCHOOL | TERTIARY). Omit (or "OVERALL") for all. */
   schoolLevel?: string;
+  /** Ball-games/indoor-games points scope. Omit (or "ALL") to sum pool + knockout results as a league table does. */
+  pointsScope?: TeamStandingsScope;
 }
 
 /**
@@ -60,7 +62,7 @@ export async function computeOrganizationRankings(
     contributions.push({ name, amount: pointsForPosition(p.position) });
   }
 
-  const gameStandings = await computeChampionshipTeamStandings(championshipId);
+  const gameStandings = await computeChampionshipTeamStandings(championshipId, filters.pointsScope ?? "ALL");
   for (const game of gameStandings) {
     for (const row of game.standings) {
       allNames.push(row.teamName);

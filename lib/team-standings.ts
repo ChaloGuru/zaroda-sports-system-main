@@ -42,12 +42,24 @@ export interface GameStandings {
 }
 
 /**
+ * "ALL" (default) sums pool-stage and knockout-stage results together, as a
+ * league table normally does. "KNOCKOUT_ONLY" counts only knockout-stage
+ * (non-pool) fixtures - useful for matching federations that score a ball
+ * games championship purely off the bracket (semis/final) rather than full
+ * round-robin standings.
+ */
+export type TeamStandingsScope = "ALL" | "KNOCKOUT_ONLY";
+
+/**
  * Computes per-game team standings for every non-timed, sport-tagged game in
  * a championship (i.e. every ball-games/indoor-games fixture pool). Public
  * pages (game detail, championship overview, rankings, medal table) all read
  * from this so a saved fixture score is reflected everywhere consistently.
  */
-export async function computeChampionshipTeamStandings(championshipId: string): Promise<GameStandings[]> {
+export async function computeChampionshipTeamStandings(
+  championshipId: string,
+  scope: TeamStandingsScope = "ALL",
+): Promise<GameStandings[]> {
   const games = await prisma.game.findMany({
     where: { championshipId, isTimed: false, sport: { not: null } },
     include: {
@@ -78,13 +90,16 @@ export async function computeChampionshipTeamStandings(championshipId: string): 
           winnerId: mp.winnerId,
         }));
 
+      const standingsMatchPools =
+        scope === "KNOCKOUT_ONLY" ? game.matchPools.filter((mp) => mp.poolId === null) : game.matchPools;
+
       return {
         gameId: game.id,
         gameName: game.name,
         gender: game.gender,
         schoolLevel: game.schoolLevel,
         sport: game.sport as BallSport,
-        standings: computeGameStandings(game.tournamentTeams, game.matchPools, game.sport as BallSport),
+        standings: computeGameStandings(game.tournamentTeams, standingsMatchPools, game.sport as BallSport),
         pools: game.pools.map((pool) => ({
           poolId: pool.id,
           poolName: pool.name,

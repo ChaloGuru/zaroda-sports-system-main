@@ -86,6 +86,10 @@ const GENDER_FILTERS = [
   { value: "BOYS", label: "Boys" },
   { value: "GIRLS", label: "Girls" },
 ];
+const POINTS_SCOPE_FILTERS = [
+  { value: "ALL", label: "League points (all matches)" },
+  { value: "KNOCKOUT_ONLY", label: "Knockout points only" },
+];
 
 function OrganizationRankingsTable({ rows, isLoading }: { rows: OrganizationRankingRow[]; isLoading: boolean }) {
   return (
@@ -248,13 +252,14 @@ function TeamStandingsTable({ game }: { game: GameStandings }) {
 function StandingsTable({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
   const [schoolLevel, setSchoolLevel] = React.useState("OVERALL");
   const [gender, setGender] = React.useState("OVERALL");
+  const [pointsScope, setPointsScope] = React.useState("ALL");
   const [downloading, setDownloading] = React.useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["rankings", championshipId, schoolLevel, gender],
+    queryKey: ["rankings", championshipId, schoolLevel, gender, pointsScope],
     queryFn: () =>
       apiGet<{ standings: RankingRow[]; teamStandings: GameStandings[]; organizationRankings: OrganizationRankingRow[] }>(
-        `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}`,
+        `/api/rankings?championshipId=${championshipId}&schoolLevel=${schoolLevel}&gender=${gender}&pointsScope=${pointsScope}`,
       ),
   });
 
@@ -264,7 +269,10 @@ function StandingsTable({ championshipId, championshipName }: { championshipId: 
 
   const genderLabel = GENDER_FILTERS.find((g) => g.value === gender)?.label ?? "Overall";
   const schoolLevelLabel = SCHOOL_LEVEL_FILTERS.find((l) => l.value === schoolLevel)?.label ?? "Overall";
-  const filterLabel = gender === "OVERALL" && schoolLevel === "OVERALL" ? "Overall" : `${genderLabel} - ${schoolLevelLabel}`;
+  const pointsScopeLabel = POINTS_SCOPE_FILTERS.find((s) => s.value === pointsScope)?.label ?? "League points (all matches)";
+  const filterLabel =
+    (gender === "OVERALL" && schoolLevel === "OVERALL" ? "Overall" : `${genderLabel} - ${schoolLevelLabel}`) +
+    (pointsScope === "KNOCKOUT_ONLY" ? ` - ${pointsScopeLabel}` : "");
   const url = typeof window !== "undefined" ? `${window.location.origin}/rankings?championshipId=${championshipId}` : "";
 
   async function download() {
@@ -293,6 +301,18 @@ function StandingsTable({ championshipId, championshipName }: { championshipId: 
           />
         </div>
         <div className="flex flex-wrap justify-end gap-3">
+          <Select value={pointsScope} onValueChange={setPointsScope}>
+            <SelectTrigger className="w-60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {POINTS_SCOPE_FILTERS.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={gender} onValueChange={setGender}>
             <SelectTrigger className="w-40">
               <SelectValue />
