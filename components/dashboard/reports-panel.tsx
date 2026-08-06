@@ -89,8 +89,8 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
   const [printing, setPrinting] = React.useState(false);
   const [exportingRankings, setExportingRankings] = React.useState(false);
   const [printingRankings, setPrintingRankings] = React.useState(false);
-  const [exportingJsWinners, setExportingJsWinners] = React.useState(false);
-  const [printingJsWinners, setPrintingJsWinners] = React.useState(false);
+  const [exportingWinningTeams, setExportingWinningTeams] = React.useState(false);
+  const [printingWinningTeams, setPrintingWinningTeams] = React.useState(false);
 
   const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/championship/${championshipId}` : "";
 
@@ -242,9 +242,9 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
     }
   }
 
-  async function fetchJsGameWinnersForExport() {
+  async function fetchWinningTeamsForExport() {
     const { teamStandings } = await apiGet<{ teamStandings: GameStandings[] }>(
-      `/api/rankings?championshipId=${championshipId}&schoolLevel=JS`,
+      `/api/rankings?championshipId=${championshipId}&schoolLevel=OVERALL`,
     );
     // Word-boundary match so "Semifinal"/"Quarterfinal" don't count as the Final.
     const FINAL_ROUND_PATTERN = /\bfinal\b/i;
@@ -266,36 +266,36 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
       });
   }
 
-  async function exportJsGameWinners() {
-    setExportingJsWinners(true);
+  async function exportWinningTeams() {
+    setExportingWinningTeams(true);
     try {
-      const rows = await fetchJsGameWinnersForExport();
+      const rows = await fetchWinningTeamsForExport();
       if (rows.length === 0) {
-        toast.error("No JS ball games with results yet");
+        toast.error("No ball games with results yet");
         return;
       }
       await downloadJsGameWinnersPdf(championshipName, rows);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to export JS game winners");
+      toast.error(error instanceof Error ? error.message : "Failed to export winning teams");
     } finally {
-      setExportingJsWinners(false);
+      setExportingWinningTeams(false);
     }
   }
 
-  async function printJsGameWinners() {
-    setPrintingJsWinners(true);
+  async function printWinningTeams() {
+    setPrintingWinningTeams(true);
     try {
-      const rows = await fetchJsGameWinnersForExport();
+      const rows = await fetchWinningTeamsForExport();
       if (rows.length === 0) {
-        toast.error("No JS ball games with results yet");
+        toast.error("No ball games with results yet");
         return;
       }
       const { doc } = await buildJsGameWinnersDoc(championshipName, rows);
       printPdfDoc(doc);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to prepare JS game winners for printing");
+      toast.error(error instanceof Error ? error.message : "Failed to prepare winning teams for printing");
     } finally {
-      setPrintingJsWinners(false);
+      setPrintingWinningTeams(false);
     }
   }
 
@@ -359,16 +359,16 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={exportJsGameWinners} disabled={exportingJsWinners}>
-            <FileDown className="h-4 w-4" /> {exportingJsWinners ? "Exporting..." : "Download JS ball games winners (PDF)"}
+          <Button variant="secondary" onClick={exportWinningTeams} disabled={exportingWinningTeams}>
+            <FileDown className="h-4 w-4" /> {exportingWinningTeams ? "Exporting..." : "Download winning teams (PDF)"}
           </Button>
           <Button
             variant="outline"
             size="icon"
-            onClick={printJsGameWinners}
-            disabled={printingJsWinners}
-            title="Print JS ball games winners"
-            aria-label="Print JS ball games winners"
+            onClick={printWinningTeams}
+            disabled={printingWinningTeams}
+            title="Print winning teams"
+            aria-label="Print winning teams"
           >
             <Printer className="h-4 w-4" />
           </Button>

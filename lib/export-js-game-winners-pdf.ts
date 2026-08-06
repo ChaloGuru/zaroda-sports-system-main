@@ -17,14 +17,14 @@ export async function buildJsGameWinnersDoc(
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF();
   const contentY = await addPdfLogoHeader(doc);
-  const titleEndY = addPdfTitle(doc, `${championshipName} - JS Ball Games Winners`, contentY + 6);
+  const titleEndY = addPdfTitle(doc, `${championshipName} - Winning Teams`, contentY + 6);
   autoTable(doc, {
     startY: titleEndY + 6,
     head: [["Game", "Sport", "Gender", "Winning Team"]],
     body: rows.map((row) => [row.gameName, row.sport, row.gender, row.winningTeam]),
   });
   addPdfFooter(doc);
-  const filename = `${championshipName.replace(/\s+/g, "-").toLowerCase()}-js-ball-games-winners.pdf`;
+  const filename = `${championshipName.replace(/\s+/g, "-").toLowerCase()}-winning-teams.pdf`;
   return { doc, filename };
 }
 
