@@ -88,6 +88,7 @@ const GENDER_FILTERS = [
 ];
 const POINTS_SCOPE_FILTERS = [
   { value: "ALL", label: "League points (all matches)" },
+  { value: "GROUP_ONLY", label: "Group stage points only" },
   { value: "KNOCKOUT_ONLY", label: "Knockout points only" },
 ];
 
@@ -272,7 +273,7 @@ function StandingsTable({ championshipId, championshipName }: { championshipId: 
   const pointsScopeLabel = POINTS_SCOPE_FILTERS.find((s) => s.value === pointsScope)?.label ?? "League points (all matches)";
   const filterLabel =
     (gender === "OVERALL" && schoolLevel === "OVERALL" ? "Overall" : `${genderLabel} - ${schoolLevelLabel}`) +
-    (pointsScope === "KNOCKOUT_ONLY" ? ` - ${pointsScopeLabel}` : "");
+    (pointsScope !== "ALL" ? ` - ${pointsScopeLabel}` : "");
   const url = typeof window !== "undefined" ? `${window.location.origin}/rankings?championshipId=${championshipId}` : "";
 
   async function download() {

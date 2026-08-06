@@ -88,6 +88,7 @@ const GENDER_FILTERS = [
 
 const POINTS_SCOPE_FILTERS = [
   { value: "ALL", label: "League points (all matches)" },
+  { value: "GROUP_ONLY", label: "Group stage points only" },
   { value: "KNOCKOUT_ONLY", label: "Knockout points only" },
 ];
 

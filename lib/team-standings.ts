@@ -46,9 +46,10 @@ export interface GameStandings {
  * league table normally does. "KNOCKOUT_ONLY" counts only knockout-stage
  * (non-pool) fixtures - useful for matching federations that score a ball
  * games championship purely off the bracket (semis/final) rather than full
- * round-robin standings.
+ * round-robin standings. "GROUP_ONLY" is the mirror image - counts only
+ * pool-stage (round-robin) fixtures, ignoring any knockout bracket.
  */
-export type TeamStandingsScope = "ALL" | "KNOCKOUT_ONLY";
+export type TeamStandingsScope = "ALL" | "KNOCKOUT_ONLY" | "GROUP_ONLY";
 
 /**
  * Computes per-game team standings for every non-timed, sport-tagged game in
@@ -91,7 +92,11 @@ export async function computeChampionshipTeamStandings(
         }));
 
       const standingsMatchPools =
-        scope === "KNOCKOUT_ONLY" ? game.matchPools.filter((mp) => mp.poolId === null) : game.matchPools;
+        scope === "KNOCKOUT_ONLY"
+          ? game.matchPools.filter((mp) => mp.poolId === null)
+          : scope === "GROUP_ONLY"
+            ? game.matchPools.filter((mp) => mp.poolId !== null)
+            : game.matchPools;
 
       return {
         gameId: game.id,
