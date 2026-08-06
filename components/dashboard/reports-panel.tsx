@@ -70,10 +70,14 @@ interface GameStandings {
   gameName: string;
   gender: string;
   sport: string;
+  schoolLevel: string;
   standings: TeamStandingRow[];
   pools: PoolStandings[];
   knockout: KnockoutFixtureRow[];
 }
+
+// JS teams listed first, then Primary, then the rest.
+const WINNING_TEAMS_LEVEL_ORDER = ["JS", "PRIMARY", "SENIOR_SCHOOL", "TERTIARY"];
 
 const SCHOOL_LEVEL_FILTERS = [{ value: "OVERALL", label: "Overall" }, ...GAME_SCHOOL_LEVELS];
 const GENDER_FILTERS = [
@@ -261,8 +265,15 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
           gameName: game.gameName,
           sport: game.sport,
           gender: game.gender,
+          schoolLevel: game.schoolLevel,
           winningTeam,
         };
+      })
+      .sort((a, b) => {
+        const orderA = WINNING_TEAMS_LEVEL_ORDER.indexOf(a.schoolLevel);
+        const orderB = WINNING_TEAMS_LEVEL_ORDER.indexOf(b.schoolLevel);
+        return (orderA === -1 ? WINNING_TEAMS_LEVEL_ORDER.length : orderA) -
+          (orderB === -1 ? WINNING_TEAMS_LEVEL_ORDER.length : orderB);
       });
   }
 
