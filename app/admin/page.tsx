@@ -10,6 +10,7 @@ import {
 } from "@/components/admin/revenue-visibility";
 import { requireRole } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
+import { LEVEL_LABELS } from "@/lib/utils";
 
 function monthKey(date: Date): string {
   return date.toLocaleDateString("en-KE", { month: "short", year: "2-digit" });
@@ -59,7 +60,7 @@ export default async function AdminOverviewPage() {
   }
   const revenue = months.map((month) => ({ month, revenueKes: revenueBuckets.get(month) ?? 0 }));
 
-  const levelCounts = championships.map((c) => ({ level: c.level.replace("_", " "), count: c._count.level }));
+  const levelCounts = championships.map((c) => ({ level: LEVEL_LABELS[c.level], count: c._count.level }));
 
   return (
     <RevenueVisibilityProvider>

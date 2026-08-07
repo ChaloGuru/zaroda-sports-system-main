@@ -4,7 +4,7 @@ import { MapPin, Calendar } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
+import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 import type { GameCategory } from "@prisma/client";
 
 export const revalidate = 30;
@@ -45,7 +45,7 @@ export default async function CategoryPage({ params }: { params: { category: str
             <Card className="h-full transition-colors hover:border-primary/50">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                  <Badge variant="secondary">{LEVEL_LABELS[c.level]}</Badge>
                   <Badge variant="outline">{c.schoolLevel.replace("_", " ")}</Badge>
                 </div>
                 <CardTitle className="mt-2">{c.name}</CardTitle>

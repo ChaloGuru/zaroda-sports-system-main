@@ -13,7 +13,7 @@ const SECTIONS: GuideSection[] = [
   {
     title: "1. Getting started",
     body: [
-      "Sign up as a school or open-tournament organizer to get a free account. You'll immediately be able to create Base-level championships at no cost.",
+      "Sign up as a school or open-tournament organizer to get a free account. You'll immediately be able to create Inter School-level championships at no cost.",
       "Log in any time from the \"Log in\" link in the top navigation. Your dashboard is where you manage every championship you run.",
     ],
   },
@@ -21,7 +21,7 @@ const SECTIONS: GuideSection[] = [
     title: "2. Creating a championship",
     body: [
       "From your dashboard, choose \"New championship\" and set its name, category (Athletics, Ball Games, Music, or Other Games), school level, county, location, and dates.",
-      "Base level is always free. Zone, Sub-County, County, Regional, and National levels require a one-time payment per championship - see Pricing for rates.",
+      "Inter School level is always free. Zone, Sub-County, County, Regional, and National levels require a one-time payment per championship - see Pricing for rates.",
     ],
   },
   {

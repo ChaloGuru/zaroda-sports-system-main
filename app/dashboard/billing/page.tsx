@@ -58,7 +58,7 @@ export default function BillingPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Billing</h1>
-        <p className="text-muted">Manage your Essential subscriptions. Base level is always free.</p>
+        <p className="text-muted">Manage your Essential subscriptions. Inter School level is always free.</p>
       </div>
 
       <Card>

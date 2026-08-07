@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
-import { formatDate, todayUtcRange } from "@/lib/utils";
+import { formatDate, todayUtcRange, LEVEL_LABELS } from "@/lib/utils";
 
 export const revalidate = 60;
 
@@ -89,7 +89,7 @@ export default async function LandingPage() {
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Button size="lg" asChild>
               <Link href="/signup">
-                Start free with Base <ArrowRight className="h-4 w-4" />
+                Start free with Inter School <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
             <Button size="lg" variant="secondary" asChild>
@@ -119,7 +119,7 @@ export default async function LandingPage() {
                   <Card className="h-full border-2 border-primary/40 transition-colors hover:border-primary">
                     <CardHeader>
                       <div className="flex items-center justify-between">
-                        <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                        <Badge variant="secondary">{LEVEL_LABELS[c.level]}</Badge>
                         <Badge variant="outline">{c.schoolLevel.replace("_", " ")}</Badge>
                       </div>
                       <CardTitle className="mt-2 font-extrabold">{c.name}</CardTitle>
@@ -154,7 +154,7 @@ export default async function LandingPage() {
                   <Card className="h-full border-2 border-accent/40 transition-colors hover:border-accent">
                     <CardHeader>
                       <div className="flex items-center justify-between">
-                        <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                        <Badge variant="secondary">{LEVEL_LABELS[c.level]}</Badge>
                         <Badge variant="outline">{c.schoolLevel.replace("_", " ")}</Badge>
                       </div>
                       <CardTitle className="mt-2 font-extrabold">{c.name}</CardTitle>
@@ -177,9 +177,9 @@ export default async function LandingPage() {
       )}
 
       <section className="container py-20">
-        <h2 className="text-center text-2xl font-bold text-foreground">Free Base tier, pay only when you level up</h2>
+        <h2 className="text-center text-2xl font-bold text-foreground">Free Inter School tier, pay only when you level up</h2>
         <p className="mx-auto mt-2 max-w-2xl text-center text-muted">
-          Every school or organizer gets unlimited Base-level championships at no cost, forever. Unlock Zone through
+          Every school or organizer gets unlimited Inter School-level championships at no cost, forever. Unlock Zone through
           National with an affordable one-time Essential subscription per level.
         </p>
 
@@ -212,7 +212,7 @@ export default async function LandingPage() {
           <Users className="h-10 w-10 text-primary" />
           <h2 className="text-2xl font-bold text-foreground">Ready to run your first championship?</h2>
           <p className="max-w-xl text-muted">
-            Sign up as a school or an open-tournament organizer. Your first Base championship is free and never
+            Sign up as a school or an open-tournament organizer. Your first Inter School championship is free and never
             counts against any quota.
           </p>
           <Button size="lg" asChild>

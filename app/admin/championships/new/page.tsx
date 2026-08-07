@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { championshipCreateSchema, type ChampionshipCreateInput } from "@/lib/validations";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { SCHOOL_LEVELS } from "@/lib/school-levels";
+import { LEVEL_LABELS } from "@/lib/utils";
 
 interface TenantOption {
   id: string;
@@ -98,7 +99,7 @@ export default function AdminNewChampionshipPage() {
                   <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {LEVELS.map((l) => (
-                      <SelectItem key={l} value={l}>{l.replace("_", " ")}</SelectItem>
+                      <SelectItem key={l} value={l}>{LEVEL_LABELS[l as keyof typeof LEVEL_LABELS] ?? l.replace("_", " ")}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

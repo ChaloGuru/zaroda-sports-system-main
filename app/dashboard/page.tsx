@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAuthContext } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
+import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 
 export default async function DashboardOverviewPage() {
   const ctx = await getAuthContext();
@@ -44,7 +44,7 @@ export default async function DashboardOverviewPage() {
               >
                 <div>
                   <p className="font-medium text-foreground">{c.name}</p>
-                  <p className="text-sm text-muted">{c.level.replace("_", " ")}</p>
+                  <p className="text-sm text-muted">{LEVEL_LABELS[c.level]}</p>
                 </div>
                 <ArrowRight className="h-4 w-4 text-muted" />
               </Link>
@@ -123,7 +123,7 @@ export default async function DashboardOverviewPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Your championships</CardTitle>
-            <CardDescription>Base level is always free - upgrade any championship any time.</CardDescription>
+            <CardDescription>Inter School level is always free - upgrade any championship any time.</CardDescription>
           </div>
           <Button asChild size="sm">
             <Link href="/dashboard/championships/new">New championship</Link>
@@ -140,7 +140,7 @@ export default async function DashboardOverviewPage() {
               <div>
                 <p className="font-medium text-foreground">{c.name}</p>
                 <p className="text-sm text-muted">
-                  {c.level.replace("_", " ")} - {c._count.games} games - {c._count.participants} participants
+                  {LEVEL_LABELS[c.level]} - {c._count.games} games - {c._count.participants} participants
                 </p>
               </div>
               <div className="flex items-center gap-2">

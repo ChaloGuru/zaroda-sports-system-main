@@ -6,7 +6,7 @@ export function buildResultsShareMessage(championshipName: string, url: string):
   return (
     `🏆 ${championshipName} results are live on Zaroda Sports!\n\n` +
     "Sports championship coordinators - manage registration, live results, rankings and medal tables digitally. " +
-    "Base-level championships are free, forever. See it in action:\n" +
+    "Inter School-level championships are free, forever. See it in action:\n" +
     url
   );
 }

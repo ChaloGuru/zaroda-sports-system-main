@@ -9,11 +9,11 @@ import { formatKes } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Pricing | Zaroda Sports Management System",
   description:
-    "Simple per-level pricing in KES for Kenyan school championships - Base level is free; Zone through National levels unlock the full platform for a flat fee.",
+    "Simple per-level pricing in KES for Kenyan school championships - Inter School level is free; Zone through National levels unlock the full platform for a flat fee.",
 };
 
 const ESSENTIAL_TIERS = [
-  { level: "Base", priceKes: 0 },
+  { level: "Inter School", priceKes: 0 },
   { level: "Zone", priceKes: 580 },
   { level: "Sub-County", priceKes: 1160 },
   { level: "County", priceKes: 2320 },
@@ -40,7 +40,7 @@ export default function PricingPage() {
         <Badge variant="warning" className="mb-4">Essential tier</Badge>
         <h1 className="text-4xl font-bold text-foreground">Simple, per-level pricing in KES</h1>
         <p className="mt-4 text-muted">
-          <span className="font-semibold text-primary">Base level championships are always free</span> and never count
+          <span className="font-semibold text-primary">Inter School level championships are always free</span> and never count
           against any quota. Pay only once to unlock a specific level for a championship - Zone through National.
         </p>
       </div>
@@ -72,9 +72,9 @@ export default function PricingPage() {
 
       <Card className="mx-auto mt-12 max-w-3xl border-2 border-primary bg-surface-overlay">
         <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
-          <p className="text-lg font-semibold text-foreground">Base level is always free</p>
+          <p className="text-lg font-semibold text-foreground">Inter School level is always free</p>
           <p className="text-muted">
-            Every tenant can run unlimited Base-level championships at zero cost, indefinitely. Upgrade only the
+            Every tenant can run unlimited Inter School-level championships at zero cost, indefinitely. Upgrade only the
             specific championship and level you need, when you need it.
           </p>
         </CardContent>

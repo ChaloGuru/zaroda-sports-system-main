@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SanitizedHtml } from "@/components/sanitized-html";
 import { FileText, X } from "lucide-react";
 import { ApiError, apiGet, apiPost } from "@/lib/api-client";
-import { formatDate } from "@/lib/utils";
+import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 
 const LEVELS = ["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL"];
 
@@ -119,7 +119,7 @@ function CircularComposer() {
               <SelectContent>
                 {LEVELS.map((level) => (
                   <SelectItem key={level} value={level}>
-                    {level === "NATIONAL" ? "All Tenants (National)" : level.replace("_", " ")}
+                    {level === "NATIONAL" ? "All Tenants (National)" : LEVEL_LABELS[level as keyof typeof LEVEL_LABELS] ?? level.replace("_", " ")}
                   </SelectItem>
                 ))}
               </SelectContent>

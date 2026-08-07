@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ChampionshipTabs } from "@/components/championship/championship-tabs";
 import { ResultsActions } from "@/components/championship/results-actions";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
+import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 
 export const revalidate = 30;
 
@@ -50,7 +50,7 @@ export default async function ChampionshipPage({ params }: { params: { champions
       <div className="container py-16">
         <div className="rounded-xl border border-white/10 bg-background/95 p-6 shadow-2xl backdrop-blur-sm sm:p-8">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge>{championship.level.replace("_", " ")}</Badge>
+            <Badge>{LEVEL_LABELS[championship.level]}</Badge>
             <Badge variant="secondary">{championship.schoolLevel.replace("_", " ")}</Badge>
             <Badge variant="outline">{championship.category.replace("_", " ")}</Badge>
           </div>

@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { championshipCreateSchema, type ChampionshipCreateInput } from "@/lib/validations";
 import { apiGet, apiPost } from "@/lib/api-client";
-import { formatKes } from "@/lib/utils";
+import { formatKes, LEVEL_LABELS } from "@/lib/utils";
 import { SCHOOL_LEVELS } from "@/lib/school-levels";
 
 interface Plan {
@@ -111,7 +111,7 @@ export default function NewChampionshipPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold text-foreground">New championship</h1>
-      <p className="mt-1 text-muted">Base level is free forever. Zone and above require an Essential subscription.</p>
+      <p className="mt-1 text-muted">Inter School level is free forever. Zone and above require an Essential subscription.</p>
 
       <Card className="mt-6">
         <CardHeader>
@@ -136,7 +136,7 @@ export default function NewChampionshipPage() {
                   <SelectContent>
                     {LEVELS.map((l) => (
                       <SelectItem key={l} value={l}>
-                        {l.replace("_", " ")}
+                        {LEVEL_LABELS[l as keyof typeof LEVEL_LABELS] ?? l.replace("_", " ")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -168,7 +168,7 @@ export default function NewChampionshipPage() {
               <div className="flex items-start gap-3 rounded-md border border-[#8A6412]/30 bg-[#FBF2DC] p-4">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#8A6412]" />
                 <div className="flex-1">
-                  <p className="font-medium text-foreground">Upgrade required for {level.replace("_", " ")}</p>
+                  <p className="font-medium text-foreground">Upgrade required for {LEVEL_LABELS[level as keyof typeof LEVEL_LABELS] ?? level.replace("_", " ")}</p>
                   <p className="text-sm text-muted">
                     Subscribe for {planForLevel ? formatKes(planForLevel.priceKes) : "..."} to unlock this level.
                   </p>

@@ -315,8 +315,8 @@ export function TeamsPanel({
                 {errors.county && <p className="mt-1 text-sm text-red-400">{errors.county.message}</p>}
                 <p className="mt-1 text-xs text-muted">
                   {countyRequired
-                    ? "Used to confirm the team is within the championship's geographic scope for Base/Zone/Sub-County/County level events."
-                    : "Not required at this championship level - only used for Base/Zone/Sub-County/County level events."}
+                    ? "Used to confirm the team is within the championship's geographic scope for Inter School/Zone/Sub-County/County level events."
+                    : "Not required at this championship level - only used for Inter School/Zone/Sub-County/County level events."}
                 </p>
               </div>
 

@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getAuthContext, isSuperAdmin } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
+import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 import { DownloadReceiptButton } from "@/components/payments/download-receipt-button";
 
 export default async function DashboardChampionshipsPage() {
@@ -52,7 +52,7 @@ export default async function DashboardChampionshipsPage() {
         {championships.length === 0 && (
           <Card>
             <CardContent className="py-10 text-center text-muted">
-              No championships yet. Create your first free Base championship to get started.
+              No championships yet. Create your first free Inter School championship to get started.
             </CardContent>
           </Card>
         )}
@@ -67,7 +67,7 @@ export default async function DashboardChampionshipsPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                  <Badge variant="secondary">{LEVEL_LABELS[c.level]}</Badge>
                   <Badge variant={c.isPublished ? "success" : "outline"}>{c.isPublished ? "Published" : "Draft"}</Badge>
                   {c.subscriptions[0]?.paystackReference && (
                     <DownloadReceiptButton reference={c.subscriptions[0].paystackReference} />

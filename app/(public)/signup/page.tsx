@@ -72,11 +72,11 @@ export default function SignupPage() {
         <Image src="/images/logo.png" alt="Zaroda Sports Management System" width={216} height={144} className="mb-6 h-16 w-auto" priority />
         <h1 className="text-3xl font-bold text-foreground">Create your free Zaroda account</h1>
         <p className="mt-4 text-muted">
-          Base-level championships are always free and never count against any quota. Subscribe only when you're
+          Inter School-level championships are always free and never count against any quota. Subscribe only when you're
           ready to unlock Zone through National for a specific championship.
         </p>
         <ul className="mt-6 space-y-2 text-sm text-foreground">
-          <li>- Unlimited free Base championships</li>
+          <li>- Unlimited free Inter School championships</li>
           <li>- Digital call-room and results capture</li>
           <li>- Public results portal for parents and officials</li>
           <li>- Upgrade any time from KES 580 per level</li>

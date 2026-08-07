@@ -12,7 +12,7 @@ import { FinishLineRule } from "@/components/ui/finish-line-rule";
 import { PanelErrorBoundary } from "@/components/error-boundary";
 import { StandingsPanel } from "@/components/championship/standings-panel";
 import { apiGet } from "@/lib/api-client";
-import { formatDate } from "@/lib/utils";
+import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 
 interface ChampionshipOption {
   id: string;
@@ -61,7 +61,7 @@ function RankingsExplorer() {
                 <Card className="h-full border-2 border-primary/40 transition-colors hover:border-primary">
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                      <Badge variant="secondary">{LEVEL_LABELS[c.level as keyof typeof LEVEL_LABELS] ?? c.level}</Badge>
                       <Badge variant="outline">{c.schoolLevel.replace("_", " ")}</Badge>
                     </div>
                     <CardTitle className="mt-2 font-extrabold">{c.name}</CardTitle>
@@ -91,7 +91,7 @@ function RankingsExplorer() {
                 <Card className="h-full border-2 border-accent/40 transition-colors hover:border-accent">
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                      <Badge variant="secondary">{LEVEL_LABELS[c.level as keyof typeof LEVEL_LABELS] ?? c.level}</Badge>
                       <Badge variant="outline">{c.schoolLevel.replace("_", " ")}</Badge>
                     </div>
                     <CardTitle className="mt-2 font-extrabold">{c.name}</CardTitle>

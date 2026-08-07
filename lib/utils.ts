@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 export const LEVEL_LABELS: Record<Level, string> = {
-  BASE: "Base",
+  BASE: "Inter School",
   ZONE: "Zone",
   SUB_COUNTY: "Sub-County",
   COUNTY: "County",
@@ -18,7 +18,7 @@ export const LEVEL_LABELS: Record<Level, string> = {
 
 /**
  * The championship's level must be visible in its own name (so the public
- * can't mistake a free Base-level event for a paid higher-level one just
+ * can't mistake a free Inter School-level event for a paid higher-level one just
  * because of how it's titled). Appends " - {Level}" unless a label for this
  * level is already present anywhere in the name.
  */

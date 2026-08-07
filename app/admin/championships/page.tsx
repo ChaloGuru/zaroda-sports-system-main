@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
+import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 import { DownloadReceiptButton } from "@/components/payments/download-receipt-button";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +48,7 @@ export default async function AdminChampionshipsPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{c.level.replace("_", " ")}</Badge>
+                  <Badge variant="secondary">{LEVEL_LABELS[c.level]}</Badge>
                   <Badge variant={c.isPublished ? "success" : "outline"}>{c.isPublished ? "Published" : "Draft"}</Badge>
                   {c.subscriptions[0]?.paystackReference && (
                     <DownloadReceiptButton reference={c.subscriptions[0].paystackReference} />
