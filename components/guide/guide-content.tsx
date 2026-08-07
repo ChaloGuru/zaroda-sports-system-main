@@ -37,6 +37,7 @@ const SECTIONS: GuideSection[] = [
       "Use the Fixtures & Pooling tab to group teams into pools, generate a round-robin schedule, and record match scores.",
       "Standings update automatically and rank by total points, with tie-breakers applied. For multi-day championships, each fixture shows its match day.",
       "Once pool play finishes, advance the top teams from each pool into the knockout stage with one click - no manual re-entry needed.",
+      "Each sport has its own points scale for win/draw/loss (e.g. football is 3/1/0, chess is 2/1/0). For chess, table tennis, and badminton - scored as boards or games won rather than goals - enter the boards/games each team won as the match score; standings then apply that sport's points scale the same way as any other ball game.",
     ],
   },
   {
