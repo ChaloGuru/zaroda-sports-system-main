@@ -11,7 +11,8 @@ import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 
 export const revalidate = 30;
 
-export default async function ChampionshipPage({ params }: { params: { championshipId: string } }) {
+export default async function ChampionshipPage(props: { params: Promise<{ championshipId: string }> }) {
+  const params = await props.params;
   const championship = await prisma.championship.findUnique({
     where: { id: params.championshipId },
     include: {

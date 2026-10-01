@@ -3,7 +3,8 @@ import { getAuthContext, isSuperAdmin, hasRole, CHAMPIONSHIP_OPERATIONAL_ROLES }
 import { prisma } from "@/lib/prisma";
 import { ChampionshipManager } from "@/components/dashboard/championship-manager";
 
-export default async function DashboardChampionshipDetailPage({ params }: { params: { id: string } }) {
+export default async function DashboardChampionshipDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const ctx = await getAuthContext();
   if (!ctx) redirect("/login");
 

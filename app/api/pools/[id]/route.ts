@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 const poolUpdateSchema = z.object({ name: z.string().min(1).max(100) });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.pool.findUnique({ where: { id: params.id }, include: { game: true } });
     if (!existing) return NextResponse.json({ error: "Pool not found" }, { status: 404 });
@@ -35,7 +36,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 }
 
 /** Teams in the pool are not deleted - their poolId is cleared (onDelete: SetNull). */
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.pool.findUnique({ where: { id: params.id }, include: { game: true } });
     if (!existing) return NextResponse.json({ error: "Pool not found" }, { status: 404 });

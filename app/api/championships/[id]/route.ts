@@ -24,7 +24,8 @@ async function loadChampionship(id: string) {
   });
 }
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const championship = await loadChampionship(params.id);
     if (!championship) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
@@ -42,7 +43,8 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   }
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.championship.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
@@ -97,7 +99,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.championship.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Championship not found" }, { status: 404 });

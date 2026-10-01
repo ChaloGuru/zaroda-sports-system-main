@@ -24,7 +24,8 @@ const participantUpdateSchema = z.object({
   playingPosition: z.string().max(50).nullable().optional(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.participant.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Participant not found" }, { status: 404 });
@@ -88,7 +89,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.participant.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Participant not found" }, { status: 404 });

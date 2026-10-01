@@ -21,7 +21,8 @@ const heatResultsSchema = z.object({
     .min(1),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const heat = await prisma.heat.findUnique({ where: { id: params.id }, include: { game: true } });
     if (!heat) return NextResponse.json({ error: "Heat not found" }, { status: 404 });
@@ -74,7 +75,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const heat = await prisma.heat.findUnique({ where: { id: params.id }, include: { game: true } });
     if (!heat) return NextResponse.json({ error: "Heat not found" }, { status: 404 });

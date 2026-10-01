@@ -1,3 +1,6 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 const isDev = process.env.NODE_ENV !== "production";
 
 // 'unsafe-inline' scripts are needed for Next.js's inline bootstrap and the
@@ -29,6 +32,9 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Pin the project root - otherwise Next.js picks up a stray lockfile in a
+  // parent directory and traces files from there.
+  outputFileTracingRoot: path.dirname(fileURLToPath(import.meta.url)),
   poweredByHeader: false,
   experimental: {
     serverActions: {

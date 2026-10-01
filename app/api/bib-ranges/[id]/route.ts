@@ -5,7 +5,8 @@ import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 
 export const dynamic = "force-dynamic";
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.schoolBibRange.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Bib range not found" }, { status: 404 });

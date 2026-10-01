@@ -7,7 +7,8 @@ import { roleUpdateSchema } from "@/lib/validations";
 export const dynamic = "force-dynamic";
 
 /** Edits an existing role assignment's role/scope - never the user it's attached to. */
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.userRole.findUnique({ where: { id: params.id } });
     if (!existing || !existing.championshipId) return NextResponse.json({ error: "Role assignment not found" }, { status: 404 });
@@ -43,7 +44,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.userRole.findUnique({ where: { id: params.id } });
     if (!existing || !existing.championshipId) return NextResponse.json({ error: "Role assignment not found" }, { status: 404 });

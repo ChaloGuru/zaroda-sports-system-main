@@ -6,7 +6,8 @@ import { formatDate } from "@/lib/utils";
 
 export const revalidate = 30;
 
-export default async function RegisterTeamPage({ params }: { params: { championshipId: string } }) {
+export default async function RegisterTeamPage(props: { params: Promise<{ championshipId: string }> }) {
+  const params = await props.params;
   const championship = await prisma.championship.findUnique({
     where: { id: params.championshipId },
     include: {

@@ -20,7 +20,8 @@ const subscriptionOverrideSchema = z.object({
   expiresAt: z.coerce.date().optional(),
 });
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireTenantAccess(params.id);
 
@@ -41,7 +42,8 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 }
 
 /** Profile edits: tenant owner or super admin. Subscription overrides: super admin only. */
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const ctx = await requireTenantAccess(params.id);
     const body: unknown = await request.json();
@@ -99,7 +101,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
  * subscription, and payment transaction it owns. Not exposed to tenant
  * owners themselves - this is a platform-level action, not a self-service one.
  */
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const ctx = await requireRole(["SUPER_ADMIN"]);
 

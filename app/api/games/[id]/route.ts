@@ -29,7 +29,8 @@ async function loadGame(id: string) {
   });
 }
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const game = await loadGame(params.id);
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
@@ -51,7 +52,8 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   }
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.game.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Game not found" }, { status: 404 });
@@ -77,7 +79,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.game.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "Game not found" }, { status: 404 });

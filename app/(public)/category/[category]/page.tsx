@@ -23,7 +23,8 @@ const CATEGORY_LABELS: Record<GameCategory, string> = {
   OTHER_GAMES: "Other Games",
 };
 
-export default async function CategoryPage({ params }: { params: { category: string } }) {
+export default async function CategoryPage(props: { params: Promise<{ category: string }> }) {
+  const params = await props.params;
   const category = CATEGORY_MAP[params.category];
   if (!category) notFound();
 

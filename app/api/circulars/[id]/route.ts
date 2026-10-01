@@ -7,7 +7,8 @@ import { circularSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const ctx = await requireRole(["SUPER_ADMIN"]);
     const existing = await prisma.circular.findUnique({ where: { id: params.id } });
@@ -34,7 +35,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const ctx = await requireRole(["SUPER_ADMIN"]);
     const existing = await prisma.circular.findUnique({ where: { id: params.id } });

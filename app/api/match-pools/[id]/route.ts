@@ -18,7 +18,8 @@ const matchPoolUpdateSchema = z.object({
   walkoverWinnerId: z.string().uuid().nullable().optional(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.matchPool.findUnique({ where: { id: params.id }, include: { game: true } });
     if (!existing) return NextResponse.json({ error: "Fixture not found" }, { status: 404 });
@@ -80,7 +81,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const existing = await prisma.matchPool.findUnique({ where: { id: params.id }, include: { game: true } });
     if (!existing) return NextResponse.json({ error: "Fixture not found" }, { status: 404 });
