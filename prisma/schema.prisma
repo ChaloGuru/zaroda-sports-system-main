@@ -146,6 +146,10 @@ model User {
   passwordHash String
   name         String
   phone        String?
+  // Brute-force protection: consecutive failed sign-ins, and when the
+  // resulting temporary lockout ends (see lib/auth.ts).
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

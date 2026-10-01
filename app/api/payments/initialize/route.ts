@@ -72,9 +72,10 @@ export async function POST(request: Request) {
     if (!input.feeId) throw new Error("feeId is required for team_fee mode");
     const fee = await prisma.championshipFee.findUnique({
       where: { id: input.feeId },
-      include: { championship: { select: { level: true, tenantId: true } } },
+      include: { championship: { select: { level: true, tenantId: true, isPublished: true } } },
     });
-    if (!fee) throw new Error("Fee not found");
+    // Unpublished championships aren't open for public registration/payment.
+    if (!fee || !fee.championship.isPublished) throw new Error("Fee not found");
 
     // Only OPEN_TOURNAMENT championships settle registration fees to the
     // manager's own Paystack subaccount (see /api/tenant/payout-account) -
@@ -97,8 +98,13 @@ export async function POST(request: Request) {
     let team;
     if (input.teamId) {
       team = await prisma.tournamentTeam.findUnique({ where: { id: input.teamId } });
-      if (!team) throw new Error("Team not found");
+      if (!team || team.championshipId !== fee.championshipId) throw new Error("Team not found");
     } else {
+      // Anonymous team self-registration only exists for open tournaments
+      // (the public /register page) - school-ladder teams are added by staff.
+      if (fee.championship.level !== "OPEN_TOURNAMENT") {
+        throw new Error("Teams can only self-register for open tournaments");
+      }
       if (!input.teamName || !input.teamCode) {
         throw new Error("teamName and teamCode are required to register a new team");
       }

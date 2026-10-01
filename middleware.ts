@@ -17,7 +17,8 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      // A revoked session leaves a token with no id (see lib/auth.ts jwt callback).
+      authorized: ({ token }) => !!token?.id,
     },
     pages: { signIn: "/login" },
   },

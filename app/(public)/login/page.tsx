@@ -29,7 +29,9 @@ export default function LoginPage() {
     try {
       const result = await signIn("credentials", { ...values, redirect: false });
       if (result?.error) {
-        toast.error("Invalid email or password");
+        // "CredentialsSignin" is a plain wrong email/password; anything else is
+        // a lockout/rate-limit message thrown by authorize() in lib/auth.ts.
+        toast.error(result.error === "CredentialsSignin" ? "Invalid email or password" : result.error);
         return;
       }
       toast.success("Welcome back!");

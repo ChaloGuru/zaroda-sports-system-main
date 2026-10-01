@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -24,8 +25,10 @@ export function ChangePasswordForm() {
     setSubmitting(true);
     try {
       await apiPost("/api/account/password", values);
-      toast.success("Password updated");
       reset();
+      // Changing the password revokes every existing session, including this one.
+      toast.success("Password updated - please sign in with your new password");
+      await signOut({ callbackUrl: "/login" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update password");
     } finally {

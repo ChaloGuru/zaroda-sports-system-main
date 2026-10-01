@@ -48,7 +48,7 @@ describe("POST /api/payments/initialize (team_fee mode)", () => {
     initializePaystackTransactionMock.mockResolvedValue({
       data: { authorization_url: "https://paystack.com/pay/abc", access_code: "abc", reference: "fee_test" },
     });
-    tournamentTeamFindUnique.mockResolvedValue({ id: "team-1", name: "Team A" });
+    tournamentTeamFindUnique.mockResolvedValue({ id: "team-1", name: "Team A", championshipId: "champ-1" });
     teamFeePaymentCreate.mockResolvedValue({ id: "payment-1" });
   });
 
@@ -57,7 +57,7 @@ describe("POST /api/payments/initialize (team_fee mode)", () => {
       id: "fee-1",
       championshipId: "champ-1",
       amountKes: 1000,
-      championship: { level: "OPEN_TOURNAMENT", tenantId: "tenant-1" },
+      championship: { level: "OPEN_TOURNAMENT", tenantId: "tenant-1", isPublished: true },
     });
     tenantFindUnique.mockResolvedValue({ subaccountStatus: "NOT_CONFIGURED", paystackSubaccountCode: null });
 
@@ -75,7 +75,7 @@ describe("POST /api/payments/initialize (team_fee mode)", () => {
       id: "fee-1",
       championshipId: "champ-1",
       amountKes: 1000,
-      championship: { level: "OPEN_TOURNAMENT", tenantId: "tenant-1" },
+      championship: { level: "OPEN_TOURNAMENT", tenantId: "tenant-1", isPublished: true },
     });
     tenantFindUnique.mockResolvedValue({ subaccountStatus: "FAILED", paystackSubaccountCode: null });
 
@@ -90,7 +90,7 @@ describe("POST /api/payments/initialize (team_fee mode)", () => {
       id: "fee-1",
       championshipId: "champ-1",
       amountKes: 1000,
-      championship: { level: "OPEN_TOURNAMENT", tenantId: "tenant-1" },
+      championship: { level: "OPEN_TOURNAMENT", tenantId: "tenant-1", isPublished: true },
     });
     tenantFindUnique.mockResolvedValue({ subaccountStatus: "ACTIVE", paystackSubaccountCode: "ACCT_123" });
 
@@ -109,7 +109,7 @@ describe("POST /api/payments/initialize (team_fee mode)", () => {
       id: "fee-1",
       championshipId: "champ-1",
       amountKes: 1000,
-      championship: { level: "COUNTY", tenantId: "tenant-1" },
+      championship: { level: "COUNTY", tenantId: "tenant-1", isPublished: true },
     });
 
     const res = await POST(req(TEAM_FEE_BODY));
@@ -121,5 +121,50 @@ describe("POST /api/payments/initialize (team_fee mode)", () => {
     expect(initializePaystackTransactionMock).toHaveBeenCalledWith(
       expect.objectContaining({ subaccount: undefined }),
     );
+  });
+
+  it("rejects fees belonging to an unpublished championship", async () => {
+    championshipFeeFindUnique.mockResolvedValue({
+      id: "fee-1",
+      championshipId: "champ-1",
+      amountKes: 1000,
+      championship: { level: "OPEN_TOURNAMENT", tenantId: "tenant-1", isPublished: false },
+    });
+
+    const res = await POST(req(TEAM_FEE_BODY));
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(tournamentTeamCreate).not.toHaveBeenCalled();
+    expect(initializePaystackTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects paying with a team from a different championship", async () => {
+    championshipFeeFindUnique.mockResolvedValue({
+      id: "fee-1",
+      championshipId: "champ-1",
+      amountKes: 1000,
+      championship: { level: "COUNTY", tenantId: "tenant-1", isPublished: true },
+    });
+    tournamentTeamFindUnique.mockResolvedValue({ id: "team-9", name: "Other", championshipId: "champ-2" });
+
+    const res = await POST(req(TEAM_FEE_BODY));
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(teamFeePaymentCreate).not.toHaveBeenCalled();
+  });
+
+  it("does not let anonymous callers create new teams in school-ladder championships", async () => {
+    championshipFeeFindUnique.mockResolvedValue({
+      id: "fee-1",
+      championshipId: "champ-1",
+      amountKes: 1000,
+      championship: { level: "COUNTY", tenantId: "tenant-1", isPublished: true },
+    });
+
+    const { teamId: _teamId, ...body } = TEAM_FEE_BODY;
+    const res = await POST(req({ ...body, teamName: "New Team", teamCode: "NT" }));
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(tournamentTeamCreate).not.toHaveBeenCalled();
   });
 });

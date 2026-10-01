@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, canViewChampionshipPrivateData, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
-import { tournamentTeamSchema, dashboardTournamentTeamSchema } from "@/lib/validations";
+import { getAuthContext, requireAuth, canViewChampionshipPrivateData, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
+import { dashboardTournamentTeamSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 
@@ -39,17 +39,17 @@ export async function GET(request: Request) {
 }
 
 /**
- * Open-tournament teams may self-register without authentication (they pay
- * their entry fee directly via /api/payments/initialize with mode
- * "team_fee") - no specific game is chosen in that flow. Tenant staff adding
- * teams from the dashboard must pick the game the team is registering for;
- * gender is derived from that game rather than asked separately.
+ * Staff-only. Open-tournament teams self-register through
+ * /api/payments/initialize (mode "team_fee"), which creates the team as part
+ * of starting its entry-fee payment - never through this route. Tenant staff
+ * adding teams from the dashboard must pick the game the team is registering
+ * for; gender is derived from that game rather than asked separately.
  */
 export async function POST(request: Request) {
   try {
     const rawBody: unknown = await request.json();
-    const ctx = await getAuthContext();
-    const input = ctx ? dashboardTournamentTeamSchema.parse(rawBody) : tournamentTeamSchema.parse(rawBody);
+    const ctx = await requireAuth();
+    const input = dashboardTournamentTeamSchema.parse(rawBody);
 
     const championship = await prisma.championship.findUnique({ where: { id: input.championshipId } });
     if (!championship) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
@@ -67,10 +67,7 @@ export async function POST(request: Request) {
       gender = game.gender;
     }
 
-    if (ctx) {
-      await requireTeamAccess(input.championshipId, input.name);
-    }
-    // else: unauthenticated public self-registration (open-tournament teams paying their own entry fee)
+    await requireTeamAccess(input.championshipId, input.name);
 
     const duplicate = await prisma.tournamentTeam.findFirst({
       where: {
@@ -84,7 +81,7 @@ export async function POST(request: Request) {
     }
 
     const team = await withAudit({
-      actorId: ctx?.userId ?? null,
+      actorId: ctx.userId,
       operation: "INSERT",
       tableName: "tournament_teams",
       mutate: (tx) =>
