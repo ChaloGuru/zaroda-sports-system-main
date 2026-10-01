@@ -36,6 +36,7 @@ export async function GET(request: Request) {
             subCategory: { select: { name: true } },
             learners: { select: { firstName: true, lastName: true } },
             assignments: { where: { level }, select: { submittedAt: true } },
+            reviews: { where: { level }, select: { id: true, status: true, spread: true } },
           },
         },
       },
@@ -52,7 +53,8 @@ export async function GET(request: Request) {
         unit: competitionUnit(level, r.project.school),
         assignedJudges: r.project.assignments.length,
         submittedJudges: r.project.assignments.filter((a) => a.submittedAt).length,
-        project: { ...r.project, assignments: undefined },
+        review: r.project.reviews[0] ? { ...r.project.reviews[0], spread: Number(r.project.reviews[0].spread) } : null,
+        project: { ...r.project, assignments: undefined, reviews: undefined },
       })),
     });
   } catch (error) {
@@ -76,10 +78,10 @@ export async function POST(request: Request) {
     let outcome: Record<string, unknown>;
     switch (input.action) {
       case "CALCULATE":
-        outcome = { calculated: await calculateLevelResults(edition.id, input.level) };
+        outcome = { calculated: await calculateLevelResults(edition.id, input.level, ctx.userId) };
         break;
       case "PUBLISH":
-        outcome = { published: await publishLevelResults(edition, input.level) };
+        outcome = { published: await publishLevelResults(edition, input.level, ctx.userId) };
         break;
       case "PROGRESS":
         outcome = await progressQualifiedProjects(edition, input.level);

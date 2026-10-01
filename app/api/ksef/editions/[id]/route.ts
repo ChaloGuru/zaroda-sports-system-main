@@ -47,6 +47,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
             ...(input.startDate !== undefined ? { startDate: input.startDate } : {}),
             ...(input.endDate !== undefined ? { endDate: input.endDate } : {}),
             ...(input.qualifiersPerCategory !== undefined ? { qualifiersPerCategory: input.qualifiersPerCategory } : {}),
+            ...(input.discrepancyThreshold !== undefined ? { discrepancyThreshold: input.discrepancyThreshold } : {}),
+            ...(input.discrepancyBasis !== undefined ? { discrepancyBasis: input.discrepancyBasis } : {}),
             levels,
             currentLevel,
           },

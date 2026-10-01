@@ -69,7 +69,9 @@ export async function POST(request: Request) {
       operation: "INSERT",
       tableName: "ksef_judges",
       mutate: (tx) =>
-        tx.ksefJudge.create({ data: { editionId: input.editionId, userId: user.id, specialty: input.specialty ?? null } }),
+        tx.ksefJudge.create({
+          data: { editionId: input.editionId, userId: user.id, specialty: input.specialty ?? null, role: input.role },
+        }),
       recordId: (result) => result.id,
       // Never persist password material in the audit trail.
       newData: { ...input, password: undefined },

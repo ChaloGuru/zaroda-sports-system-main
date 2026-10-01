@@ -2,16 +2,26 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { AuthorizationError, toErrorResponse } from "@/lib/authorize";
-import { criteriaForDivision, getEditableEdition, requireAssignmentJudge, requireKsefAdmin } from "@/lib/ksef";
+import {
+  criteriaForDivision,
+  evaluateDiscrepancy,
+  getEditableEdition,
+  requireKsefAdmin,
+  requireOwnScoreSheet,
+  requireScoreSheetViewer,
+} from "@/lib/ksef";
 import { ksefScoreSheetSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 
-/** The judge's score sheet for one assigned project. */
+/**
+ * A score sheet. Its own judge sees it to fill in; the administrator and
+ * (non-conflicted) Chief Judges can view it read-only. Other judges never see it.
+ */
 export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
-    const { assignment } = await requireAssignmentJudge(params.id);
+    const { assignment, isOwnSheet } = await requireScoreSheetViewer(params.id);
     const [project, criteria, scores] = await Promise.all([
       prisma.ksefProject.findUnique({
         where: { id: assignment.projectId },
@@ -37,6 +47,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
         comment: assignment.comment,
         submittedAt: assignment.submittedAt,
       },
+      canEdit: isOwnSheet && !assignment.submittedAt && assignment.judge.edition.status !== "CLOSED",
       project,
       criteria,
       scores: scores.map((s) => ({ criterionId: s.criterionId, score: Number(s.score) })),
@@ -48,15 +59,15 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
 }
 
 /**
- * Saves the judge's scores (a draft until `submit`). Submitting needs a
- * score for every criterion on the sheet, and locks the sheet - only
- * submitted sheets count towards results.
+ * Saves the judge's own scores (a draft until `submit`). Submitting needs a
+ * score for every criterion on the sheet and makes the sheet permanent -
+ * after that nobody can change it (enforced in the database too). Each
+ * submission triggers the discrepancy check against the other judges.
  */
 export async function PUT(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
-    const { ctx, assignment } = await requireAssignmentJudge(params.id);
-    if (assignment.submittedAt) throw new Error("This score sheet has already been submitted");
+    const { ctx, assignment } = await requireOwnScoreSheet(params.id);
     const input = ksefScoreSheetSchema.parse(await request.json());
 
     const criteria = await criteriaForDivision(assignment.judge.editionId, assignment.project.category.division);
@@ -77,6 +88,7 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       operation: "UPDATE",
       tableName: "ksef_judge_assignments",
       mutate: async (tx) => {
+        // Still a draft here (requireOwnScoreSheet), so replacing draft scores is allowed.
         await tx.ksefScore.deleteMany({ where: { assignmentId: assignment.id } });
         await tx.ksefScore.createMany({
           data: input.scores.map((s) => ({ assignmentId: assignment.id, criterionId: s.criterionId, score: s.score })),
@@ -89,17 +101,16 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       recordId: (result) => result.id,
       newData: input,
     });
-    return NextResponse.json({ saved: true, submitted: input.submit });
+
+    const reviewId = input.submit ? await evaluateDiscrepancy(assignment.projectId, assignment.level, ctx.userId) : null;
+    return NextResponse.json({ saved: true, submitted: input.submit, flaggedForReview: !!reviewId });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });
   }
 }
 
-/**
- * Admin actions on an assignment: DELETE removes it (only before the judge
- * submits); POST ?action=reopen unlocks a submitted sheet for correction.
- */
+/** Removes an assignment - only while the judge hasn't submitted (submitted sheets are permanent). */
 export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
@@ -107,7 +118,7 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
     const existing = await prisma.ksefJudgeAssignment.findUnique({ where: { id: params.id }, include: { judge: true } });
     if (!existing) throw new AuthorizationError("Assignment not found", 404);
     await getEditableEdition(existing.judge.editionId);
-    if (existing.submittedAt) throw new Error("This judge has already submitted scores - reopen the sheet instead of removing it");
+    if (existing.submittedAt) throw new Error("This judge has already submitted their score sheet - it's part of the permanent record");
 
     await withAudit({
       actorId: ctx.userId,
@@ -118,36 +129,6 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
       recordId: (result) => result.id,
     });
     return NextResponse.json({ deleted: true });
-  } catch (error) {
-    const { body, status } = toErrorResponse(error);
-    return NextResponse.json(body, { status });
-  }
-}
-
-export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
-  try {
-    const ctx = await requireKsefAdmin();
-    if (new URL(request.url).searchParams.get("action") !== "reopen") throw new Error("Unknown action");
-    const existing = await prisma.ksefJudgeAssignment.findUnique({ where: { id: params.id }, include: { judge: true } });
-    if (!existing) throw new AuthorizationError("Assignment not found", 404);
-    await getEditableEdition(existing.judge.editionId);
-
-    const published = await prisma.ksefResult.count({
-      where: { projectId: existing.projectId, level: existing.level, isPublished: true },
-    });
-    if (published > 0) throw new Error("Results for this level are already published - this sheet can't be reopened");
-
-    await withAudit({
-      actorId: ctx.userId,
-      operation: "UPDATE",
-      tableName: "ksef_judge_assignments",
-      oldData: { submittedAt: existing.submittedAt },
-      mutate: (tx) => tx.ksefJudgeAssignment.update({ where: { id: existing.id }, data: { submittedAt: null } }),
-      recordId: (result) => result.id,
-      newData: { submittedAt: null },
-    });
-    return NextResponse.json({ reopened: true });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

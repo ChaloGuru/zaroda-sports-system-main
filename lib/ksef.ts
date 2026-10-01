@@ -5,6 +5,7 @@ import { AuthorizationError, requireAuth, requireRole, isSuperAdmin, type AuthCo
 import {
   STANDARD_KSEF_STRUCTURE,
   averageJudgeTotal,
+  checkJudgeDiscrepancy,
   competitionUnit,
   nextKsefLevel,
   rankKsefResults,
@@ -55,22 +56,179 @@ export async function resolveSelectedEdition(): Promise<KsefEdition | null> {
   );
 }
 
-/** Throws unless the caller is the judge on this assignment (or the super admin). */
-export async function requireAssignmentJudge(assignmentId: string) {
-  const ctx = await requireAuth();
-  const assignment = await prisma.ksefJudgeAssignment.findUnique({
+function loadAssignment(assignmentId: string) {
+  return prisma.ksefJudgeAssignment.findUnique({
     where: { id: assignmentId },
     include: {
       judge: { include: { edition: true } },
       project: { include: { category: { select: { division: true } } } },
     },
   });
+}
+
+/**
+ * Who may *read* a score sheet: its own judge, the KSEF administrator, or
+ * one of the edition's Chief Judges who isn't judging that project. Judges
+ * never see each other's sheets - scoring stays independent.
+ */
+export async function requireScoreSheetViewer(assignmentId: string) {
+  const ctx = await requireAuth();
+  const assignment = await loadAssignment(assignmentId);
   if (!assignment) throw new AuthorizationError("Assignment not found", 404);
-  if (!isSuperAdmin(ctx) && (assignment.judge.userId !== ctx.userId || !assignment.judge.isActive)) {
-    throw new AuthorizationError("This project isn't assigned to you");
+  const isOwnSheet = assignment.judge.userId === ctx.userId && assignment.judge.isActive;
+  if (!isOwnSheet && !isSuperAdmin(ctx)) {
+    const chief = await getPanelMember(ctx.userId, assignment.judge.editionId);
+    const conflicted = await isAssignedToProject(ctx.userId, assignment.projectId, assignment.level);
+    if (chief?.role !== "CHIEF_JUDGE" || conflicted) throw new AuthorizationError("This score sheet isn't available to you");
+  }
+  return { ctx, assignment, isOwnSheet };
+}
+
+/**
+ * Only the assigned judge may write their own score sheet - not the
+ * administrator, not a Chief Judge - and only until it's submitted.
+ */
+export async function requireOwnScoreSheet(assignmentId: string) {
+  const ctx = await requireAuth();
+  const assignment = await loadAssignment(assignmentId);
+  if (!assignment) throw new AuthorizationError("Assignment not found", 404);
+  if (assignment.judge.userId !== ctx.userId || !assignment.judge.isActive) {
+    throw new AuthorizationError("Only the assigned judge can enter scores on this sheet");
   }
   assertEditionEditable(assignment.judge.edition);
+  if (assignment.submittedAt) throw new AuthorizationError("This score sheet has been submitted and can no longer be changed", 409);
   return { ctx, assignment };
+}
+
+/** The caller's active panel membership (judge / chief judge / SRC member) in an edition. */
+export function getPanelMember(userId: string, editionId: string) {
+  return prisma.ksefJudge.findFirst({ where: { userId, editionId, isActive: true } });
+}
+
+/** True if the user is a judge on this project at this level (a conflict of interest for reviewing it). */
+export async function isAssignedToProject(userId: string, projectId: string, level: Level): Promise<boolean> {
+  return (await prisma.ksefJudgeAssignment.count({ where: { projectId, level, judge: { userId } } })) > 0;
+}
+
+/**
+ * Throws unless the caller may act as Chief Judge for this project: the
+ * KSEF administrator, or an active Chief Judge of the edition who isn't
+ * judging the project themselves.
+ */
+export async function requireChiefJudgeFor(editionId: string, projectId: string, level: Level): Promise<AuthContext> {
+  const ctx = await requireAuth();
+  if (isSuperAdmin(ctx)) return ctx;
+  const member = await getPanelMember(ctx.userId, editionId);
+  if (member?.role !== "CHIEF_JUDGE") throw new AuthorizationError("Only a Chief Judge can review judging discrepancies");
+  if (await isAssignedToProject(ctx.userId, projectId, level)) {
+    throw new AuthorizationError("You're judging this project, so another Chief Judge must review it");
+  }
+  return ctx;
+}
+
+/** Appends to a review's or complaint's permanent timeline. */
+export function recordCaseEvent(
+  tx: Prisma.TransactionClient,
+  event: { reviewId?: string; complaintId?: string; actorId: string | null; action: string; note?: string | null },
+) {
+  return tx.ksefCaseEvent.create({
+    data: {
+      reviewId: event.reviewId ?? null,
+      complaintId: event.complaintId ?? null,
+      actorId: event.actorId,
+      action: event.action,
+      note: event.note ?? null,
+    },
+  });
+}
+
+/** Sum of the maximum scores on a project's score sheet. */
+async function scoreSheetMaxTotal(editionId: string, division: KsefDivision): Promise<number> {
+  const criteria = await criteriaForDivision(editionId, division);
+  return criteria.reduce((sum, c) => sum + c.maxScore, 0);
+}
+
+/**
+ * Compares a project's submitted judge totals at a level against the
+ * edition's discrepancy threshold. A significant discrepancy opens a Chief
+ * Judge review (or reopens an approved one if a new sheet has arrived
+ * since). Judge scores themselves are only read, never touched. Returns
+ * the review id if one is open, else null.
+ */
+export async function evaluateDiscrepancy(projectId: string, level: Level, actorId: string | null): Promise<string | null> {
+  const project = await prisma.ksefProject.findUnique({
+    where: { id: projectId },
+    select: {
+      editionId: true,
+      category: { select: { division: true } },
+      edition: { select: { discrepancyThreshold: true, discrepancyBasis: true } },
+      assignments: {
+        where: { level, submittedAt: { not: null } },
+        select: { submittedAt: true, scores: { select: { score: true } } },
+      },
+      reviews: { where: { level } },
+    },
+  });
+  if (!project || project.edition.discrepancyThreshold === null) return null;
+
+  const totals = project.assignments.map((a) => a.scores.reduce((sum, s) => sum + Number(s.score), 0));
+  const check = checkJudgeDiscrepancy(totals, {
+    threshold: Number(project.edition.discrepancyThreshold),
+    basis: project.edition.discrepancyBasis,
+    maxTotal: await scoreSheetMaxTotal(project.editionId, project.category.division),
+  });
+  const existing = project.reviews[0];
+  if (!check) return existing?.status === "OPEN" ? existing.id : null;
+
+  const snapshot = {
+    spread: check.spread,
+    threshold: Number(project.edition.discrepancyThreshold),
+    basis: project.edition.discrepancyBasis,
+  };
+
+  if (!existing) {
+    if (!check.exceeds) return null;
+    const review = await prisma.$transaction(async (tx) => {
+      const created = await tx.ksefDiscrepancyReview.create({ data: { projectId, level, ...snapshot } });
+      await recordCaseEvent(tx, {
+        reviewId: created.id,
+        actorId,
+        action: "DETECTED",
+        note: `Judge totals differ by ${check.spread} marks (threshold ${check.thresholdMarks} marks).`,
+      });
+      await tx.auditLog.create({
+        data: { changedBy: actorId, operation: "INSERT", tableName: "ksef_discrepancy_reviews", recordId: created.id, newData: { projectId, level, ...snapshot } },
+      });
+      return created;
+    });
+    return review.id;
+  }
+
+  // An approval only covers the sheets it saw - a sheet submitted after it
+  // (e.g. from an extra judge) puts the project back under review.
+  const newSheetSinceApproval =
+    existing.status === "APPROVED" &&
+    existing.approvedAt !== null &&
+    project.assignments.some((a) => a.submittedAt && a.submittedAt > existing.approvedAt!);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ksefDiscrepancyReview.update({
+      where: { id: existing.id },
+      data: { ...snapshot, ...(newSheetSinceApproval ? { status: "OPEN" } : {}) },
+    });
+    if (newSheetSinceApproval) {
+      await recordCaseEvent(tx, {
+        reviewId: existing.id,
+        actorId,
+        action: "REOPENED",
+        note: `A new score sheet was submitted after approval - judge totals now differ by ${check.spread} marks.`,
+      });
+      await tx.auditLog.create({
+        data: { changedBy: actorId, operation: "UPDATE", tableName: "ksef_discrepancy_reviews", recordId: existing.id, newData: { status: "OPEN", reason: "new sheet after approval" } },
+      });
+    }
+  });
+  return newSheetSinceApproval || existing.status === "OPEN" ? existing.id : null;
 }
 
 /** Criteria on the score sheet for a project in `division`. */
@@ -146,7 +304,15 @@ export async function seedEditionConfig(tx: Prisma.TransactionClient, editionId:
  * and geographic unit. Ranks and scores are refreshed; qualification
  * status is only decided when the level is published.
  */
-export async function calculateLevelResults(editionId: string, level: Level) {
+export async function calculateLevelResults(editionId: string, level: Level, actorId: string | null = null) {
+  // Re-check discrepancies first - the threshold may have changed since the
+  // sheets came in.
+  const competing = await prisma.ksefResult.findMany({
+    where: { level, project: { editionId, status: "SUBMITTED" } },
+    select: { projectId: true },
+  });
+  for (const { projectId } of competing) await evaluateDiscrepancy(projectId, level, actorId);
+
   const results = await prisma.ksefResult.findMany({
     where: { level, project: { editionId, status: "SUBMITTED" } },
     include: {
@@ -159,6 +325,7 @@ export async function calculateLevelResults(editionId: string, level: Level) {
             where: { level, submittedAt: { not: null } },
             select: { scores: { select: { score: true } } },
           },
+          reviews: { where: { level }, select: { status: true, finalScore: true } },
         },
       },
     },
@@ -166,11 +333,15 @@ export async function calculateLevelResults(editionId: string, level: Level) {
 
   const computed = results.map((r) => {
     const totals = r.project.assignments.map((a) => a.scores.reduce((sum, s) => sum + Number(s.score), 0));
+    // A Chief Judge's approved final result stands in for the plain average
+    // (which is still what an approval "AVERAGE_OF_JUDGES" records).
+    const review = r.project.reviews[0];
+    const approvedScore = review?.status === "APPROVED" && review.finalScore !== null ? Number(review.finalScore) : null;
     return {
       id: r.id,
       unit: competitionUnit(level, r.project.school),
       categoryId: r.project.categoryId,
-      totalScore: averageJudgeTotal(totals),
+      totalScore: approvedScore ?? averageJudgeTotal(totals),
       judgeCount: totals.length,
     };
   });
@@ -192,8 +363,21 @@ export async function calculateLevelResults(editionId: string, level: Level) {
  * `qualifiersPerCategory` in each category/unit as QUALIFIED (none qualify
  * past the top level) and the rest NOT_QUALIFIED.
  */
-export async function publishLevelResults(edition: KsefEdition, level: Level) {
-  await calculateLevelResults(edition.id, level);
+export async function publishLevelResults(edition: KsefEdition, level: Level, actorId: string | null = null) {
+  if (edition.discrepancyThreshold === null) {
+    throw new Error(
+      "Set the judging discrepancy threshold (Competitions → Settings) from this year's KSEF rules before publishing results",
+    );
+  }
+  await calculateLevelResults(edition.id, level, actorId);
+  const openReviews = await prisma.ksefDiscrepancyReview.count({
+    where: { level, status: "OPEN", project: { editionId: edition.id, status: "SUBMITTED" } },
+  });
+  if (openReviews > 0) {
+    throw new Error(
+      `${openReviews} project${openReviews === 1 ? " has" : "s have"} a judging discrepancy awaiting Chief Judge review - results can't be published until ${openReviews === 1 ? "it is" : "they are"} approved`,
+    );
+  }
   const isTopLevel = nextKsefLevel(edition.levels, level) === null;
   const results = await prisma.ksefResult.findMany({
     where: { level, project: { editionId: edition.id, status: "SUBMITTED" } },

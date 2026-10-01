@@ -14,7 +14,12 @@ export async function GET() {
       orderBy: { year: "desc" },
       include: { _count: { select: { projects: true, schools: true, categories: true, judges: true } } },
     });
-    return NextResponse.json({ editions });
+    return NextResponse.json({
+      editions: editions.map((e) => ({
+        ...e,
+        discrepancyThreshold: e.discrepancyThreshold === null ? null : Number(e.discrepancyThreshold),
+      })),
+    });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

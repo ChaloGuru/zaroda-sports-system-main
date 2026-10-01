@@ -18,6 +18,8 @@ import type { KsefDivision, Level } from "@prisma/client";
 
 interface ScoreSheetData {
   assignment: { id: string; level: Level; comment: string | null; submittedAt: string | null };
+  /** Only the assigned judge, before submitting. Everyone else (admin, Chief Judge) sees it read-only. */
+  canEdit: boolean;
   project: {
     code: string | null;
     title: string;
@@ -34,7 +36,7 @@ interface ScoreSheetData {
 
 function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string }) {
   const queryClient = useQueryClient();
-  const locked = !!data.assignment.submittedAt;
+  const locked = !data.canEdit;
   const [values, setValues] = React.useState<Record<string, string>>(() =>
     Object.fromEntries(data.scores.map((s) => [s.criterionId, String(s.score)])),
   );
@@ -101,9 +103,13 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle>Score sheet</CardTitle>
-            <CardDescription>Score each criterion out of its maximum. Saving keeps a draft; submitting locks the sheet.</CardDescription>
+            <CardDescription>
+              {data.canEdit
+                ? "Score each criterion out of its maximum on your own - you won't see other judges' scores. Saving keeps a draft; once submitted, your scores are permanent and can't be changed by anyone."
+                : "Read-only view of this judge's original score sheet."}
+            </CardDescription>
           </div>
-          {locked ? (
+          {data.assignment.submittedAt ? (
             <Badge variant="success" className="gap-1">
               <Lock className="h-3 w-3" /> Submitted
             </Badge>

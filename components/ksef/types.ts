@@ -1,4 +1,4 @@
-import type { KsefDivision, KsefEdition, KsefEditionStatus, Level } from "@prisma/client";
+import type { KsefDiscrepancyBasis, KsefDivision, KsefEdition, KsefEditionStatus, Level } from "@prisma/client";
 
 /** The serializable slice of a KsefEdition passed from server pages to client components. */
 export interface KsefEditionSummary {
@@ -9,6 +9,9 @@ export interface KsefEditionSummary {
   levels: Level[];
   currentLevel: Level;
   qualifiersPerCategory: number;
+  /** null until the administrator enters it from that year's KSEF rules. */
+  discrepancyThreshold: number | null;
+  discrepancyBasis: KsefDiscrepancyBasis;
   startDate: string | null;
   endDate: string | null;
 }
@@ -22,6 +25,8 @@ export function toEditionSummary(edition: KsefEdition): KsefEditionSummary {
     levels: edition.levels,
     currentLevel: edition.currentLevel,
     qualifiersPerCategory: edition.qualifiersPerCategory,
+    discrepancyThreshold: edition.discrepancyThreshold === null ? null : Number(edition.discrepancyThreshold),
+    discrepancyBasis: edition.discrepancyBasis,
     startDate: edition.startDate?.toISOString() ?? null,
     endDate: edition.endDate?.toISOString() ?? null,
   };

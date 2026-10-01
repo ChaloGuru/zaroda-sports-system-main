@@ -12,14 +12,17 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
-import { KSEF_DIVISION_LABELS } from "@/lib/ksef-config";
+import { KSEF_DIVISION_LABELS, KSEF_PANEL_ROLE_LABELS } from "@/lib/ksef-config";
 import { LEVEL_LABELS } from "@/lib/utils";
 import type { KsefEditionSummary } from "./types";
 import type { Level } from "@prisma/client";
 
+const PANEL_ROLES = ["JUDGE", "CHIEF_JUDGE", "SRC_MEMBER"] as const;
+
 export interface JudgeRow {
   id: string;
   specialty: string | null;
+  role: "JUDGE" | "CHIEF_JUDGE" | "SRC_MEMBER";
   isActive: boolean;
   assignedCount: number;
   submittedCount: number;
@@ -36,6 +39,8 @@ export interface LevelResultRow {
   rank: number | null;
   status: "PENDING" | "QUALIFIED" | "NOT_QUALIFIED";
   isPublished: boolean;
+  /** Set when the project was flagged for a judging discrepancy at this level. */
+  review: { id: string; status: "OPEN" | "APPROVED"; spread: number } | null;
   project: {
     id: string;
     code: string | null;
@@ -50,12 +55,12 @@ export interface LevelResultRow {
 
 function AddJudgeCard({ edition }: { edition: KsefEditionSummary }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = React.useState({ email: "", name: "", phone: "", password: "", specialty: "" });
+  const [form, setForm] = React.useState({ email: "", name: "", phone: "", password: "", specialty: "", role: "JUDGE" });
   const addMutation = useMutation({
     mutationFn: () => apiPost("/api/ksef/judges", { editionId: edition.id, ...form, password: form.password || undefined }),
     onSuccess: () => {
       toast.success("Judge added to the panel");
-      setForm({ email: "", name: "", phone: "", password: "", specialty: "" });
+      setForm({ email: "", name: "", phone: "", password: "", specialty: "", role: "JUDGE" });
       queryClient.invalidateQueries({ queryKey: ["ksef-judges", edition.id] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to add judge"),
@@ -88,13 +93,32 @@ function AddJudgeCard({ edition }: { edition: KsefEditionSummary }) {
             <Label>Phone (optional)</Label>
             <Input className="mt-1.5" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
           </div>
-          <div className="md:col-span-2">
+          <div>
             <Label>Specialty (optional)</Label>
             <Input className="mt-1.5" placeholder="e.g. Chemistry, Computer Science" value={form.specialty} onChange={(e) => setForm((f) => ({ ...f, specialty: e.target.value }))} />
           </div>
+          <div>
+            <Label>Panel role</Label>
+            <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}>
+              <SelectTrigger className="mt-1.5">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PANEL_ROLES.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {KSEF_PANEL_ROLE_LABELS[r]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+        <p className="text-xs text-muted">
+          Chief Judges review flagged judging discrepancies; SRC members decide written complaints. Neither can act on a
+          project they are judging themselves.
+        </p>
         <Button disabled={!form.email.trim() || addMutation.isPending} onClick={() => addMutation.mutate()}>
-          <UserPlus className="h-4 w-4" /> Add judge
+          <UserPlus className="h-4 w-4" /> Add to panel
         </Button>
       </CardContent>
     </Card>
@@ -236,6 +260,14 @@ export function JudgesManager({ edition }: { edition: KsefEditionSummary }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ksef-judges", edition.id] }),
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update judge"),
   });
+  const roleMutation = useMutation({
+    mutationFn: ({ id, role }: { id: string; role: string }) => apiPatch(`/api/ksef/judges/${id}`, { role }),
+    onSuccess: () => {
+      toast.success("Panel role updated");
+      queryClient.invalidateQueries({ queryKey: ["ksef-judges", edition.id] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update role"),
+  });
 
   return (
     <div className="space-y-6">
@@ -261,10 +293,22 @@ export function JudgesManager({ edition }: { edition: KsefEditionSummary }) {
                   {j.specialty ? ` · ${j.specialty}` : ""}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="text-sm text-muted">
                   {j.submittedCount}/{j.assignedCount} sheets submitted
                 </span>
+                <Select value={j.role} onValueChange={(role) => roleMutation.mutate({ id: j.id, role })} disabled={readOnly || roleMutation.isPending}>
+                  <SelectTrigger className="h-8 w-36 text-xs" aria-label={`${j.user.name}'s panel role`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PANEL_ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {KSEF_PANEL_ROLE_LABELS[r]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button size="sm" variant="ghost" disabled={readOnly || toggleMutation.isPending} onClick={() => toggleMutation.mutate(j)}>
                   {j.isActive ? "Deactivate" : "Reactivate"}
                 </Button>

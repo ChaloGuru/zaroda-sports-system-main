@@ -4,12 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { X } from "lucide-react";
+import { Lock, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiDelete, apiGet, apiPost } from "@/lib/api-client";
+import { apiDelete, apiGet } from "@/lib/api-client";
 import { LEVEL_LABELS } from "@/lib/utils";
 import type { LevelResultRow } from "./judges-manager";
 import type { KsefEditionSummary } from "./types";
@@ -24,9 +23,9 @@ interface AssignmentRow {
 
 /**
  * Judging progress for a level: every competing project, its judges and
- * whether each has submitted. The admin can open any sheet (e.g. to enter a
- * paper score sheet), reopen a submitted one for correction, or remove an
- * unscored assignment.
+ * whether each has submitted. The admin can view any sheet read-only and
+ * remove an assignment the judge hasn't submitted. Submitted sheets are
+ * permanent - disputes go through Chief Judge review or a complaint.
  */
 export function JudgingOverview({ edition }: { edition: KsefEditionSummary }) {
   const queryClient = useQueryClient();
@@ -47,11 +46,6 @@ export function JudgingOverview({ edition }: { edition: KsefEditionSummary }) {
     queryClient.invalidateQueries({ queryKey: ["ksef-results", edition.id, level] });
   };
   const onError = (error: unknown) => toast.error(error instanceof Error ? error.message : "Failed");
-  const reopenMutation = useMutation({
-    mutationFn: (id: string) => apiPost(`/api/ksef/assignments/${id}?action=reopen`, {}),
-    onSuccess: () => { toast.success("Sheet reopened"); refresh(); },
-    onError,
-  });
   const removeMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/api/ksef/assignments/${id}`),
     onSuccess: () => { toast.success("Assignment removed"); refresh(); },
@@ -120,11 +114,7 @@ export function JudgingOverview({ edition }: { edition: KsefEditionSummary }) {
                       {a.submittedAt ? "submitted" : "pending"}
                     </Badge>
                     {a.submittedAt ? (
-                      !r.isPublished && (
-                        <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs" disabled={readOnly || reopenMutation.isPending} onClick={() => reopenMutation.mutate(a.id)}>
-                          Reopen
-                        </Button>
-                      )
+                      <Lock className="mr-1 h-3 w-3 text-muted" aria-label="Submitted sheets are permanent" />
                     ) : (
                       <button
                         type="button"

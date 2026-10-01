@@ -481,6 +481,9 @@ export const ksefEditionUpdateSchema = z.object({
   levels: z.array(ksefLevelSchema).min(1).optional(),
   currentLevel: ksefLevelSchema.optional(),
   qualifiersPerCategory: z.number().int().min(1).max(100).optional(),
+  // From that year's KSEF rules - Zaroda sets no default. null clears it.
+  discrepancyThreshold: z.number().positive().max(10000).nullable().optional(),
+  discrepancyBasis: z.enum(["POINTS", "PERCENT"]).optional(),
 });
 
 export const ksefCategorySchema = z.object({
@@ -561,6 +564,7 @@ export const ksefJudgeSchema = z.object({
   phone: optionalText(30),
   password: passwordSchema.optional(),
   specialty: optionalText(200),
+  role: z.enum(["JUDGE", "CHIEF_JUDGE", "SRC_MEMBER"]).default("JUDGE"),
 });
 
 export const ksefAssignmentSchema = z.object({
@@ -580,3 +584,36 @@ export const ksefLevelActionSchema = z.object({
   level: ksefLevelSchema,
   action: z.enum(["CALCULATE", "PUBLISH", "PROGRESS"]),
 });
+
+export const ksefReviewActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("NOTE"), note: z.string().trim().min(1, "Write the note").max(5000) }),
+  z.object({
+    action: z.literal("APPROVE"),
+    note: z.string().trim().min(1, "A resolution note is required to approve").max(5000),
+    finalScoreBasis: z.enum(["AVERAGE_OF_JUDGES", "CHIEF_JUDGE_DETERMINED"]),
+    finalScore: z.number().min(0).optional(),
+  }),
+  z.object({ action: z.literal("REOPEN"), note: z.string().trim().min(1, "Give the reason for reopening").max(5000) }),
+]);
+
+export const ksefComplaintSchema = z.object({
+  editionId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  level: ksefLevelSchema,
+  complainantName: z.string().trim().min(1).max(200),
+  complainantRole: z.string().trim().min(1).max(100),
+  subject: z.string().trim().min(1).max(300),
+  details: z.string().trim().min(1, "Write out the complaint in full").max(10000),
+  documentUrl: optionalUrl,
+});
+
+export const ksefComplaintActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("NOTE"), note: z.string().trim().min(1, "Write the note").max(5000) }),
+  z.object({ action: z.literal("START_REVIEW"), note: optionalText(5000) }),
+  z.object({
+    action: z.literal("DECIDE"),
+    outcome: z.enum(["UPHELD", "DISMISSED"]),
+    decision: z.string().trim().min(1, "The SRC decision must be recorded in writing").max(10000),
+  }),
+  z.object({ action: z.literal("REOPEN"), note: z.string().trim().min(1, "Give the reason for reopening").max(5000) }),
+]);

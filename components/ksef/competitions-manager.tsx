@@ -144,6 +144,8 @@ function EditionSettingsDialog({ edition }: { edition: EditionRow }) {
     levels: edition.levels,
     currentLevel: edition.currentLevel,
     qualifiersPerCategory: String(edition.qualifiersPerCategory),
+    discrepancyThreshold: edition.discrepancyThreshold === null ? "" : String(edition.discrepancyThreshold),
+    discrepancyBasis: edition.discrepancyBasis,
   });
 
   const saveMutation = useMutation({
@@ -155,6 +157,8 @@ function EditionSettingsDialog({ edition }: { edition: EditionRow }) {
         levels: form.levels,
         currentLevel: form.currentLevel,
         qualifiersPerCategory: Number(form.qualifiersPerCategory),
+        discrepancyThreshold: form.discrepancyThreshold.trim() === "" ? null : Number(form.discrepancyThreshold),
+        discrepancyBasis: form.discrepancyBasis,
       }),
     onSuccess: () => {
       toast.success("Edition settings saved");
@@ -240,6 +244,32 @@ function EditionSettingsDialog({ edition }: { edition: EditionRow }) {
             Qualifiers per category: how many top-ranked projects in each category, within each sub-county / county /
             region, progress to the next level.
           </p>
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <Label>Judging discrepancy threshold</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                className="h-9 w-28"
+                inputMode="decimal"
+                placeholder="Not set"
+                value={form.discrepancyThreshold}
+                onChange={(e) => setForm((f) => ({ ...f, discrepancyThreshold: e.target.value }))}
+              />
+              <Select value={form.discrepancyBasis} onValueChange={(v) => setForm((f) => ({ ...f, discrepancyBasis: v as typeof f.discrepancyBasis }))}>
+                <SelectTrigger className="h-9 w-64">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="POINTS">marks between judges&apos; totals</SelectItem>
+                  <SelectItem value="PERCENT">% of the score sheet maximum</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted">
+              Enter the value from the applicable KSEF rules for this competition year - Zaroda doesn&apos;t assume one. When
+              judges&apos; totals for a project differ by more than this, it&apos;s flagged for Chief Judge review. Results can&apos;t be
+              published until a threshold is set.
+            </p>
+          </div>
           <Button className="w-full" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || form.levels.length === 0}>
             {saveMutation.isPending ? "Saving..." : "Save settings"}
           </Button>
@@ -293,6 +323,16 @@ export function CompetitionsManager() {
               </p>
               <p className="text-xs text-muted">
                 {e._count.schools} schools · {e._count.projects} projects · {e._count.judges} judges · {e._count.categories} categories
+              </p>
+              <p className="text-xs">
+                {e.discrepancyThreshold === null ? (
+                  <span className="font-medium text-[#B45309]">Judging discrepancy threshold not set - open Settings</span>
+                ) : (
+                  <span className="text-muted">
+                    Discrepancy threshold: {e.discrepancyThreshold}
+                    {e.discrepancyBasis === "PERCENT" ? "% of the maximum total" : " marks"}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

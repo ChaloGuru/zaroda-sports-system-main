@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -59,6 +60,7 @@ export function ResultsManager({ edition }: { edition: KsefEditionSummary }) {
   const published = results.length > 0 && results.every((r) => r.isPublished);
   const qualifiedCount = results.filter((r) => r.status === "QUALIFIED").length;
   const unscored = results.filter((r) => r.submittedJudges === 0).length;
+  const openReviews = (data?.results ?? []).filter((r) => r.project.status === "SUBMITTED" && r.review?.status === "OPEN").length;
 
   // Group by geographic unit, then category - the groups projects are ranked in.
   const groups = new Map<string, LevelResultRow[]>();
@@ -74,12 +76,25 @@ export function ResultsManager({ edition }: { edition: KsefEditionSummary }) {
         <CardHeader>
           <CardTitle>Calculate, publish and progress</CardTitle>
           <CardDescription>
-            A project&apos;s score is the average of its judges&apos; submitted totals. Projects are ranked within their{" "}
+            A project&apos;s score is the average of its judges&apos; submitted totals, or the final result a Chief Judge
+            approved after a discrepancy review. Projects are ranked within their{" "}
             {level === "NATIONAL" ? "category nationally" : `category in each ${LEVEL_LABELS[level].toLowerCase()}`}; the top{" "}
             {edition.qualifiersPerCategory} per group qualify{next ? ` for ${LEVEL_LABELS[next]}` : ""} when results are published.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
+          {edition.discrepancyThreshold === null && (
+            <p className="w-full rounded-md border border-[#B45309]/40 bg-[#FBF2DC] p-3 text-sm text-[#8A6412]">
+              The judging discrepancy threshold isn&apos;t set for {edition.name}. Enter it from this year&apos;s KSEF rules in
+              Competitions → Settings - results can&apos;t be published until it is.
+            </p>
+          )}
+          {openReviews > 0 && (
+            <p className="w-full rounded-md border border-[#B45309]/40 bg-[#FBF2DC] p-3 text-sm text-[#8A6412]">
+              ⚠️ {openReviews} project{openReviews === 1 ? " has" : "s have"} a judging discrepancy awaiting Chief Judge review at{" "}
+              {LEVEL_LABELS[level]}. Results can&apos;t be published until {openReviews === 1 ? "it is" : "they are"} approved.
+            </p>
+          )}
           <Select value={level} onValueChange={(v) => setLevel(v as Level)}>
             <SelectTrigger className="w-44">
               <SelectValue />
@@ -170,6 +185,13 @@ export function ResultsManager({ edition }: { edition: KsefEditionSummary }) {
                       <TableCell>
                         <Badge variant={STATUS_BADGE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
                         {!r.isPublished && <span className="ml-1.5 text-xs text-muted">unpublished</span>}
+                        {r.review && (
+                          <Link href={`/admin/ksef/judging/reviews/${r.review.id}`} className="mt-1 block">
+                            <Badge variant={r.review.status === "OPEN" ? "warning" : "outline"}>
+                              {r.review.status === "OPEN" ? "⚠️ Discrepancy - Chief Judge review" : "Discrepancy reviewed"}
+                            </Badge>
+                          </Link>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

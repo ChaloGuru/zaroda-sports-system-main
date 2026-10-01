@@ -155,3 +155,34 @@ export function averageJudgeTotal(judgeTotals: readonly number[]): number | null
   const average = judgeTotals.reduce((sum, t) => sum + t, 0) / judgeTotals.length;
   return Math.round(average * 100) / 100;
 }
+
+export interface DiscrepancyCheck {
+  /** Highest minus lowest submitted judge total. */
+  spread: number;
+  /** The threshold converted to marks for this score sheet. */
+  thresholdMarks: number;
+  exceeds: boolean;
+}
+
+/**
+ * Compares judges' submitted totals for one project. Needs at least two
+ * sheets; flags when the spread is strictly greater than the threshold. The
+ * threshold is whatever the administrator configured for the edition -
+ * either marks, or a percentage of the score sheet's maximum total.
+ */
+export function checkJudgeDiscrepancy(
+  judgeTotals: readonly number[],
+  config: { threshold: number; basis: "POINTS" | "PERCENT"; maxTotal: number },
+): DiscrepancyCheck | null {
+  if (judgeTotals.length < 2) return null;
+  const spread = Math.round((Math.max(...judgeTotals) - Math.min(...judgeTotals)) * 100) / 100;
+  const thresholdMarks =
+    config.basis === "PERCENT" ? Math.round(((config.maxTotal * config.threshold) / 100) * 100) / 100 : config.threshold;
+  return { spread, thresholdMarks, exceeds: spread > thresholdMarks };
+}
+
+export const KSEF_PANEL_ROLE_LABELS = {
+  JUDGE: "Judge",
+  CHIEF_JUDGE: "Chief Judge",
+  SRC_MEMBER: "SRC Member",
+} as const;

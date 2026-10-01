@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 const judgeUpdateSchema = z.object({
   isActive: z.boolean().optional(),
   specialty: z.string().trim().max(200).nullable().optional(),
+  role: z.enum(["JUDGE", "CHIEF_JUDGE", "SRC_MEMBER"]).optional(),
 });
 
 // Deactivate/reactivate a judge or edit their specialty. Judges aren't

@@ -1,6 +1,5 @@
-import { PanelErrorBoundary } from "@/components/error-boundary";
 import { NoKsefEdition, KsefPageHeader } from "@/components/ksef/no-edition";
-import { JudgingOverview } from "@/components/ksef/judging-overview";
+import { JudgingTabs } from "@/components/ksef/judging-tabs";
 import { toEditionSummary } from "@/components/ksef/types";
 import { resolveSelectedEdition } from "@/lib/ksef";
 
@@ -14,11 +13,9 @@ export default async function KsefJudgingOverviewPage() {
     <div className="space-y-6">
       <KsefPageHeader
         title="Judging"
-        description="Track score sheets per project. Click a judge's name to open their sheet - e.g. to enter a paper score sheet."
+        description="Score sheet progress, judging discrepancy reviews and complaints. Submitted score sheets are permanent and shown read-only."
       />
-      <PanelErrorBoundary fallbackTitle="Judging failed to load">
-        <JudgingOverview key={edition.id} edition={toEditionSummary(edition)} />
-      </PanelErrorBoundary>
+      <JudgingTabs key={edition.id} edition={toEditionSummary(edition)} />
     </div>
   );
 }

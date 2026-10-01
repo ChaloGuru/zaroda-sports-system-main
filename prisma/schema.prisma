@@ -149,16 +149,20 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  roles                UserRole[]
-  tenant               Tenant?
-  createdChampionships Championship[]         @relation("ChampionshipCreatedBy")
-  sentMessages         AdminMessage[]         @relation("MessageSender")
-  receivedMessages     AdminMessage[]         @relation("MessageRecipient")
-  notifications        Notification[]
-  auditLogs            AuditLog[]
-  postedCirculars      ChampionshipCircular[]
-  testimonial          Testimonial?
-  ksefJudgeships       KsefJudge[]
+  roles                 UserRole[]
+  tenant                Tenant?
+  createdChampionships  Championship[]          @relation("ChampionshipCreatedBy")
+  sentMessages          AdminMessage[]          @relation("MessageSender")
+  receivedMessages      AdminMessage[]          @relation("MessageRecipient")
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  postedCirculars       ChampionshipCircular[]
+  testimonial           Testimonial?
+  ksefJudgeships        KsefJudge[]
+  ksefCaseEvents        KsefCaseEvent[]
+  ksefComplaintsRaised  KsefComplaint[]         @relation("KsefComplaintRaisedBy")
+  ksefComplaintsDecided KsefComplaint[]         @relation("KsefComplaintDecidedBy")
+  ksefReviewsApproved   KsefDiscrepancyReview[]
 
   @@map("users")
 }
@@ -832,27 +836,34 @@ enum KsefResultStatus {
 }
 
 model KsefEdition {
-  id                    String            @id @default(uuid())
-  year                  Int               @unique
+  id                    String               @id @default(uuid())
+  year                  Int                  @unique
   name                  String
-  status                KsefEditionStatus @default(DRAFT)
+  status                KsefEditionStatus    @default(DRAFT)
   startDate             DateTime?
   endDate               DateTime?
   // The fair's ladder for this edition, lowest first (normally Sub-County ->
   // County -> Regional -> National) and the level currently running.
-  levels                Level[]           @default([SUB_COUNTY, COUNTY, REGIONAL, NATIONAL])
-  currentLevel          Level             @default(SUB_COUNTY)
+  levels                Level[]              @default([SUB_COUNTY, COUNTY, REGIONAL, NATIONAL])
+  currentLevel          Level                @default(SUB_COUNTY)
   // Scoring configuration: how many top projects per category, per
   // geographic unit, progress to the next level.
-  qualifiersPerCategory Int               @default(4)
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  qualifiersPerCategory Int                  @default(4)
+  // Judging discrepancy control: a project is flagged for Chief Judge
+  // review when its judges' totals differ by more than this. No default -
+  // the administrator enters the value from that year's KSEF rules, and
+  // results can't be published until it's set.
+  discrepancyThreshold  Decimal?             @db.Decimal(6, 2)
+  discrepancyBasis      KsefDiscrepancyBasis @default(POINTS)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
 
   categories KsefCategory[]
   criteria   KsefCriterion[]
   schools    KsefEditionSchool[]
   projects   KsefProject[]
   judges     KsefJudge[]
+  complaints KsefComplaint[]
 
   @@map("ksef_editions")
 }
@@ -947,14 +958,16 @@ model KsefProject {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  edition     KsefEdition           @relation(fields: [editionId], references: [id], onDelete: Cascade)
-  school      School                @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  category    KsefCategory          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  subCategory KsefSubCategory?      @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
+  edition     KsefEdition             @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  school      School                  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  category    KsefCategory            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  subCategory KsefSubCategory?        @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
   learners    KsefLearner[]
   mentors     KsefMentor[]
   assignments KsefJudgeAssignment[]
   results     KsefResult[]
+  reviews     KsefDiscrepancyReview[]
+  complaints  KsefComplaint[]
 
   @@unique([editionId, code])
   @@index([editionId])
@@ -998,13 +1011,14 @@ model KsefMentor {
 
 // A user on an edition's judging panel (reuses the shared User accounts).
 model KsefJudge {
-  id        String   @id @default(uuid())
+  id        String        @id @default(uuid())
   editionId String
   userId    String
   // Optional specialty, e.g. "Chemistry" - informational only.
   specialty String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  role      KsefPanelRole @default(JUDGE)
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
 
   edition     KsefEdition           @relation(fields: [editionId], references: [id], onDelete: Cascade)
   user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1072,4 +1086,129 @@ model KsefResult {
   @@unique([projectId, level])
   @@index([level])
   @@map("ksef_results")
+}
+
+// ── KSEF judging discrepancy control & complaints ───────────────────────
+//
+// Individual judges' submitted scores and comments are never altered,
+// averaged over or deleted by these - reviews and complaints only record
+// decisions alongside them. Every action is appended to KsefCaseEvent (and
+// the AuditLog).
+
+enum KsefDiscrepancyBasis {
+  // Threshold is a number of marks between the highest and lowest judge total.
+  POINTS
+  // Threshold is a percentage of the score sheet's maximum total.
+  PERCENT
+}
+
+enum KsefPanelRole {
+  JUDGE
+  CHIEF_JUDGE
+  // Scientific Review Committee - decides written complaints.
+  SRC_MEMBER
+}
+
+enum KsefReviewStatus {
+  OPEN
+  APPROVED
+}
+
+enum KsefFinalScoreBasis {
+  // The average of every submitted judge total.
+  AVERAGE_OF_JUDGES
+  // A final score determined by the Chief Judge, with a recorded justification.
+  CHIEF_JUDGE_DETERMINED
+}
+
+enum KsefComplaintStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  UPHELD
+  DISMISSED
+}
+
+// Raised automatically when a project's judges' totals at a level differ by
+// more than the edition's threshold. Blocks publishing that level until a
+// Chief Judge approves the final result.
+model KsefDiscrepancyReview {
+  id              String               @id @default(uuid())
+  projectId       String
+  level           Level
+  status          KsefReviewStatus     @default(OPEN)
+  // Highest minus lowest submitted judge total, and the threshold in force,
+  // as last evaluated.
+  spread          Decimal              @db.Decimal(7, 2)
+  threshold       Decimal              @db.Decimal(6, 2)
+  basis           KsefDiscrepancyBasis
+  detectedAt      DateTime             @default(now())
+  finalScoreBasis KsefFinalScoreBasis?
+  finalScore      Decimal?             @db.Decimal(7, 2)
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  project    KsefProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  approvedBy User?           @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+  events     KsefCaseEvent[]
+
+  @@unique([projectId, level])
+  @@index([status])
+  @@map("ksef_discrepancy_reviews")
+}
+
+// A written complaint about a project's judging or result, decided by the
+// Scientific Review Committee (SRC).
+model KsefComplaint {
+  id              String              @id @default(uuid())
+  editionId       String
+  projectId       String
+  level           Level
+  // Who made the complaint in writing (e.g. a patron or school head) - may
+  // differ from the account that recorded it.
+  complainantName String
+  complainantRole String
+  subject         String
+  details         String
+  // Scan of the written complaint, if any.
+  documentUrl     String?
+  status          KsefComplaintStatus @default(SUBMITTED)
+  decision        String?
+  raisedById      String
+  decidedById     String?
+  decidedAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  edition   KsefEdition     @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  project   KsefProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  raisedBy  User            @relation("KsefComplaintRaisedBy", fields: [raisedById], references: [id], onDelete: Restrict)
+  decidedBy User?           @relation("KsefComplaintDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  events    KsefCaseEvent[]
+
+  @@index([editionId, status])
+  @@index([projectId])
+  @@map("ksef_complaints")
+}
+
+// Append-only timeline for a discrepancy review or a complaint: detection,
+// notes, approvals, reopenings, decisions. Rows are never edited or deleted.
+model KsefCaseEvent {
+  id          String   @id @default(uuid())
+  reviewId    String?
+  complaintId String?
+  actorId     String?
+  // e.g. DETECTED, NOTE, APPROVED, REOPENED, RAISED, UNDER_REVIEW, UPHELD, DISMISSED
+  action      String
+  note        String?
+  createdAt   DateTime @default(now())
+
+  review    KsefDiscrepancyReview? @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  complaint KsefComplaint?         @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  actor     User?                  @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([reviewId])
+  @@index([complaintId])
+  @@map("ksef_case_events")
 }
