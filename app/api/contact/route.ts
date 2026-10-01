@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { contactFormSchema } from "@/lib/validations";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { toErrorResponse } from "@/lib/authorize";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +35,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to submit contact form" },
-      { status: 400 },
-    );
+    const { body, status } = toErrorResponse(error);
+    return NextResponse.json(body, { status });
   }
 }

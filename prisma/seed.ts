@@ -1,4 +1,5 @@
 import { PrismaClient, Level, PackageTier, Role } from "@prisma/client";
+import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -31,13 +32,17 @@ async function seedSubscriptionPlans() {
 
 async function seedSuperAdmin() {
   const email = process.env.SEED_SUPER_ADMIN_EMAIL ?? "admin@zaroda.sport";
-  const password = process.env.SEED_SUPER_ADMIN_PASSWORD ?? "ChangeMe123!";
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     console.log(`Super admin ${email} already exists, skipping.`);
     return;
   }
+
+  // Never fall back to a fixed, publicly known default password - generate
+  // a random one (shown once below) if none was supplied.
+  const providedPassword = process.env.SEED_SUPER_ADMIN_PASSWORD;
+  const password = providedPassword ?? `${randomBytes(12).toString("base64url")}A1`;
 
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
@@ -49,7 +54,12 @@ async function seedSuperAdmin() {
     },
   });
 
-  console.log(`Seeded super admin user: ${user.email} (default password: ${password} - change immediately)`);
+  if (providedPassword) {
+    console.log(`Seeded super admin user: ${user.email} (password from SEED_SUPER_ADMIN_PASSWORD)`);
+  } else {
+    console.log(`Seeded super admin user: ${user.email} with generated password: ${password}`);
+    console.log("This password is shown only once - store it securely or change it after first sign-in.");
+  }
 }
 
 async function seedSampleSchools() {

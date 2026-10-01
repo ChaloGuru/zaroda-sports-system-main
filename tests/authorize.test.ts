@@ -29,6 +29,7 @@ const {
   isGeographicallyRestricted,
   assertWithinGeographicScope,
   AuthorizationError,
+  toErrorResponse,
 } = await import("@/lib/authorize");
 
 function mockSession(
@@ -187,5 +188,45 @@ describe("requireActiveSubscriptionForLevel", () => {
       expect(error).toBeInstanceOf(AuthorizationError);
       expect((error as InstanceType<typeof AuthorizationError>).status).toBe(402);
     }
+  });
+});
+
+describe("toErrorResponse", () => {
+  it("passes through authorization errors with their status", () => {
+    expect(toErrorResponse(new AuthorizationError("Nope", 403))).toEqual({ body: { error: "Nope" }, status: 403 });
+  });
+
+  it("summarizes validation errors as one readable message", async () => {
+    const { z } = await import("zod");
+    const result = z.object({ email: z.string().email("Enter a valid email") }).safeParse({ email: "x" });
+    expect(toErrorResponse(result.error)).toEqual({ body: { error: "email: Enter a valid email" }, status: 400 });
+  });
+
+  it("maps unique-constraint violations to a 409 without leaking database details", async () => {
+    const { Prisma } = await import("@prisma/client");
+    const error = new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields: (`email`) in table users", {
+      code: "P2002",
+      clientVersion: "5.22.0",
+    });
+    const { body, status } = toErrorResponse(error);
+    expect(status).toBe(409);
+    expect(body.error).not.toMatch(/users|email|constraint/i);
+  });
+
+  it("hides unexpected database errors behind a generic 500", async () => {
+    const { Prisma } = await import("@prisma/client");
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const error = new Prisma.PrismaClientKnownRequestError('relation "secret_table" does not exist', {
+      code: "P2010",
+      clientVersion: "5.22.0",
+    });
+    const { body, status } = toErrorResponse(error);
+    expect(status).toBe(500);
+    expect(body.error).not.toMatch(/secret_table/);
+    spy.mockRestore();
+  });
+
+  it("keeps the app's own user-facing error messages", () => {
+    expect(toErrorResponse(new Error("Fee not found"))).toEqual({ body: { error: "Fee not found" }, status: 400 });
   });
 });

@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
-import type { Level, Role } from "@prisma/client";
+import { Prisma, type Level, type Role } from "@prisma/client";
+import { ZodError } from "zod";
 import { authOptions, type SessionRole } from "./auth";
 import { prisma } from "./prisma";
 import { roleMatchesGameScope } from "./role-scope";
@@ -277,10 +278,40 @@ export function assertWithinGeographicScope(championshipCounty: string, entityCo
   }
 }
 
-/** Maps a thrown error (AuthorizationError or otherwise) to a JSON API response body + status. */
+/**
+ * Maps a thrown error to a JSON API response body + status. Messages from
+ * AuthorizationError and the app's own `throw new Error("...")` checks are
+ * written for users and passed through; validation errors are summarized;
+ * database/driver errors never reach the client (they're logged instead),
+ * since their messages expose table names, queries and internals.
+ */
 export function toErrorResponse(error: unknown): { body: { error: string }; status: number } {
   if (error instanceof AuthorizationError) {
     return { body: { error: error.message }, status: error.status };
+  }
+  if (error instanceof ZodError) {
+    const issue = error.issues[0];
+    const field = issue?.path.join(".");
+    return { body: { error: issue ? (field ? `${field}: ${issue.message}` : issue.message) : "Invalid request" }, status: 400 };
+  }
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2002") return { body: { error: "A record with these details already exists" }, status: 409 };
+    if (error.code === "P2025") return { body: { error: "Record not found" }, status: 404 };
+    if (error.code === "P2003") return { body: { error: "This record is still referenced by other data" }, status: 409 };
+    console.error("Unhandled database error:", error);
+    return { body: { error: "Something went wrong. Please try again." }, status: 500 };
+  }
+  if (
+    error instanceof Prisma.PrismaClientValidationError ||
+    error instanceof Prisma.PrismaClientUnknownRequestError ||
+    error instanceof Prisma.PrismaClientInitializationError ||
+    error instanceof Prisma.PrismaClientRustPanicError
+  ) {
+    console.error("Database error:", error);
+    return { body: { error: "Something went wrong. Please try again." }, status: 500 };
+  }
+  if (error instanceof SyntaxError) {
+    return { body: { error: "Malformed request body" }, status: 400 };
   }
   if (error instanceof Error) {
     return { body: { error: error.message }, status: 400 };

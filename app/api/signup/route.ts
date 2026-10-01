@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signupSchema } from "@/lib/validations";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { toErrorResponse } from "@/lib/authorize";
 
 export const dynamic = "force-dynamic";
 
@@ -64,9 +65,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ tenantId: tenant.id }, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Signup failed" },
-      { status: 400 },
-    );
+    const { body, status } = toErrorResponse(error);
+    return NextResponse.json(body, { status });
   }
 }
