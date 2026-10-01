@@ -13,6 +13,12 @@ const txLinkCount = vi.fn();
 const txParticipantCount = vi.fn();
 const txBibRangeCount = vi.fn();
 const txSchoolDelete = vi.fn();
+const teamCount = vi.fn();
+const txTeamCount = vi.fn();
+const txSchoolUpdateMany = vi.fn();
+const txTeamUpdateMany = vi.fn();
+const txUserRoleUpdateMany = vi.fn();
+const championshipSchoolFindFirst = vi.fn();
 
 vi.mock("@/lib/authorize", async () => {
   const actual = await vi.importActual<typeof import("@/lib/authorize")>("@/lib/authorize");
@@ -22,10 +28,12 @@ vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 
 const txClient = {
-  school: { createMany: txSchoolCreateMany, delete: txSchoolDelete },
+  school: { createMany: txSchoolCreateMany, delete: txSchoolDelete, updateMany: txSchoolUpdateMany },
   championshipSchool: { createMany: txLinkCreateMany, delete: txLinkDelete, count: txLinkCount },
   schoolBibRange: { deleteMany: txBibRangeDeleteMany, count: txBibRangeCount },
   participant: { count: txParticipantCount },
+  tournamentTeam: { count: txTeamCount, updateMany: txTeamUpdateMany },
+  userRole: { updateMany: txUserRoleUpdateMany },
   auditLog: { create: vi.fn() },
 };
 vi.mock("@/lib/prisma", () => ({
@@ -34,14 +42,16 @@ vi.mock("@/lib/prisma", () => ({
     championshipSchool: {
       findMany: (...a: unknown[]) => championshipSchoolFindMany(...a),
       findUnique: (...a: unknown[]) => championshipSchoolFindUnique(...a),
+      findFirst: (...a: unknown[]) => championshipSchoolFindFirst(...a),
     },
     participant: { count: (...a: unknown[]) => participantCount(...a) },
+    tournamentTeam: { count: (...a: unknown[]) => teamCount(...a) },
     $transaction: (fn: (tx: typeof txClient) => Promise<unknown>) => fn(txClient),
   },
 }));
 
 const { POST } = await import("@/app/api/championship-schools/route");
-const { DELETE } = await import("@/app/api/championship-schools/[id]/route");
+const { DELETE, PATCH } = await import("@/app/api/championship-schools/[id]/route");
 const { AuthorizationError } = await import("@/lib/authorize");
 
 const CHAMP = "11111111-1111-1111-1111-111111111111";
@@ -144,6 +154,8 @@ describe("DELETE /api/championship-schools/[id]", () => {
     txLinkCount.mockResolvedValue(0);
     txParticipantCount.mockResolvedValue(0);
     txBibRangeCount.mockResolvedValue(0);
+    teamCount.mockResolvedValue(0);
+    txTeamCount.mockResolvedValue(0);
   });
 
   it("refuses while the school still has participants in the championship", async () => {
@@ -169,5 +181,98 @@ describe("DELETE /api/championship-schools/[id]", () => {
     await del("link-1");
     expect(txLinkDelete).toHaveBeenCalled();
     expect(txSchoolDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /api/championship-schools/[id] - linked teams", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireChampionshipAccessMock.mockResolvedValue({ userId: "admin-1" });
+    championshipSchoolFindUnique.mockResolvedValue({
+      id: "link-1",
+      championshipId: CHAMP,
+      schoolId: "school-1",
+      school: { id: "school-1", name: "Oruba Primary" },
+    });
+    participantCount.mockResolvedValue(0);
+  });
+
+  it("refuses while teams are still linked to the school", async () => {
+    teamCount.mockResolvedValue(2);
+    const res = await del("link-1");
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/Oruba Primary still has 2 teams/);
+    expect(txLinkDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/championship-schools/[id] - renaming carries over", () => {
+  const patch = (body: unknown) =>
+    PATCH(
+      new Request("http://localhost/api/championship-schools/link-p", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ id: "link-p" }) },
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireChampionshipAccessMock.mockResolvedValue({ userId: "admin-1" });
+    championshipSchoolFindUnique.mockResolvedValue({
+      id: "link-p",
+      championshipId: CHAMP,
+      schoolId: "school-p",
+      school: { id: "school-p", name: "Manyonge", schoolLevel: "PRIMARY" },
+      championship: { county: "Kisumu", level: "NATIONAL" },
+    });
+    // The school's Primary and JS entries.
+    championshipSchoolFindMany.mockResolvedValue([
+      { id: "link-p", schoolId: "school-p" },
+      { id: "link-j", schoolId: "school-j" },
+    ]);
+    championshipSchoolFindFirst.mockResolvedValue(null);
+    txSchoolUpdateMany.mockResolvedValue({ count: 2 });
+    txTeamUpdateMany.mockResolvedValue({ count: 5 });
+    txUserRoleUpdateMany.mockResolvedValue({ count: 1 });
+  });
+
+  it("renames both entries, their linked teams, and team-manager assignments", async () => {
+    const res = await patch({ name: "Manyonge Comprehensive" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ updated: { schools: 2, teams: 5, teamManagers: 1 } });
+    expect(txSchoolUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["school-p", "school-j"] } },
+      data: { name: "Manyonge Comprehensive" },
+    });
+    expect(txTeamUpdateMany).toHaveBeenCalledWith({
+      where: { schoolId: { in: ["school-p", "school-j"] } },
+      data: { name: "Manyonge Comprehensive" },
+    });
+    expect(txUserRoleUpdateMany).toHaveBeenCalledWith({
+      where: {
+        championshipId: CHAMP,
+        role: "TEAM_MANAGER",
+        organizationName: { equals: "Manyonge", mode: "insensitive" },
+      },
+      data: { organizationName: "Manyonge Comprehensive" },
+    });
+  });
+
+  it("refuses a name another school on the list already uses", async () => {
+    championshipSchoolFindFirst.mockResolvedValue({ id: "link-other" });
+    const res = await patch({ name: "Oruba" });
+    expect(res.status).toBe(409);
+    expect(txSchoolUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("copies a county change onto the teams without touching team-manager names", async () => {
+    await patch({ county: "Siaya" });
+    expect(txTeamUpdateMany).toHaveBeenCalledWith({
+      where: { schoolId: { in: ["school-p", "school-j"] } },
+      data: { county: "Siaya" },
+    });
+    expect(txUserRoleUpdateMany).not.toHaveBeenCalled();
   });
 });

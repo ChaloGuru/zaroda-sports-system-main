@@ -38,12 +38,26 @@ export async function POST(request: Request) {
 
     const organizationNames = Array.from(new Set(input.organizationNames.map((n) => n.trim()).filter(Boolean)));
 
+    // Link each team to the championship school it's named after (in a
+    // Primary/JS championship, the school's entry for the game's level).
+    const schoolLinks = await prisma.championshipSchool.findMany({
+      where: { championshipId: input.championshipId },
+      select: { school: { select: { id: true, name: true, schoolLevel: true } } },
+    });
+    const schoolIdFor = (name: string, gameLevel: string) =>
+      schoolLinks.find(
+        (l) =>
+          l.school.name.trim().toLowerCase() === name.toLowerCase() &&
+          (!l.school.schoolLevel || l.school.schoolLevel === gameLevel),
+      )?.school.id ?? null;
+
     const rowsToCreate = organizationNames.flatMap((name) =>
       games
         .filter((game) => !existingKeys.has(`${name.toLowerCase()}::${game.id}`))
         .map((game) => ({
           championshipId: input.championshipId,
           gameId: game.id,
+          schoolId: schoolIdFor(name, game.schoolLevel),
           name,
           gender: game.gender,
         })),

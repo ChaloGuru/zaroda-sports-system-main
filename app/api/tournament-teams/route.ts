@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { getAuthContext, requireAuth, canViewChampionshipPrivateData, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { dashboardTournamentTeamSchema } from "@/lib/validations";
+import { resolveTeamSchoolId } from "@/lib/championship-schools";
+import type { SchoolLevel } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -59,13 +61,18 @@ export async function POST(request: Request) {
     }
 
     let gender: "BOYS" | "GIRLS" | "MIXED" = "MIXED";
+    let gameSchoolLevel: SchoolLevel | null = null;
     if (input.gameId) {
       const game = await prisma.game.findUnique({ where: { id: input.gameId } });
       if (!game || game.championshipId !== input.championshipId) {
         return NextResponse.json({ error: "Game not found in this championship" }, { status: 404 });
       }
       gender = game.gender;
+      gameSchoolLevel = game.schoolLevel;
     }
+    // Link the team to the school it's named after, so renaming the school
+    // renames the team too.
+    const schoolId = await resolveTeamSchoolId(input.championshipId, input.name, gameSchoolLevel);
 
     await requireTeamAccess(input.championshipId, input.name);
 
@@ -89,6 +96,7 @@ export async function POST(request: Request) {
           data: {
             championshipId: input.championshipId,
             gameId: input.gameId ?? null,
+            schoolId,
             name: input.name,
             teamCode: input.teamCode ?? null,
             gender,

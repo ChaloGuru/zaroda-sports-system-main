@@ -30,6 +30,8 @@ vi.mock("@/lib/prisma", () => ({
     },
     $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
       fn({
+        // No school list in the target championship - promoted teams stay unlinked.
+        championshipSchool: { findMany: async () => [] },
         tournamentTeam: { create: (...args: unknown[]) => tournamentTeamCreate(...args) },
         participant: { create: (...args: unknown[]) => participantCreate(...args) },
         auditLog: { create: (...args: unknown[]) => auditLogCreate(...args) },

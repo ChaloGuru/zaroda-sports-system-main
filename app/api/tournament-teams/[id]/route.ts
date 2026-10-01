@@ -3,10 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireTeamAccess, isSuperAdmin, hasRole, toErrorResponse } from "@/lib/authorize";
 import { tournamentTeamSchema } from "@/lib/validations";
+import { resolveTeamSchoolId } from "@/lib/championship-schools";
 
 export const dynamic = "force-dynamic";
 
-const tournamentTeamUpdateSchema = tournamentTeamSchema.partial();
+// Everything but the championship a team belongs to - moving a team between
+// championships would bypass their access checks.
+const tournamentTeamUpdateSchema = tournamentTeamSchema.omit({ championshipId: true }).partial();
 
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -44,6 +47,21 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       return NextResponse.json({ error: "A team with this name is already registered for this game" }, { status: 409 });
     }
 
+    // Re-link to the matching championship school when the name or game
+    // (and so, in a Primary/JS championship, the level) changes.
+    let schoolId = existing.schoolId;
+    if (input.name !== undefined || input.gameId !== undefined) {
+      if (nextGameId) {
+        const game = await prisma.game.findUnique({ where: { id: nextGameId }, select: { championshipId: true, schoolLevel: true } });
+        if (!game || game.championshipId !== existing.championshipId) {
+          return NextResponse.json({ error: "Game not found in this championship" }, { status: 404 });
+        }
+        schoolId = await resolveTeamSchoolId(existing.championshipId, nextName, game.schoolLevel);
+      } else {
+        schoolId = await resolveTeamSchoolId(existing.championshipId, nextName, null);
+      }
+    }
+
     const updated = await withAudit({
       actorId: ctx.userId,
       operation: "UPDATE",
@@ -52,7 +70,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       mutate: (tx) =>
         tx.tournamentTeam.update({
           where: { id: params.id },
-          data: input,
+          data: { ...input, schoolId },
         }),
       recordId: () => params.id,
       newData: input,

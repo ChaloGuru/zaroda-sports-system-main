@@ -29,6 +29,7 @@ export interface ChampionshipSchoolRow {
   label: string;
   county: string;
   participantCount: number;
+  teamCount: number;
   hasBibRange: boolean;
 }
 
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ schools: [] });
     }
 
-    const [links, participantCounts, bibRanges] = await Promise.all([
+    const [links, participantCounts, teamCounts, bibRanges] = await Promise.all([
       prisma.championshipSchool.findMany({
         where: { championshipId },
         include: { school: { select: { id: true, name: true, county: true, schoolLevel: true } } },
@@ -58,9 +59,15 @@ export async function GET(request: Request) {
         where: { championshipId, schoolId: { not: null } },
         _count: { _all: true },
       }),
+      prisma.tournamentTeam.groupBy({
+        by: ["schoolId"],
+        where: { championshipId, schoolId: { not: null } },
+        _count: { _all: true },
+      }),
       prisma.schoolBibRange.findMany({ where: { championshipId }, select: { schoolId: true } }),
     ]);
     const countBySchool = new Map(participantCounts.map((c) => [c.schoolId, c._count._all]));
+    const teamsBySchool = new Map(teamCounts.map((c) => [c.schoolId, c._count._all]));
     const withRange = new Set(bibRanges.map((r) => r.schoolId));
 
     const schools: ChampionshipSchoolRow[] = links
@@ -72,6 +79,7 @@ export async function GET(request: Request) {
         label: schoolEntryLabel(link.school.name, link.school.schoolLevel),
         county: link.school.county,
         participantCount: countBySchool.get(link.school.id) ?? 0,
+        teamCount: teamsBySchool.get(link.school.id) ?? 0,
         hasBibRange: withRange.has(link.school.id),
       }))
       // Alphabetical, with each school's Primary entry before its JS entry.

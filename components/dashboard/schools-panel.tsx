@@ -73,8 +73,11 @@ export function SchoolsPanel({
       toast.success("School renamed");
       setEditingId(null);
       refresh();
-      // Bib ranges and participants show the school's name too.
+      // Bib ranges, teams and team-manager roles carry the school's name too.
       queryClient.invalidateQueries({ queryKey: ["bib-ranges", championshipId] });
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", championshipId] });
+      queryClient.invalidateQueries({ queryKey: ["championship-teams-picker", championshipId] });
+      queryClient.invalidateQueries({ queryKey: ["championship-roles", championshipId] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to rename school"),
   });
@@ -119,7 +122,7 @@ export function SchoolsPanel({
             <>
               {" "}
               Each school is added as a Primary and a JS entry, since athletes enter per school level - each entry gets
-              its own bib range, and you can remove an entry the school doesn&apos;t need. Renaming a school renames both.
+              its own bib range, and you can remove an entry the school doesn&apos;t need. Renaming a school renames both, along with its teams.
             </>
           )}
         </CardDescription>
@@ -163,6 +166,7 @@ export function SchoolsPanel({
                 <TableHead>School</TableHead>
                 <TableHead>County</TableHead>
                 <TableHead>Participants</TableHead>
+                <TableHead>Teams</TableHead>
                 <TableHead>Bib range</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -196,6 +200,7 @@ export function SchoolsPanel({
                   </TableCell>
                   <TableCell>{s.county}</TableCell>
                   <TableCell>{s.participantCount}</TableCell>
+                  <TableCell>{s.teamCount}</TableCell>
                   <TableCell>
                     {s.hasBibRange ? <Badge variant="secondary">Allocated</Badge> : <Badge variant="outline">None</Badge>}
                   </TableCell>
@@ -215,8 +220,12 @@ export function SchoolsPanel({
                       size="icon"
                       variant="ghost"
                       aria-label={`Remove ${s.label}`}
-                      disabled={s.participantCount > 0}
-                      title={s.participantCount > 0 ? "Remove or move this school's participants first" : "Remove"}
+                      disabled={s.participantCount > 0 || s.teamCount > 0}
+                      title={
+                        s.participantCount > 0 || s.teamCount > 0
+                          ? "Remove this school's participants and teams first"
+                          : "Remove"
+                      }
                       onClick={() => confirmRemove(s)}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -226,7 +235,7 @@ export function SchoolsPanel({
               ))}
               {schools.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted">
+                  <TableCell colSpan={6} className="text-center text-muted">
                     No schools yet. Add the schools taking part above.
                   </TableCell>
                 </TableRow>

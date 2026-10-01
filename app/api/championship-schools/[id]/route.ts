@@ -50,17 +50,47 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       if (clash) return NextResponse.json({ error: "Another school on this list already has that name" }, { status: 409 });
     }
 
-    const updated = await withAudit({
+    const oldName = link.school.name.trim();
+    const renaming = !!input.name && input.name !== oldName;
+
+    const result = await withAudit({
       actorId: ctx.userId,
       operation: "UPDATE",
       tableName: "schools",
       oldData: link.school,
-      mutate: (tx) => tx.school.updateMany({ where: { id: { in: siblingSchoolIds } }, data: input }),
+      mutate: async (tx) => {
+        const schools = await tx.school.updateMany({ where: { id: { in: siblingSchoolIds } }, data: input });
+
+        // Keep the school's linked teams in step: same name, same county.
+        const teamData = {
+          ...(renaming ? { name: input.name } : {}),
+          ...(input.county ? { county: input.county } : {}),
+        };
+        const teams =
+          Object.keys(teamData).length > 0
+            ? await tx.tournamentTeam.updateMany({ where: { schoolId: { in: siblingSchoolIds } }, data: teamData })
+            : { count: 0 };
+
+        // Team Managers are scoped by organization name - move this
+        // championship's assignments to the new name so they keep access.
+        const teamManagers = renaming
+          ? await tx.userRole.updateMany({
+              where: {
+                championshipId: link.championshipId,
+                role: "TEAM_MANAGER",
+                organizationName: { equals: oldName, mode: "insensitive" },
+              },
+              data: { organizationName: input.name },
+            })
+          : { count: 0 };
+
+        return { schools: schools.count, teams: teams.count, teamManagers: teamManagers.count };
+      },
       recordId: () => link.schoolId,
       newData: { ...input, schoolIds: siblingSchoolIds },
     });
 
-    return NextResponse.json({ updated: updated.count });
+    return NextResponse.json({ updated: result });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });
@@ -69,8 +99,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
 /**
  * Removes a school from a championship's list, along with its bib range
- * there. Refused while the championship still has participants from that
- * school, so no athlete is left pointing at a school that isn't on the list.
+ * there. Refused while the championship still has participants or teams
+ * from that school, so nothing is left pointing at a school that isn't on
+ * the list.
  */
 export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -92,6 +123,18 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
       );
     }
 
+    const teams = await prisma.tournamentTeam.count({
+      where: { championshipId: link.championshipId, schoolId: link.schoolId },
+    });
+    if (teams > 0) {
+      return NextResponse.json(
+        {
+          error: `${link.school.name} still has ${teams} team${teams === 1 ? "" : "s"} in this championship - delete them in the Teams tab first.`,
+        },
+        { status: 409 },
+      );
+    }
+
     await withAudit({
       actorId: ctx.userId,
       operation: "DELETE",
@@ -105,7 +148,8 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
         const stillUsed =
           (await tx.championshipSchool.count({ where: { schoolId: link.schoolId } })) +
           (await tx.participant.count({ where: { schoolId: link.schoolId } })) +
-          (await tx.schoolBibRange.count({ where: { schoolId: link.schoolId } }));
+          (await tx.schoolBibRange.count({ where: { schoolId: link.schoolId } })) +
+          (await tx.tournamentTeam.count({ where: { schoolId: link.schoolId } }));
         if (stillUsed === 0) await tx.school.delete({ where: { id: link.schoolId } });
         return link.id;
       },

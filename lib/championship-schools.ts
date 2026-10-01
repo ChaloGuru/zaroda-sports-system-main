@@ -18,6 +18,27 @@ export async function requireChampionshipSchool(
   return link.school;
 }
 
+/**
+ * Finds the championship school a team named `teamName` represents, so the
+ * team can be linked to it (TournamentTeam.schoolId). In a Primary/JS
+ * championship a school has a Primary and a JS entry - the one matching the
+ * team's game level is used. Returns null for names that aren't on the
+ * school list (e.g. open-tournament organizations).
+ */
+export async function resolveTeamSchoolId(
+  championshipId: string,
+  teamName: string,
+  gameSchoolLevel: SchoolLevel | null | undefined,
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<string | null> {
+  const candidates = await client.championshipSchool.findMany({
+    where: { championshipId, school: { name: { equals: teamName.trim(), mode: "insensitive" } } },
+    select: { school: { select: { id: true, schoolLevel: true } } },
+  });
+  const match = candidates.find((c) => !c.school.schoolLevel || c.school.schoolLevel === gameSchoolLevel);
+  return match?.school.id ?? null;
+}
+
 /** Puts a school on a championship's list if it isn't there already (e.g. when promoting its athletes). */
 export async function ensureChampionshipSchool(
   championshipId: string,

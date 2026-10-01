@@ -283,6 +283,7 @@ model School {
   participants  Participant[]
   bibRanges     SchoolBibRange[]
   championships ChampionshipSchool[]
+  teams         TournamentTeam[]
 
   @@map("schools")
 }
@@ -334,6 +335,11 @@ model TournamentTeam {
   gameId             String?
   // Optional group-stage pool within that game (e.g. "Pool A").
   poolId             String?
+  // The championship school (entry) this team represents, when it was
+  // registered from the Schools list - keeps the team's name in step when
+  // the school is renamed. In a Primary/JS championship this is the school's
+  // entry matching the game's level. Null for open-tournament organizations.
+  schoolId           String?
   name               String
   teamCode           String?
   gender             Gender   @default(MIXED)
@@ -361,9 +367,11 @@ model TournamentTeam {
   feePayments  TeamFeePayment[]
   promotedFrom TournamentTeam?  @relation("TeamPromotion", fields: [promotedFromTeamId], references: [id], onDelete: SetNull)
   promotedTo   TournamentTeam[] @relation("TeamPromotion")
+  school       School?          @relation(fields: [schoolId], references: [id], onDelete: SetNull)
 
   @@unique([championshipId, teamCode])
   @@index([poolId])
+  @@index([schoolId])
   @@map("tournament_teams")
 }
 

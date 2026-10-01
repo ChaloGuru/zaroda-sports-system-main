@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
+import { resolveTeamSchoolId } from "@/lib/championship-schools";
 import {
   requireChampionshipAccess,
   isGeographicallyRestricted,
@@ -129,11 +130,15 @@ export async function POST(request: Request) {
         operation: "INSERT",
         tableName: "tournament_teams",
         mutate: async (tx) => {
+          // Linked when the promoted name matches a school on the target
+          // championship's list (zone-prefixed JS names usually won't).
+          const schoolId = await resolveTeamSchoolId(input.targetChampionshipId, targetName, targetGame.schoolLevel, tx);
           const newTeam = await tx.tournamentTeam.create({
             data: {
               championshipId: input.targetChampionshipId,
               gameId: targetGame.id,
-              name: newName(originTeam.name),
+              schoolId,
+              name: targetName,
               gender: originTeam.gender,
               teamColor: originTeam.teamColor,
               contactName: originTeam.contactName,
