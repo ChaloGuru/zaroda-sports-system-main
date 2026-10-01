@@ -4,6 +4,7 @@ import { getAuthContext, isSuperAdmin, hasRole, toErrorResponse } from "@/lib/au
 import { pointsForPosition } from "@/lib/scoring";
 import { computeChampionshipTeamStandings } from "@/lib/team-standings";
 import { computeOrganizationRankings } from "@/lib/organization-rankings";
+import { schoolEntryLabel } from "@/lib/school-levels";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
       where: { championshipId, position: { not: null } },
       include: {
         game: { select: { schoolLevel: true, isTimed: true } },
-        school: { select: { id: true, name: true } },
+        school: { select: { id: true, name: true, schoolLevel: true } },
         tournamentTeam: { select: { id: true, name: true } },
       },
     });
@@ -65,7 +66,10 @@ export async function GET(request: Request) {
       if (!rows.has(entityId)) {
         rows.set(entityId, {
           entityId,
-          entityName: p.school?.name ?? p.tournamentTeam?.name ?? "Unknown",
+          // A Primary/JS school's two entries rank separately - label which is which.
+          entityName: p.school
+            ? schoolEntryLabel(p.school.name, p.school.schoolLevel)
+            : (p.tournamentTeam?.name ?? "Unknown"),
           boysTrack: 0,
           boysField: 0,
           girlsTrack: 0,

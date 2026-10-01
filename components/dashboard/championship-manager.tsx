@@ -174,7 +174,7 @@ export function ChampionshipManager({
         {!isOpenTournament && (
           <TabsContent value="schools">
             <PanelErrorBoundary fallbackTitle="Schools panel failed to load">
-              <SchoolsPanel championshipId={championshipId} championshipCounty={county} />
+              <SchoolsPanel championshipId={championshipId} championshipCounty={county} championshipSchoolLevel={schoolLevel} />
             </PanelErrorBoundary>
           </TabsContent>
         )}

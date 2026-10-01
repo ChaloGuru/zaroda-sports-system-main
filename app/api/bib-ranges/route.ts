@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const ranges = await prisma.schoolBibRange.findMany({
       where: { championshipId },
       orderBy: { rangeStart: "asc" },
-      include: { school: { select: { name: true } } },
+      include: { school: { select: { name: true, schoolLevel: true } } },
     });
 
     return NextResponse.json({ ranges });

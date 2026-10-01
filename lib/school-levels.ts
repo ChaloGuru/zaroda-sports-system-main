@@ -29,3 +29,17 @@ export function schoolLevelLabel(value: string): string {
 export function gameSchoolLevelLabel(value: string): string {
   return GAME_SCHOOL_LEVELS.find((l) => l.value === value)?.label ?? value;
 }
+
+/**
+ * Within a Primary/JS championship every school is split into a Primary and
+ * a JS entry (School.schoolLevel) - label them so the two can be told apart.
+ * Senior School / Tertiary schools (no level) show just their name.
+ */
+export function schoolEntryLabel(name: string, schoolLevel: string | null | undefined): string {
+  return schoolLevel ? `${name} (${gameSchoolLevelLabel(schoolLevel)})` : name;
+}
+
+/** The levels each school is split into when added to a championship at this tier. */
+export function schoolEntryLevels(championshipSchoolLevel: string): Array<"PRIMARY" | "JS" | null> {
+  return championshipSchoolLevel === "PRIMARY_JS" ? ["PRIMARY", "JS"] : [null];
+}

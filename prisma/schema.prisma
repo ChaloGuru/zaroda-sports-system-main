@@ -266,15 +266,19 @@ model Championship {
 }
 
 model School {
-  id        String   @id @default(uuid())
-  name      String
-  zone      String
-  subcounty String
-  county    String
-  region    String
-  country   String   @default("Kenya")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String       @id @default(uuid())
+  name        String
+  zone        String
+  subcounty   String
+  county      String
+  region      String
+  country     String       @default("Kenya")
+  // PRIMARY or JS when this row is one half of a school added to a Primary/JS
+  // championship (each school is split into a Primary and a JS entry, since
+  // athletes enter per school level); null for Senior School / Tertiary.
+  schoolLevel SchoolLevel?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   participants  Participant[]
   bibRanges     SchoolBibRange[]

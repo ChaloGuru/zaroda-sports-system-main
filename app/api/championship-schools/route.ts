@@ -11,14 +11,22 @@ import {
   toErrorResponse,
 } from "@/lib/authorize";
 import { championshipSchoolsAddSchema } from "@/lib/validations";
+import { schoolEntryLabel, schoolEntryLevels } from "@/lib/school-levels";
+import type { SchoolLevel } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+const LEVEL_RANK = (level: string | null) => (level === "JS" ? 1 : 0);
 
 export interface ChampionshipSchoolRow {
   /** The ChampionshipSchool link id - what PATCH/DELETE address. */
   id: string;
   schoolId: string;
   name: string;
+  /** PRIMARY or JS for a Primary/JS championship's split entries; null otherwise. */
+  schoolLevel: SchoolLevel | null;
+  /** Name plus level, e.g. "Manyonge (JS)" - what pickers should display. */
+  label: string;
   county: string;
   participantCount: number;
   hasBibRange: boolean;
@@ -43,7 +51,7 @@ export async function GET(request: Request) {
     const [links, participantCounts, bibRanges] = await Promise.all([
       prisma.championshipSchool.findMany({
         where: { championshipId },
-        include: { school: { select: { id: true, name: true, county: true } } },
+        include: { school: { select: { id: true, name: true, county: true, schoolLevel: true } } },
       }),
       prisma.participant.groupBy({
         by: ["schoolId"],
@@ -60,11 +68,14 @@ export async function GET(request: Request) {
         id: link.id,
         schoolId: link.school.id,
         name: link.school.name,
+        schoolLevel: link.school.schoolLevel,
+        label: schoolEntryLabel(link.school.name, link.school.schoolLevel),
         county: link.school.county,
         participantCount: countBySchool.get(link.school.id) ?? 0,
         hasBibRange: withRange.has(link.school.id),
       }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      // Alphabetical, with each school's Primary entry before its JS entry.
+      .sort((a, b) => a.name.localeCompare(b.name) || LEVEL_RANK(a.schoolLevel) - LEVEL_RANK(b.schoolLevel));
 
     return NextResponse.json({ schools });
   } catch (error) {
@@ -82,7 +93,7 @@ export async function POST(request: Request) {
 
     const championship = await prisma.championship.findUniqueOrThrow({
       where: { id: input.championshipId },
-      select: { county: true, level: true },
+      select: { county: true, level: true, schoolLevel: true },
     });
     const county = input.county || championship.county;
     // Lower-level championships only admit schools from their own county
@@ -92,17 +103,27 @@ export async function POST(request: Request) {
       assertWithinGeographicScope(championship.county, county);
     }
 
+    // A Primary/JS championship splits every school into a Primary and a JS
+    // entry (athletes enter per school level); other tiers get one entry.
+    const levels = schoolEntryLevels(championship.schoolLevel);
+    const entryKey = (name: string, level: string | null) => `${name.trim().toLowerCase()}::${level ?? ""}`;
+
     const existing = await prisma.championshipSchool.findMany({
       where: { championshipId: input.championshipId },
-      select: { school: { select: { name: true } } },
+      select: { school: { select: { name: true, schoolLevel: true } } },
     });
-    const taken = new Set(existing.map((l) => l.school.name.trim().toLowerCase()));
-    const toAdd: string[] = [];
+    const taken = new Set(existing.map((l) => entryKey(l.school.name, l.school.schoolLevel)));
+    // Only the missing entries are created - e.g. re-adding a school whose JS
+    // entry was removed brings back just that one.
+    const toAdd: Array<{ name: string; schoolLevel: "PRIMARY" | "JS" | null }> = [];
+    let skipped = 0;
     for (const name of input.names) {
-      const key = name.toLowerCase();
-      if (taken.has(key)) continue;
-      taken.add(key);
-      toAdd.push(name);
+      const missing = levels.filter((level) => !taken.has(entryKey(name, level)));
+      if (missing.length === 0) skipped++;
+      for (const level of missing) {
+        taken.add(entryKey(name, level));
+        toAdd.push({ name, schoolLevel: level });
+      }
     }
 
     if (toAdd.length > 0) {
@@ -115,7 +136,15 @@ export async function POST(request: Request) {
           // trip per school, so large lists stay well inside the transaction
           // timeout. zone/subcounty/region aren't collected here; county is
           // what geographic-scope checks rely on.
-          const schools = toAdd.map((name) => ({ id: randomUUID(), name, county, zone: "", subcounty: "", region: "" }));
+          const schools = toAdd.map((entry) => ({
+            id: randomUUID(),
+            name: entry.name,
+            schoolLevel: entry.schoolLevel,
+            county,
+            zone: "",
+            subcounty: "",
+            region: "",
+          }));
           await tx.school.createMany({ data: schools });
           await tx.championshipSchool.createMany({
             data: schools.map((s) => ({ championshipId: input.championshipId, schoolId: s.id })),
@@ -123,11 +152,14 @@ export async function POST(request: Request) {
           return schools.length;
         },
         recordId: () => input.championshipId,
-        newData: { names: toAdd, county },
+        newData: { entries: toAdd, county },
       });
     }
 
-    return NextResponse.json({ added: toAdd.length, skipped: input.names.length - toAdd.length }, { status: 201 });
+    return NextResponse.json(
+      { added: input.names.length - skipped, entries: toAdd.length, skipped },
+      { status: 201 },
+    );
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SchoolLevel } from "@prisma/client";
 import { prisma } from "./prisma";
 
 /**
@@ -9,10 +9,10 @@ import { prisma } from "./prisma";
 export async function requireChampionshipSchool(
   championshipId: string,
   schoolId: string,
-): Promise<{ name: string; county: string }> {
+): Promise<{ name: string; county: string; schoolLevel: SchoolLevel | null }> {
   const link = await prisma.championshipSchool.findUnique({
     where: { championshipId_schoolId: { championshipId, schoolId } },
-    select: { school: { select: { name: true, county: true } } },
+    select: { school: { select: { name: true, county: true, schoolLevel: true } } },
   });
   if (!link) throw new Error("That school isn't on this championship's school list - add it in the Schools tab first.");
   return link.school;

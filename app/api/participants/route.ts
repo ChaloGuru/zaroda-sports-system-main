@@ -4,6 +4,7 @@ import { withAudit } from "@/lib/audit";
 import { getAuthContext, canViewChampionshipPrivateData, requireGameAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { participantCreateSchema } from "@/lib/validations";
 import { requireChampionshipSchool } from "@/lib/championship-schools";
+import { schoolEntryLabel, gameSchoolLevelLabel } from "@/lib/school-levels";
 import { assignNextBibNumber, parseTimeToSeconds } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -80,10 +81,25 @@ export async function POST(request: Request) {
       ctx = await requireGameAccess(input.gameId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
     }
 
+    const game = await prisma.game.findUnique({
+      where: { id: input.gameId },
+      select: { championshipId: true, schoolLevel: true },
+    });
+    if (!game || game.championshipId !== input.championshipId) {
+      return NextResponse.json({ error: "Game not found in this championship" }, { status: 404 });
+    }
+
     let schoolName: string | null = null;
     if (input.schoolId) {
       const school = await requireChampionshipSchool(input.championshipId, input.schoolId);
-      schoolName = school.name;
+      schoolName = schoolEntryLabel(school.name, school.schoolLevel);
+      // Primary/JS championships split each school into a Primary and a JS
+      // entry - an athlete enters under the one matching the event's level.
+      if (school.schoolLevel && school.schoolLevel !== game.schoolLevel) {
+        throw new Error(
+          `${schoolName} can't enter a ${gameSchoolLevelLabel(game.schoolLevel)} event - pick the school's ${gameSchoolLevelLabel(game.schoolLevel)} entry.`,
+        );
+      }
       const championship = await prisma.championship.findUnique({
         where: { id: input.championshipId },
         select: { level: true, county: true },

@@ -31,6 +31,7 @@ interface GameOption {
   category: string;
   sport: string | null;
   isTimed: boolean;
+  schoolLevel: string;
 }
 
 interface SchoolOption {
@@ -176,7 +177,12 @@ export function ParticipantsPanel({
   // School-ladder championships: only this championship's own schools (added
   // by its admin in the Schools tab) are selectable.
   const { data: schoolsData } = useChampionshipSchools(championshipId, !isOpenTournament);
-  const schools: SchoolOption[] = (schoolsData?.schools ?? []).map((s) => ({ id: s.schoolId, name: s.name }));
+  // In a Primary/JS championship each school has a Primary and a JS entry -
+  // only offer the entries matching the selected event's level.
+  const eventLevel = (gamesData?.games ?? []).find((g) => g.id === gameId)?.schoolLevel;
+  const schools: SchoolOption[] = (schoolsData?.schools ?? [])
+    .filter((s) => !s.schoolLevel || !eventLevel || s.schoolLevel === eventLevel)
+    .map((s) => ({ id: s.schoolId, name: s.label }));
   // Open tournaments: participants belong to a registered organization/team
   // instead of a School.
   const { data: teamsData } = useQuery({

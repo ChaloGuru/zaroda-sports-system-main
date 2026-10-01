@@ -13,13 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
 import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "@/lib/pdf-logo";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
+import { schoolEntryLabel } from "@/lib/school-levels";
 
 interface RangeRow {
   id: string;
   schoolId: string;
   rangeStart: number;
   rangeEnd: number;
-  school: { name: string };
+  school: { name: string; schoolLevel: string | null };
 }
 
 export function BibRangesPanel({ championshipId, championshipName }: { championshipId: string; championshipName: string }) {
@@ -69,7 +70,7 @@ export function BibRangesPanel({ championshipId, championshipName }: { champions
   }
 
   function confirmDelete(range: RangeRow) {
-    if (window.confirm(`Remove the bib range for ${range.school.name}?`)) {
+    if (window.confirm(`Remove the bib range for ${schoolEntryLabel(range.school.name, range.school.schoolLevel)}?`)) {
       deleteMutation.mutate(range.id);
     }
   }
@@ -83,7 +84,7 @@ export function BibRangesPanel({ championshipId, championshipName }: { champions
     autoTable(doc, {
       startY: titleEndY + 6,
       head: [["School", "Range Start", "Range End", "Allocated"]],
-      body: (rangesData?.ranges ?? []).map((r) => [r.school.name, r.rangeStart, r.rangeEnd, r.rangeEnd - r.rangeStart + 1]),
+      body: (rangesData?.ranges ?? []).map((r) => [schoolEntryLabel(r.school.name, r.school.schoolLevel), r.rangeStart, r.rangeEnd, r.rangeEnd - r.rangeStart + 1]),
     });
     addPdfFooter(doc);
     doc.save(`${championshipName.replace(/\s+/g, "-").toLowerCase()}-bib-range-checklist.pdf`);
@@ -105,7 +106,7 @@ export function BibRangesPanel({ championshipId, championshipName }: { champions
               <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select school" /></SelectTrigger>
               <SelectContent>
                 {(schoolsData?.schools ?? []).map((s) => (
-                  <SelectItem key={s.schoolId} value={s.schoolId}>{s.name}</SelectItem>
+                  <SelectItem key={s.schoolId} value={s.schoolId}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -146,7 +147,7 @@ export function BibRangesPanel({ championshipId, championshipName }: { champions
             <TableBody>
               {(rangesData?.ranges ?? []).map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell>{r.school.name}</TableCell>
+                  <TableCell>{schoolEntryLabel(r.school.name, r.school.schoolLevel)}</TableCell>
                   <TableCell>{r.rangeStart}</TableCell>
                   <TableCell>{r.rangeEnd}</TableCell>
                   <TableCell>{r.rangeEnd - r.rangeStart + 1}</TableCell>

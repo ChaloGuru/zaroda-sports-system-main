@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import type { ChampionshipSchoolRow } from "@/app/api/championship-schools/route";
+import { gameSchoolLevelLabel } from "@/lib/school-levels";
 
 /** Shared query key so every school picker (bib ranges, participants, teams, roles) refreshes together. */
 export const championshipSchoolsKey = (championshipId: string) => ["championship-schools", championshipId];
@@ -25,7 +26,17 @@ export function useChampionshipSchools(championshipId: string, enabled = true) {
   });
 }
 
-export function SchoolsPanel({ championshipId, championshipCounty }: { championshipId: string; championshipCounty: string }) {
+export function SchoolsPanel({
+  championshipId,
+  championshipCounty,
+  championshipSchoolLevel,
+}: {
+  championshipId: string;
+  championshipCounty: string;
+  /** Championship.schoolLevel - PRIMARY_JS splits every school into a Primary and a JS entry. */
+  championshipSchoolLevel: string;
+}) {
+  const splitsByLevel = championshipSchoolLevel === "PRIMARY_JS";
   const queryClient = useQueryClient();
   const { data, isLoading } = useChampionshipSchools(championshipId);
   const schools = data?.schools ?? [];
@@ -39,7 +50,7 @@ export function SchoolsPanel({ championshipId, championshipCounty }: { champions
 
   const addMutation = useMutation({
     mutationFn: (names: string[]) =>
-      apiPost<{ added: number; skipped: number }>("/api/championship-schools", {
+      apiPost<{ added: number; entries: number; skipped: number }>("/api/championship-schools", {
         championshipId,
         names,
         county: county.trim() || undefined,
@@ -47,7 +58,8 @@ export function SchoolsPanel({ championshipId, championshipCounty }: { champions
     onSuccess: (result) => {
       toast.success(
         `${result.added} school${result.added === 1 ? "" : "s"} added` +
-          (result.skipped > 0 ? ` (${result.skipped} already on the list)` : ""),
+          (splitsByLevel && result.entries > 0 ? ` (${result.entries} Primary/JS entries)` : "") +
+          (result.skipped > 0 ? ` - ${result.skipped} already on the list` : ""),
       );
       setNamesText("");
       refresh();
@@ -91,7 +103,7 @@ export function SchoolsPanel({ championshipId, championshipCounty }: { champions
 
   function confirmRemove(school: ChampionshipSchoolRow) {
     const extra = school.hasBibRange ? " Its bib range will be removed too." : "";
-    if (window.confirm(`Remove ${school.name} from this championship?${extra}`)) {
+    if (window.confirm(`Remove ${school.label} from this championship?${extra}`)) {
       removeMutation.mutate(school.id);
     }
   }
@@ -103,6 +115,13 @@ export function SchoolsPanel({ championshipId, championshipCounty }: { champions
         <CardDescription>
           The schools taking part in this championship. Only these schools can be picked for bib ranges, participants,
           teams and team managers.
+          {splitsByLevel && (
+            <>
+              {" "}
+              Each school is added as a Primary and a JS entry, since athletes enter per school level - each entry gets
+              its own bib range, and you can remove an entry the school doesn&apos;t need. Renaming a school renames both.
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -169,7 +188,10 @@ export function SchoolsPanel({ championshipId, championshipCounty }: { champions
                         </Button>
                       </form>
                     ) : (
-                      s.name
+                      <span className="flex items-center gap-2">
+                        {s.name}
+                        {s.schoolLevel && <Badge variant="outline">{gameSchoolLevelLabel(s.schoolLevel)}</Badge>}
+                      </span>
                     )}
                   </TableCell>
                   <TableCell>{s.county}</TableCell>
@@ -181,7 +203,7 @@ export function SchoolsPanel({ championshipId, championshipCounty }: { champions
                     <Button
                       size="icon"
                       variant="ghost"
-                      aria-label={`Rename ${s.name}`}
+                      aria-label={`Rename ${s.label}`}
                       onClick={() => {
                         setEditingId(s.id);
                         setEditName(s.name);
@@ -192,7 +214,7 @@ export function SchoolsPanel({ championshipId, championshipCounty }: { champions
                     <Button
                       size="icon"
                       variant="ghost"
-                      aria-label={`Remove ${s.name}`}
+                      aria-label={`Remove ${s.label}`}
                       disabled={s.participantCount > 0}
                       title={s.participantCount > 0 ? "Remove or move this school's participants first" : "Remove"}
                       onClick={() => confirmRemove(s)}

@@ -60,7 +60,11 @@ export function TeamsPanel({
   // (Schools tab); open tournaments register free-form organizations.
   const isSchoolLadder = !!level && level !== "OPEN_TOURNAMENT";
   const { data: schoolsData } = useChampionshipSchools(championshipId, isSchoolLadder && !restrictToOrganizationName);
-  const schools = schoolsData?.schools ?? [];
+  // A Primary/JS school's two entries share one name - a team is named
+  // after the school (its game already fixes the level), so list it once.
+  const schools = (schoolsData?.schools ?? []).filter(
+    (s, i, all) => all.findIndex((o) => o.name.toLowerCase() === s.name.toLowerCase()) === i,
+  );
   const [nameMode, setNameMode] = React.useState<"select" | "manual">("select");
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);

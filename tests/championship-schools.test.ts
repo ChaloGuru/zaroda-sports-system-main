@@ -59,8 +59,8 @@ describe("POST /api/championship-schools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireChampionshipAccessMock.mockResolvedValue({ userId: "admin-1" });
-    championshipFindUniqueOrThrow.mockResolvedValue({ county: "Kisumu", level: "ZONE" });
-    championshipSchoolFindMany.mockResolvedValue([{ school: { name: "Manyonge Primary" } }]);
+    championshipFindUniqueOrThrow.mockResolvedValue({ county: "Kisumu", level: "ZONE", schoolLevel: "SENIOR_SCHOOL" });
+    championshipSchoolFindMany.mockResolvedValue([{ school: { name: "Manyonge Primary", schoolLevel: null } }]);
   });
 
   it("requires tournament-admin access", async () => {
@@ -74,7 +74,7 @@ describe("POST /api/championship-schools", () => {
   it("adds new schools in the championship's county and skips names already listed or repeated", async () => {
     const res = await POST(post({ championshipId: CHAMP, names: ["Oruba Primary", "manyonge primary", " Oruba Primary ", "St. Mary's"] }));
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ added: 2, skipped: 2 });
+    expect(await res.json()).toEqual({ added: 2, entries: 2, skipped: 2 });
 
     const schools = txSchoolCreateMany.mock.calls[0]![0].data as Array<{ id: string; name: string; county: string }>;
     expect(schools.map((s) => [s.name, s.county])).toEqual([
@@ -92,8 +92,43 @@ describe("POST /api/championship-schools", () => {
     expect(txSchoolCreateMany).not.toHaveBeenCalled();
   });
 
+  it("splits each school into a Primary and a JS entry for a Primary/JS championship", async () => {
+    championshipFindUniqueOrThrow.mockResolvedValue({ county: "Kisumu", level: "ZONE", schoolLevel: "PRIMARY_JS" });
+    championshipSchoolFindMany.mockResolvedValue([]);
+    const res = await POST(post({ championshipId: CHAMP, names: ["Manyonge", "Oruba"] }));
+    expect(await res.json()).toEqual({ added: 2, entries: 4, skipped: 0 });
+    const schools = txSchoolCreateMany.mock.calls[0]![0].data as Array<{ name: string; schoolLevel: string | null }>;
+    expect(schools.map((s) => [s.name, s.schoolLevel])).toEqual([
+      ["Manyonge", "PRIMARY"],
+      ["Manyonge", "JS"],
+      ["Oruba", "PRIMARY"],
+      ["Oruba", "JS"],
+    ]);
+  });
+
+  it("only recreates the missing level when a split school is re-added", async () => {
+    championshipFindUniqueOrThrow.mockResolvedValue({ county: "Kisumu", level: "ZONE", schoolLevel: "PRIMARY_JS" });
+    // Manyonge's JS entry was removed earlier; Oruba is complete.
+    championshipSchoolFindMany.mockResolvedValue([
+      { school: { name: "Manyonge", schoolLevel: "PRIMARY" } },
+      { school: { name: "Oruba", schoolLevel: "PRIMARY" } },
+      { school: { name: "Oruba", schoolLevel: "JS" } },
+    ]);
+    const res = await POST(post({ championshipId: CHAMP, names: ["manyonge", "Oruba"] }));
+    expect(await res.json()).toEqual({ added: 1, entries: 1, skipped: 1 });
+    const schools = txSchoolCreateMany.mock.calls[0]![0].data as Array<{ name: string; schoolLevel: string | null }>;
+    expect(schools.map((s) => [s.name, s.schoolLevel])).toEqual([["manyonge", "JS"]]);
+  });
+
+  it("keeps a single entry per school for a Senior School championship", async () => {
+    championshipSchoolFindMany.mockResolvedValue([]);
+    await POST(post({ championshipId: CHAMP, names: ["Kisumu Boys"] }));
+    const schools = txSchoolCreateMany.mock.calls[0]![0].data as Array<{ schoolLevel: string | null }>;
+    expect(schools.map((s) => s.schoolLevel)).toEqual([null]);
+  });
+
   it("allows any county for a national championship", async () => {
-    championshipFindUniqueOrThrow.mockResolvedValue({ county: "Kisumu", level: "NATIONAL" });
+    championshipFindUniqueOrThrow.mockResolvedValue({ county: "Kisumu", level: "NATIONAL", schoolLevel: "SENIOR_SCHOOL" });
     const res = await POST(post({ championshipId: CHAMP, names: ["Alliance"], county: "Kiambu" }));
     expect(res.status).toBe(201);
   });

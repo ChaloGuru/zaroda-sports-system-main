@@ -28,28 +28,39 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (input.county && isGeographicallyRestricted(link.championship.level)) {
       assertWithinGeographicScope(link.championship.county, input.county);
     }
+    // In a Primary/JS championship a school is two entries (Primary + JS)
+    // sharing one name - rename/re-county them together so they stay paired.
+    const siblings = await prisma.championshipSchool.findMany({
+      where: {
+        championshipId: link.championshipId,
+        school: { name: { equals: link.school.name.trim(), mode: "insensitive" } },
+      },
+      select: { id: true, schoolId: true },
+    });
+    const siblingSchoolIds = siblings.map((s) => s.schoolId);
+
     if (input.name && input.name.toLowerCase() !== link.school.name.trim().toLowerCase()) {
       const clash = await prisma.championshipSchool.findFirst({
         where: {
           championshipId: link.championshipId,
-          id: { not: link.id },
+          id: { notIn: siblings.map((s) => s.id) },
           school: { name: { equals: input.name, mode: "insensitive" } },
         },
       });
       if (clash) return NextResponse.json({ error: "Another school on this list already has that name" }, { status: 409 });
     }
 
-    const school = await withAudit({
+    const updated = await withAudit({
       actorId: ctx.userId,
       operation: "UPDATE",
       tableName: "schools",
       oldData: link.school,
-      mutate: (tx) => tx.school.update({ where: { id: link.schoolId }, data: input }),
+      mutate: (tx) => tx.school.updateMany({ where: { id: { in: siblingSchoolIds } }, data: input }),
       recordId: () => link.schoolId,
-      newData: input,
+      newData: { ...input, schoolIds: siblingSchoolIds },
     });
 
-    return NextResponse.json({ school });
+    return NextResponse.json({ updated: updated.count });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });
