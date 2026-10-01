@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PanelErrorBoundary } from "@/components/error-boundary";
 import { GamesPanel } from "@/components/dashboard/games-panel";
+import { SchoolsPanel } from "@/components/dashboard/schools-panel";
 import { ParticipantsPanel } from "@/components/dashboard/participants-panel";
 import { TeamsPanel } from "@/components/dashboard/teams-panel";
 import { RegisteredTeamsPanel } from "@/components/dashboard/registered-teams-panel";
@@ -33,6 +34,7 @@ export function ChampionshipManager({
   category,
   schoolLevel,
   level,
+  county,
   isPublished,
   restrictToOrganizationName,
   isSuperAdmin,
@@ -43,6 +45,8 @@ export function ChampionshipManager({
   schoolLevel: string;
   /** Championship.level, e.g. "OPEN_TOURNAMENT" - gates the Registered Teams tab and payout-account banner below. */
   level: string;
+  /** Championship.county - the default county for schools added in the Schools tab. */
+  county: string;
   isPublished: boolean;
   /** Set when the viewer is a Team Manager - shows only their own organization's teams, nothing else. */
   restrictToOrganizationName?: string | null;
@@ -151,6 +155,7 @@ export function ChampionshipManager({
       <Tabs defaultValue="games">
         <TabsList className="flex-wrap">
           <TabsTrigger value="games">Games</TabsTrigger>
+          {!isOpenTournament && <TabsTrigger value="schools">Schools</TabsTrigger>}
           {showsParticipants && <TabsTrigger value="participants">Participants</TabsTrigger>}
           {showsTeams && <TabsTrigger value="teams">Teams</TabsTrigger>}
           {isOpenTournament && <TabsTrigger value="registered-teams">Registered Teams</TabsTrigger>}
@@ -166,6 +171,13 @@ export function ChampionshipManager({
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
+        {!isOpenTournament && (
+          <TabsContent value="schools">
+            <PanelErrorBoundary fallbackTitle="Schools panel failed to load">
+              <SchoolsPanel championshipId={championshipId} championshipCounty={county} />
+            </PanelErrorBoundary>
+          </TabsContent>
+        )}
         <TabsContent value="games">
           <PanelErrorBoundary fallbackTitle="Games panel failed to load">
             <GamesPanel

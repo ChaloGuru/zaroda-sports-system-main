@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { bibRangeSchema } from "@/lib/validations";
+import { requireChampionshipSchool } from "@/lib/championship-schools";
 import { validateBibRangeNoOverlap } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     const body: unknown = await request.json();
     const input = bibRangeSchema.parse(body);
     const ctx = await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN"]);
+    await requireChampionshipSchool(input.championshipId, input.schoolId);
 
     const otherRanges = await prisma.schoolBibRange.findMany({
       where: { championshipId: input.championshipId, schoolId: { not: input.schoolId } },

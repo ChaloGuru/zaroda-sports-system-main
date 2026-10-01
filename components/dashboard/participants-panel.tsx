@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { participantCreateSchema, type ParticipantCreateInput } from "@/lib/validations";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { useCanManageGame } from "@/hooks/use-game-access";
+import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
 import type { Role } from "@prisma/client";
 
 // Only the school-ladder registration path (no tournamentTeamId) goes
@@ -172,15 +173,10 @@ export function ParticipantsPanel({
     queryKey: ["games", championshipId],
     queryFn: () => apiGet<{ games: GameOption[] }>(`/api/games?championshipId=${championshipId}`),
   });
-  // School-ladder championships: only schools actually participating in THIS
-  // championship (i.e. allocated a bib range here) should be selectable -
-  // not the entire nationwide school directory.
-  const { data: bibRangesData } = useQuery({
-    queryKey: ["bib-ranges", championshipId],
-    queryFn: () => apiGet<{ ranges: Array<{ schoolId: string; school: { name: string } }> }>(`/api/bib-ranges?championshipId=${championshipId}`),
-    enabled: !isOpenTournament,
-  });
-  const schools: SchoolOption[] = (bibRangesData?.ranges ?? []).map((r) => ({ id: r.schoolId, name: r.school.name }));
+  // School-ladder championships: only this championship's own schools (added
+  // by its admin in the Schools tab) are selectable.
+  const { data: schoolsData } = useChampionshipSchools(championshipId, !isOpenTournament);
+  const schools: SchoolOption[] = (schoolsData?.schools ?? []).map((s) => ({ id: s.schoolId, name: s.name }));
   // Open tournaments: participants belong to a registered organization/team
   // instead of a School.
   const { data: teamsData } = useQuery({
@@ -330,7 +326,7 @@ export function ParticipantsPanel({
                       </SelectContent>
                     </Select>
                     {schools.length === 0 && (
-                      <p className="mt-1 text-xs text-muted">No participating schools yet - allocate a bib range in the Bib Ranges tab first.</p>
+                      <p className="mt-1 text-xs text-muted">No schools yet - add this championship&apos;s schools in the Schools tab first.</p>
                     )}
                   </div>
                 )}

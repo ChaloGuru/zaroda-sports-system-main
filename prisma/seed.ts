@@ -62,29 +62,9 @@ async function seedSuperAdmin() {
   }
 }
 
-async function seedSampleSchools() {
-  const count = await prisma.school.count();
-  if (count > 0) {
-    console.log("Schools already seeded, skipping.");
-    return;
-  }
-
-  await prisma.school.createMany({
-    data: [
-      { name: "Starehe Boys Centre", zone: "Starehe", subcounty: "Starehe", county: "Nairobi", region: "Nairobi Region" },
-      { name: "Alliance High School", zone: "Kikuyu", subcounty: "Kikuyu", county: "Kiambu", region: "Central Region" },
-      { name: "Kisumu Girls High School", zone: "Kisumu Central", subcounty: "Kisumu Central", county: "Kisumu", region: "Nyanza Region" },
-      { name: "Mombasa Secondary School", zone: "Mvita", subcounty: "Mvita", county: "Mombasa", region: "Coast Region" },
-      { name: "Nakuru High School", zone: "Nakuru Town East", subcounty: "Nakuru Town East", county: "Nakuru", region: "Rift Valley Region" },
-    ],
-  });
-  console.log("Seeded sample schools.");
-}
-
 async function main() {
   await seedSubscriptionPlans();
   await seedSuperAdmin();
-  await seedSampleSchools();
 }
 
 main()

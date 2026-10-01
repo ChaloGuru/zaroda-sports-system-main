@@ -12,11 +12,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
 import { addPdfLogoHeader, addPdfFooter, addPdfTitle } from "@/lib/pdf-logo";
-
-interface SchoolOption {
-  id: string;
-  name: string;
-}
+import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
 
 interface RangeRow {
   id: string;
@@ -32,10 +28,8 @@ export function BibRangesPanel({ championshipId, championshipName }: { champions
   const [rangeStart, setRangeStart] = React.useState("");
   const [rangeEnd, setRangeEnd] = React.useState("");
 
-  const { data: schoolsData } = useQuery({
-    queryKey: ["schools"],
-    queryFn: () => apiGet<{ schools: SchoolOption[] }>("/api/schools"),
-  });
+  // Only this championship's own schools (added in the Schools tab).
+  const { data: schoolsData } = useChampionshipSchools(championshipId);
   const { data: rangesData, isLoading } = useQuery({
     queryKey: ["bib-ranges", championshipId],
     queryFn: () => apiGet<{ ranges: RangeRow[] }>(`/api/bib-ranges?championshipId=${championshipId}`),
@@ -111,10 +105,13 @@ export function BibRangesPanel({ championshipId, championshipName }: { champions
               <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select school" /></SelectTrigger>
               <SelectContent>
                 {(schoolsData?.schools ?? []).map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  <SelectItem key={s.schoolId} value={s.schoolId}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {schoolsData && schoolsData.schools.length === 0 && (
+              <p className="mt-1 text-xs text-muted">No schools yet - add this championship&apos;s schools in the Schools tab first.</p>
+            )}
           </div>
           <div>
             <Label>Start</Label>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
+import { ensureChampionshipSchool } from "@/lib/championship-schools";
 import {
   requireChampionshipAccess,
   isGeographicallyRestricted,
@@ -138,8 +139,11 @@ export async function POST(request: Request) {
         actorId: ctx.userId,
         operation: "INSERT",
         tableName: "participants",
-        mutate: (tx) =>
-          tx.participant.create({
+        mutate: async (tx) => {
+          // The athlete's school joins the next championship's school list
+          // with them, so it's selectable there (bib ranges, participants).
+          if (origin.schoolId) await ensureChampionshipSchool(input.targetChampionshipId, origin.schoolId, tx);
+          return tx.participant.create({
             data: {
               championshipId: input.targetChampionshipId,
               gameId: targetGame.id,
@@ -152,7 +156,8 @@ export async function POST(request: Request) {
               personalBest,
               promotedFromParticipantId: origin.id,
             },
-          }),
+          });
+        },
         recordId: (result) => result.id,
         newData: { promotedFromParticipantId: origin.id, targetChampionshipId: input.targetChampionshipId },
       });

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
+import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
 
 interface ChampionshipOption {
   id: string;
@@ -247,7 +248,7 @@ function EditRoleDialog({
                 <>
                   <Select value={form.organizationName} onValueChange={(v) => setForm({ ...form, organizationName: v })}>
                     <SelectTrigger>
-                      <SelectValue placeholder={teams.length === 0 ? "No teams registered yet" : "Select a registered team"} />
+                      <SelectValue placeholder={teams.length === 0 ? "No schools or teams yet" : "Select a school or team"} />
                     </SelectTrigger>
                     <SelectContent>
                       {teams.map((t) => (
@@ -262,7 +263,7 @@ function EditRoleDialog({
                     className="text-xs text-primary underline"
                     onClick={() => setOrganizationNameMode("manual")}
                   >
-                    Team not registered yet - type the name manually
+                    Not listed - type the name manually
                   </button>
                 </>
               ) : (
@@ -277,7 +278,7 @@ function EditRoleDialog({
                     className="text-xs text-primary underline"
                     onClick={() => setOrganizationNameMode("select")}
                   >
-                    Choose from registered teams instead
+                    Choose from this championship&apos;s schools and teams
                   </button>
                 </>
               )}
@@ -397,7 +398,21 @@ export function RoleManager() {
     // gating on the create form's current role.
     enabled: !!championshipId,
   });
-  const teams = teamsData?.teams ?? [];
+  // A Team Manager is scoped by organization name: offer the championship's
+  // own schools plus any registered team names, once each (an organization
+  // has one team row per game it enters).
+  const { data: schoolsData } = useChampionshipSchools(championshipId);
+  const teams: TeamOption[] = React.useMemo(() => {
+    const seen = new Set<string>();
+    const options: TeamOption[] = [];
+    for (const name of [...(schoolsData?.schools ?? []).map((s) => s.name), ...(teamsData?.teams ?? []).map((t) => t.name)]) {
+      const key = name.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      options.push({ id: name, name });
+    }
+    return options.sort((a, b) => a.name.localeCompare(b.name));
+  }, [schoolsData, teamsData]);
   const [organizationNameMode, setOrganizationNameMode] = React.useState<"select" | "manual">("select");
 
   React.useEffect(() => {
@@ -580,7 +595,7 @@ export function RoleManager() {
                     onValueChange={(v) => setForm({ ...form, organizationName: v })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={teams.length === 0 ? "No teams registered yet" : "Select a registered team"} />
+                      <SelectValue placeholder={teams.length === 0 ? "No schools or teams yet" : "Select a school or team"} />
                     </SelectTrigger>
                     <SelectContent>
                       {teams.map((t) => (
@@ -598,7 +613,7 @@ export function RoleManager() {
                       setForm({ ...form, organizationName: "" });
                     }}
                   >
-                    Team not registered yet - type the name manually
+                    Not listed - type the name manually
                   </button>
                 </>
               ) : (
@@ -616,7 +631,7 @@ export function RoleManager() {
                       setForm({ ...form, organizationName: "" });
                     }}
                   >
-                    Choose from registered teams instead
+                    Choose from this championship&apos;s schools and teams
                   </button>
                 </>
               )}

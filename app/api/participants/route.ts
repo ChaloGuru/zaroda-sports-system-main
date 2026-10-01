@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { getAuthContext, canViewChampionshipPrivateData, requireGameAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { participantCreateSchema } from "@/lib/validations";
+import { requireChampionshipSchool } from "@/lib/championship-schools";
 import { assignNextBibNumber, parseTimeToSeconds } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -79,14 +80,16 @@ export async function POST(request: Request) {
       ctx = await requireGameAccess(input.gameId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
     }
 
+    let schoolName: string | null = null;
     if (input.schoolId) {
+      const school = await requireChampionshipSchool(input.championshipId, input.schoolId);
+      schoolName = school.name;
       const championship = await prisma.championship.findUnique({
         where: { id: input.championshipId },
         select: { level: true, county: true },
       });
       if (championship && isGeographicallyRestricted(championship.level)) {
-        const school = await prisma.school.findUnique({ where: { id: input.schoolId }, select: { county: true } });
-        assertWithinGeographicScope(championship.county, school?.county);
+        assertWithinGeographicScope(championship.county, school.county);
       }
     }
 
@@ -95,6 +98,9 @@ export async function POST(request: Request) {
       const range = await prisma.schoolBibRange.findUnique({
         where: { championshipId_schoolId: { championshipId: input.championshipId, schoolId: input.schoolId } },
       });
+      if (!range) {
+        throw new Error(`${schoolName} has no bib range yet - allocate one in the Bib Ranges tab, or enter a bib number.`);
+      }
       const existing = await prisma.participant.findMany({
         where: { championshipId: input.championshipId, schoolId: input.schoolId },
         select: { bibNumber: true },

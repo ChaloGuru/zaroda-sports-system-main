@@ -32,6 +32,7 @@ export default async function DashboardChampionshipDetailPage(props: { params: P
       category={championship.category}
       schoolLevel={championship.schoolLevel}
       level={championship.level}
+      county={championship.county}
       isPublished={championship.isPublished}
       restrictToOrganizationName={teamManagerRole?.organizationName ?? null}
       isSuperAdmin={isSuperAdmin(ctx)}

@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { TeamRosterDialog } from "@/components/dashboard/team-roster-dialog";
 import { dashboardTournamentTeamSchema, COUNTY_REQUIRED_LEVELS, type TournamentTeamInput } from "@/lib/validations";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
+import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
 
 interface GameOption {
   id: string;
@@ -55,6 +56,12 @@ export function TeamsPanel({
   restrictToOrganizationName?: string | null;
 }) {
   const countyRequired = !level || COUNTY_REQUIRED_LEVELS.includes(level);
+  // School-ladder championships pick team names from their own school list
+  // (Schools tab); open tournaments register free-form organizations.
+  const isSchoolLadder = !!level && level !== "OPEN_TOURNAMENT";
+  const { data: schoolsData } = useChampionshipSchools(championshipId, isSchoolLadder && !restrictToOrganizationName);
+  const schools = schoolsData?.schools ?? [];
+  const [nameMode, setNameMode] = React.useState<"select" | "manual">("select");
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -108,12 +115,15 @@ export function TeamsPanel({
 
   function openCreate() {
     setEditingId(null);
+    setNameMode("select");
     reset(emptyDefaults(championshipId, restrictToOrganizationName));
     setOpen(true);
   }
 
   function openEdit(team: TeamRow) {
     setEditingId(team.id);
+    // Older teams may predate the school list - edit those by hand.
+    setNameMode(schools.some((s) => s.name === team.name) ? "select" : "manual");
     reset({
       championshipId,
       gameId: team.gameId ?? "",
@@ -215,6 +225,17 @@ export function TeamsPanel({
                       value={bulkText}
                       onChange={(e) => setBulkText(e.target.value)}
                     />
+                    {isSchoolLadder && schools.length > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-2"
+                        onClick={() => setBulkText(schools.map((s) => s.name).join("\n"))}
+                      >
+                        Use all {schools.length} championship school{schools.length === 1 ? "" : "s"}
+                      </Button>
+                    )}
                     <p className="mt-1.5 text-xs text-muted">
                       Creates a team for each organization in every one of this championship&apos;s {games.length} game
                       {games.length === 1 ? "" : "s"}. Already-existing organization/game combinations are skipped.
@@ -240,8 +261,40 @@ export function TeamsPanel({
               </DialogHeader>
               <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
               <div>
-                <Label htmlFor="team-name">Name</Label>
-                <Input id="team-name" className="mt-1.5" disabled={!!restrictToOrganizationName} {...register("name")} />
+                <Label htmlFor="team-name">{isSchoolLadder && !restrictToOrganizationName ? "School" : "Name"}</Label>
+                {isSchoolLadder && !restrictToOrganizationName && nameMode === "select" ? (
+                  <>
+                    <Select
+                      value={watch("name") ?? ""}
+                      onValueChange={(v) => {
+                        setValue("name", v, { shouldValidate: true });
+                        const school = schools.find((s) => s.name === v);
+                        if (school) setValue("county", school.county);
+                      }}
+                    >
+                      <SelectTrigger id="team-name" className="mt-1.5">
+                        <SelectValue placeholder={schools.length === 0 ? "No schools yet - add them in the Schools tab" : "Select a school"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {schools.map((s) => (
+                          <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <button type="button" className="mt-1 text-xs text-primary underline" onClick={() => setNameMode("manual")}>
+                      Type a different name
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Input id="team-name" className="mt-1.5" disabled={!!restrictToOrganizationName} {...register("name")} />
+                    {isSchoolLadder && !restrictToOrganizationName && (
+                      <button type="button" className="mt-1 text-xs text-primary underline" onClick={() => setNameMode("select")}>
+                        Choose from this championship&apos;s schools
+                      </button>
+                    )}
+                  </>
+                )}
                 {errors.name && <p className="mt-1 text-sm text-red-400">{errors.name.message}</p>}
                 {restrictToOrganizationName && (
                   <p className="mt-1 text-xs text-muted">Team managers register under their assigned organization name only.</p>

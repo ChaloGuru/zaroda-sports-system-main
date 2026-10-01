@@ -255,6 +255,7 @@ model Championship {
   participants    Participant[]
   tournamentTeams TournamentTeam[]
   bibRanges       SchoolBibRange[]
+  schools         ChampionshipSchool[]
   subscriptions   ChampionshipSubscription[]
   fees            ChampionshipFee[]
   teamFeePayments TeamFeePayment[]
@@ -275,10 +276,30 @@ model School {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  participants Participant[]
-  bibRanges    SchoolBibRange[]
+  participants  Participant[]
+  bibRanges     SchoolBibRange[]
+  championships ChampionshipSchool[]
 
   @@map("schools")
+}
+
+// The schools taking part in one championship - added by its admin, and the
+// only schools offered anywhere a school is picked for that championship
+// (bib ranges, participants, teams, team-manager roles). A School row can be
+// linked to several championships, e.g. when athletes are promoted from a
+// lower-level championship to the next one.
+model ChampionshipSchool {
+  id             String   @id @default(uuid())
+  championshipId String
+  schoolId       String
+  createdAt      DateTime @default(now())
+
+  championship Championship @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([championshipId, schoolId])
+  @@index([schoolId])
+  @@map("championship_schools")
 }
 
 // A group-stage pool within a game (e.g. "Pool A"). Teams assigned to a pool

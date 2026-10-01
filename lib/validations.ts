@@ -124,6 +124,22 @@ export const gameUpdateSchema = gameCreateSchema
   .partial()
   .extend({ isActive: z.boolean().optional() });
 
+const schoolNameSchema = z.string().trim().min(2, "School names need at least 2 characters").max(200);
+
+/** Adds one or more schools (one name per entry) to a championship's school list. */
+export const championshipSchoolsAddSchema = z.object({
+  championshipId: z.string().uuid(),
+  names: z.array(schoolNameSchema).min(1, "Add at least one school").max(500),
+  /** Defaults to the championship's own county when omitted. */
+  county: z.string().trim().max(100).optional(),
+});
+export type ChampionshipSchoolsAddInput = z.infer<typeof championshipSchoolsAddSchema>;
+
+export const championshipSchoolUpdateSchema = z.object({
+  name: schoolNameSchema.optional(),
+  county: z.string().trim().min(1).max(100).optional(),
+});
+
 export const gameBulkActionSchema = z.object({
   championshipId: z.string().uuid(),
   gameIds: z.array(z.string().uuid()).min(1).max(500),
