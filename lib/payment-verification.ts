@@ -1,6 +1,19 @@
-import type { Prisma } from "@prisma/client";
+import type { Gender, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { verifyPaystackTransaction, computeSubscriptionExpiry } from "./paystack";
+
+/**
+ * Registration details for a publicly self-registered team, stored on its
+ * TeamFeePayment until payment is confirmed and the team row is created.
+ */
+export interface PendingTeam {
+  name: string;
+  teamCode: string;
+  gender: Gender;
+  contactName: string | null;
+  contactEmail: string;
+  contactPhone: string | null;
+}
 
 export interface VerifyResult {
   success: boolean;
@@ -105,12 +118,38 @@ export async function verifyAndRecordPayment(reference: string): Promise<VerifyR
     const payment = await prisma.teamFeePayment.findFirst({ where: { paystackReference: reference } });
     if (!payment) return { success: false, mode, message: "Payment record not found" };
 
-    if (payment.status !== "PAID") {
-      await prisma.teamFeePayment.update({
-        where: { id: payment.id },
+    await prisma.$transaction(async (tx) => {
+      // Conditional update claims the payment: if the webhook and the
+      // browser-redirect verify race, only one of them sees count === 1, so
+      // a self-registered team is never created twice.
+      const claimed = await tx.teamFeePayment.updateMany({
+        where: { id: payment.id, status: { not: "PAID" } },
         data: { status: "PAID", paidAt: new Date() },
       });
-    }
+      if (claimed.count === 0 || payment.teamId || !payment.pendingTeam) return;
+
+      const pending = payment.pendingTeam as unknown as PendingTeam;
+      // The code was free when checkout started, but another team may have
+      // taken it while this one was paying - register without it rather
+      // than fail a payment that has already gone through.
+      const codeTaken = await tx.tournamentTeam.findFirst({
+        where: { championshipId: payment.championshipId, teamCode: pending.teamCode },
+        select: { id: true },
+      });
+      const team = await tx.tournamentTeam.create({
+        data: {
+          championshipId: payment.championshipId,
+          name: pending.name,
+          teamCode: codeTaken ? null : pending.teamCode,
+          gender: pending.gender,
+          contactName: pending.contactName,
+          contactEmail: pending.contactEmail,
+          contactPhone: pending.contactPhone,
+          notes: codeTaken ? `Requested team code "${pending.teamCode}" was taken before payment completed.` : null,
+        },
+      });
+      await tx.teamFeePayment.update({ where: { id: payment.id }, data: { teamId: team.id } });
+    });
     return { success: true, mode, message: "Team fee payment verified" };
   }
 

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isSuperAdmin, hasRole, toErrorResponse, AuthorizationError } from "@/lib/authorize";
 import { paymentInitializeSchema } from "@/lib/validations";
 import { initializePaystackTransaction, kesToKobo, generatePaymentReference } from "@/lib/paystack";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import type { PendingTeam } from "@/lib/payment-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -95,10 +97,14 @@ export async function POST(request: Request) {
       subaccountCode = tenant.paystackSubaccountCode;
     }
 
-    let team;
+    if (!input.contactEmail) throw new Error("contactEmail is required for team_fee mode");
+
+    let teamId: string | null = null;
+    let pendingTeam: PendingTeam | null = null;
     if (input.teamId) {
-      team = await prisma.tournamentTeam.findUnique({ where: { id: input.teamId } });
+      const team = await prisma.tournamentTeam.findUnique({ where: { id: input.teamId } });
       if (!team || team.championshipId !== fee.championshipId) throw new Error("Team not found");
+      teamId = team.id;
     } else {
       // Anonymous team self-registration only exists for open tournaments
       // (the public /register page) - school-ladder teams are added by staff.
@@ -108,25 +114,37 @@ export async function POST(request: Request) {
       if (!input.teamName || !input.teamCode) {
         throw new Error("teamName and teamCode are required to register a new team");
       }
-      team = await prisma.tournamentTeam.create({
-        data: {
+      const clash = await prisma.tournamentTeam.findFirst({
+        where: {
           championshipId: fee.championshipId,
-          name: input.teamName,
-          teamCode: input.teamCode,
-          gender: input.teamGender ?? "MIXED",
-          contactName: input.contactName ?? null,
-          contactEmail: input.contactEmail ?? null,
-          contactPhone: input.contactPhone ?? null,
+          OR: [{ teamCode: input.teamCode }, { gameId: null, name: { equals: input.teamName.trim(), mode: "insensitive" } }],
         },
+        select: { teamCode: true },
       });
+      if (clash) {
+        throw new Error(
+          clash.teamCode === input.teamCode
+            ? "That team code is already used in this championship"
+            : "A team with this name is already registered in this championship",
+        );
+      }
+      // The team itself is only created once Paystack confirms payment (see
+      // lib/payment-verification.ts) - abandoned checkouts leave no team behind.
+      pendingTeam = {
+        name: input.teamName,
+        teamCode: input.teamCode,
+        gender: input.teamGender ?? "MIXED",
+        contactName: input.contactName ?? null,
+        contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone ?? null,
+      };
     }
-
-    if (!input.contactEmail) throw new Error("contactEmail is required for team_fee mode");
 
     const reference = generatePaymentReference("fee");
     await prisma.teamFeePayment.create({
       data: {
-        teamId: team.id,
+        teamId,
+        pendingTeam: pendingTeam ? (pendingTeam as unknown as Prisma.InputJsonObject) : undefined,
         feeId: fee.id,
         championshipId: fee.championshipId,
         amountKes: fee.amountKes,
@@ -139,7 +157,7 @@ export async function POST(request: Request) {
       email: input.contactEmail,
       amountKobo: kesToKobo(fee.amountKes),
       reference,
-      metadata: { mode: "team_fee", teamId: team.id, feeId: fee.id, championshipId: fee.championshipId },
+      metadata: { mode: "team_fee", teamId: teamId ?? undefined, feeId: fee.id, championshipId: fee.championshipId },
       callbackUrl,
       subaccount: subaccountCode,
     });

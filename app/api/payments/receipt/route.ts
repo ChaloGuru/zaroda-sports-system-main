@@ -57,7 +57,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       status: teamFeePayment.status,
       amountKes: teamFeePayment.amountKes,
       paidAt: (teamFeePayment.paidAt ?? teamFeePayment.updatedAt).toISOString(),
-      payerName: teamFeePayment.team.name,
+      payerName: teamFeePayment.team?.name ?? (teamFeePayment.pendingTeam as { name?: string } | null)?.name ?? "Team",
       description: teamFeePayment.fee.name,
     };
     return NextResponse.json(data);

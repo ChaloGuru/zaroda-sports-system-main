@@ -3,39 +3,70 @@ import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
 
 const userFindUnique = vi.fn();
-const userUpdate = vi.fn();
+
+// Minimal in-memory stand-in for the login_attempts table, so the real
+// counting/window logic in lib/auth.ts is exercised.
+interface AttemptRow {
+  email: string;
+  ip: string;
+  succeeded: boolean;
+  createdAt: Date;
+}
+let attempts: AttemptRow[] = [];
+type AttemptWhere = Partial<{ email: string; ip: string; succeeded: boolean; createdAt: { gt?: Date; lt?: Date } }>;
+function matches(row: AttemptRow, where: AttemptWhere): boolean {
+  if (where.email !== undefined && row.email !== where.email) return false;
+  if (where.ip !== undefined && row.ip !== where.ip) return false;
+  if (where.succeeded !== undefined && row.succeeded !== where.succeeded) return false;
+  if (where.createdAt?.gt && !(row.createdAt > where.createdAt.gt)) return false;
+  if (where.createdAt?.lt && !(row.createdAt < where.createdAt.lt)) return false;
+  return true;
+}
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    user: {
-      findUnique: (...args: unknown[]) => userFindUnique(...args),
-      update: (...args: unknown[]) => userUpdate(...args),
+    user: { findUnique: (...args: unknown[]) => userFindUnique(...args) },
+    loginAttempt: {
+      count: async ({ where }: { where: AttemptWhere }) => attempts.filter((r) => matches(r, where)).length,
+      create: async ({ data }: { data: Omit<AttemptRow, "createdAt"> }) => {
+        attempts.push({ ...data, createdAt: new Date() });
+      },
+      deleteMany: async ({ where }: { where: AttemptWhere }) => {
+        attempts = attempts.filter((r) => !matches(r, where));
+      },
     },
   },
 }));
 
 const { authOptions } = await import("@/lib/auth");
 
+const EMAIL = "user@example.com";
 const PASSWORD = "Correct-horse1";
 const PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 
 type AuthorizeFn = (credentials: Record<string, string>, req: { headers: Record<string, string> }) => Promise<unknown>;
 const provider = authOptions.providers[0] as unknown as { options: { authorize: AuthorizeFn } };
-let ipCounter = 0;
-function authorize(password: string) {
-  // Fresh IP per call so the in-memory per-IP limiter never interferes with account-lockout tests.
-  ipCounter++;
-  return provider.options.authorize({ email: "user@example.com", password }, { headers: { "x-forwarded-for": `10.0.0.${ipCounter}` } });
+
+// Unique IP prefix per test so the separate in-memory per-IP limiter (which
+// persists across tests in this module) never interferes.
+let testRun = 0;
+let prefix = "";
+function ipOf(n: number) {
+  return `${prefix}.${n}`;
+}
+function authorize(password: string, ip: string) {
+  return provider.options.authorize({ email: EMAIL, password }, { headers: { "x-forwarded-for": ip } });
+}
+function seedFailures(ip: string, count: number) {
+  for (let i = 0; i < count; i++) attempts.push({ email: EMAIL, ip, succeeded: false, createdAt: new Date() });
 }
 
 function dbUser(overrides: Record<string, unknown> = {}) {
   return {
     id: "user-1",
-    email: "user@example.com",
+    email: EMAIL,
     name: "User",
     passwordHash: PASSWORD_HASH,
-    failedLoginAttempts: 0,
-    lockedUntil: null,
     tenant: { id: "tenant-1" },
     roles: [{ role: "TENANT_OWNER", championshipId: null, organizationName: null, gameCategory: null, ballSport: null, athleticsType: null }],
     ...overrides,
@@ -44,52 +75,58 @@ function dbUser(overrides: Record<string, unknown> = {}) {
 
 const jwt = authOptions.callbacks!.jwt! as (args: { token: JWT; user?: unknown }) => Promise<JWT>;
 
-describe("credentials sign-in lockout", () => {
-  beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  attempts = [];
+  testRun++;
+  prefix = `10.${testRun}.0`;
+  userFindUnique.mockResolvedValue(dbUser());
+});
 
-  it("returns null for an unknown email without touching any user row", async () => {
+describe("credentials sign-in brute-force protection", () => {
+  it("records failed attempts for unknown emails too, so limits don't reveal which emails exist", async () => {
     userFindUnique.mockResolvedValue(null);
-    await expect(authorize(PASSWORD)).resolves.toBeNull();
-    expect(userUpdate).not.toHaveBeenCalled();
+    await expect(authorize(PASSWORD, ipOf(1))).resolves.toBeNull();
+    expect(attempts).toEqual([expect.objectContaining({ email: EMAIL, ip: ipOf(1), succeeded: false })]);
   });
 
-  it("counts a failed attempt", async () => {
-    userFindUnique.mockResolvedValue(dbUser());
-    userUpdate.mockResolvedValue({ failedLoginAttempts: 1 });
-    await expect(authorize("wrong-password1")).resolves.toBeNull();
-    expect(userUpdate).toHaveBeenCalledTimes(1);
-    expect(userUpdate.mock.calls[0]![0].data).toEqual({ failedLoginAttempts: { increment: 1 } });
+  it("blocks a network after 10 failures for that account, even with the right password", async () => {
+    seedFailures(ipOf(1), 10);
+    await expect(authorize(PASSWORD, ipOf(1))).rejects.toThrow(/your network/i);
   });
 
-  it("locks the account on the 10th consecutive failure", async () => {
-    userFindUnique.mockResolvedValue(dbUser({ failedLoginAttempts: 9 }));
-    userUpdate.mockResolvedValue({ failedLoginAttempts: 10 });
-    await authorize("wrong-password1");
-    const lockCall = userUpdate.mock.calls[1]![0];
-    expect(lockCall.data.failedLoginAttempts).toBe(0);
-    expect(lockCall.data.lockedUntil.getTime()).toBeGreaterThan(Date.now());
+  it("does not lock the real user out of their own network when an attacker guesses from another", async () => {
+    seedFailures(ipOf(66), 10);
+    const user = (await authorize(PASSWORD, ipOf(1))) as { id: string };
+    expect(user.id).toBe("user-1");
   });
 
-  it("rejects even the correct password while locked", async () => {
-    userFindUnique.mockResolvedValue(dbUser({ lockedUntil: new Date(Date.now() + 60_000) }));
-    await expect(authorize(PASSWORD)).rejects.toThrow(/locked/i);
+  it("blocks unfamiliar networks once failures across many networks pass the account-wide ceiling", async () => {
+    for (let n = 100; n < 120; n++) seedFailures(ipOf(n), 5); // 100 failures spread over 20 IPs
+    await expect(authorize(PASSWORD, ipOf(1))).rejects.toThrow(/network you've used before/i);
   });
 
-  it("signs in and clears the failure counter on success", async () => {
-    userFindUnique.mockResolvedValue(dbUser({ failedLoginAttempts: 3 }));
-    const user = (await authorize(PASSWORD)) as { id: string; passwordFingerprint: string };
+  it("still admits a network the account recently signed in from, even past the account-wide ceiling", async () => {
+    attempts.push({ email: EMAIL, ip: ipOf(1), succeeded: true, createdAt: new Date() });
+    for (let n = 100; n < 120; n++) seedFailures(ipOf(n), 5);
+    const user = (await authorize(PASSWORD, ipOf(1))) as { id: string };
+    expect(user.id).toBe("user-1");
+  });
+
+  it("signs in and clears that network's failures on success", async () => {
+    seedFailures(ipOf(1), 3);
+    seedFailures(ipOf(2), 3);
+    const user = (await authorize(PASSWORD, ipOf(1))) as { id: string; passwordFingerprint: string };
     expect(user.id).toBe("user-1");
     expect(user.passwordFingerprint).toHaveLength(16);
-    expect(userUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { failedLoginAttempts: 0, lockedUntil: null } }));
+    expect(attempts.filter((r) => r.ip === ipOf(1) && !r.succeeded)).toHaveLength(0);
+    expect(attempts.filter((r) => r.ip === ipOf(2) && !r.succeeded)).toHaveLength(3);
   });
 });
 
 describe("session refresh and revocation", () => {
-  beforeEach(() => vi.clearAllMocks());
-
   async function signedInToken(): Promise<JWT> {
-    userFindUnique.mockResolvedValue(dbUser());
-    const user = await authorize(PASSWORD);
+    const user = await authorize(PASSWORD, ipOf(1));
     return jwt({ token: {} as JWT, user });
   }
 

@@ -146,10 +146,6 @@ model User {
   passwordHash String
   name         String
   phone        String?
-  // Brute-force protection: consecutive failed sign-ins, and when the
-  // resulting temporary lockout ends (see lib/auth.ts).
-  failedLoginAttempts Int       @default(0)
-  lockedUntil         DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -605,7 +601,11 @@ model ChampionshipCircular {
 
 model TeamFeePayment {
   id                String            @id @default(uuid())
-  teamId            String
+  // Null while a public self-registration's payment is still PENDING - the
+  // team row is only created from pendingTeam once Paystack confirms payment
+  // (see lib/payment-verification.ts), so abandoned checkouts leave no team.
+  teamId            String?
+  pendingTeam       Json?
   feeId             String
   championshipId    String
   amountKes         Int
@@ -616,7 +616,7 @@ model TeamFeePayment {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  team         TournamentTeam  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team         TournamentTeam? @relation(fields: [teamId], references: [id], onDelete: Cascade)
   fee          ChampionshipFee @relation(fields: [feeId], references: [id], onDelete: Cascade)
   championship Championship    @relation(fields: [championshipId], references: [id], onDelete: Cascade)
 
@@ -698,4 +698,23 @@ model AuditLog {
   @@index([tableName, recordId])
   @@index([changedBy])
   @@map("audit_logs")
+}
+
+// One row per credentials sign-in attempt, keyed by the normalized email
+// (whether or not an account exists) and client IP. Drives brute-force
+// protection in lib/auth.ts: failures are limited per email+IP, so an
+// attacker can't lock a user out of their own network, with a much higher
+// account-wide ceiling that still admits networks the account has
+// successfully signed in from before. Rows older than 30 days are pruned.
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  email     String
+  ip        String
+  succeeded Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([email, ip, createdAt])
+  @@index([createdAt])
+  @@map("login_attempts")
 }

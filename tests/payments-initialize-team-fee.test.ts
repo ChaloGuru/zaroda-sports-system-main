@@ -5,6 +5,7 @@ const championshipFeeFindUnique = vi.fn();
 const tenantFindUnique = vi.fn();
 const tournamentTeamFindUnique = vi.fn();
 const tournamentTeamCreate = vi.fn();
+const tournamentTeamFindFirst = vi.fn();
 const teamFeePaymentCreate = vi.fn();
 
 vi.mock("@/lib/paystack", () => ({
@@ -20,6 +21,7 @@ vi.mock("@/lib/prisma", () => ({
     tournamentTeam: {
       findUnique: (...args: unknown[]) => tournamentTeamFindUnique(...args),
       create: (...args: unknown[]) => tournamentTeamCreate(...args),
+      findFirst: (...args: unknown[]) => tournamentTeamFindFirst(...args),
     },
     teamFeePayment: { create: (...args: unknown[]) => teamFeePaymentCreate(...args) },
   },
@@ -151,6 +153,49 @@ describe("POST /api/payments/initialize (team_fee mode)", () => {
 
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(teamFeePaymentCreate).not.toHaveBeenCalled();
+  });
+
+  it("defers creating a self-registered open-tournament team until payment is confirmed", async () => {
+    championshipFeeFindUnique.mockResolvedValue({
+      id: "fee-1",
+      championshipId: "champ-1",
+      amountKes: 1000,
+      championship: { level: "OPEN_TOURNAMENT", tenantId: "tenant-1", isPublished: true },
+    });
+    tenantFindUnique.mockResolvedValue({ subaccountStatus: "ACTIVE", paystackSubaccountCode: "ACCT_123" });
+    tournamentTeamFindFirst.mockResolvedValue(null);
+
+    const { teamId: _teamId, ...body } = TEAM_FEE_BODY;
+    const res = await POST(req({ ...body, teamName: "Thunder FC", teamCode: "THU" }));
+
+    expect(res.status).toBe(200);
+    expect(tournamentTeamCreate).not.toHaveBeenCalled();
+    expect(teamFeePaymentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        teamId: null,
+        pendingTeam: expect.objectContaining({ name: "Thunder FC", teamCode: "THU", contactEmail: "manager@example.com" }),
+      }),
+    });
+  });
+
+  it("rejects a self-registration whose team code is already taken", async () => {
+    championshipFeeFindUnique.mockResolvedValue({
+      id: "fee-1",
+      championshipId: "champ-1",
+      amountKes: 1000,
+      championship: { level: "OPEN_TOURNAMENT", tenantId: "tenant-1", isPublished: true },
+    });
+    tenantFindUnique.mockResolvedValue({ subaccountStatus: "ACTIVE", paystackSubaccountCode: "ACCT_123" });
+    tournamentTeamFindFirst.mockResolvedValue({ teamCode: "THU" });
+
+    const { teamId: _teamId, ...body } = TEAM_FEE_BODY;
+    const res = await POST(req({ ...body, teamName: "Thunder FC", teamCode: "THU" }));
+    const json = await res.json();
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(json.error).toMatch(/team code/i);
+    expect(teamFeePaymentCreate).not.toHaveBeenCalled();
+    expect(initializePaystackTransactionMock).not.toHaveBeenCalled();
   });
 
   it("does not let anonymous callers create new teams in school-ladder championships", async () => {

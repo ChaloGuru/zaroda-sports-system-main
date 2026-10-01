@@ -84,8 +84,8 @@ export async function GET(request: Request) {
     );
     const payments = allPayments.filter(
       (p) =>
-        (!schoolLevelFilter || p.team.game?.schoolLevel === schoolLevelFilter) &&
-        (!genderFilter || p.team.gender === genderFilter),
+        (!schoolLevelFilter || p.team?.game?.schoolLevel === schoolLevelFilter) &&
+        (!genderFilter || p.team?.gender === genderFilter),
     );
     const matchPools = allMatchPools.filter((mp) => gameIds.has(mp.gameId));
     const heats = allHeats.filter((h) => gameIds.has(h.gameId));

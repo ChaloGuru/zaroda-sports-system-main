@@ -18,12 +18,18 @@ const championshipSubscriptionFindFirst = vi.fn();
 const championshipSubscriptionUpdate = vi.fn();
 const championshipSubscriptionCreate = vi.fn();
 const auditLogCreate = vi.fn();
+const txTeamFeePaymentUpdateMany = vi.fn();
+const txTeamFeePaymentUpdate = vi.fn();
+const txTournamentTeamFindFirst = vi.fn();
+const txTournamentTeamCreate = vi.fn();
 
 const txClient = {
   paymentTransaction: { update: paymentTransactionUpdate },
   subscriptionPlan: { findUniqueOrThrow: subscriptionPlanFindUniqueOrThrow },
   championshipSubscription: { findFirst: championshipSubscriptionFindFirst, update: championshipSubscriptionUpdate, create: championshipSubscriptionCreate },
   auditLog: { create: auditLogCreate },
+  teamFeePayment: { updateMany: txTeamFeePaymentUpdateMany, update: txTeamFeePaymentUpdate },
+  tournamentTeam: { findFirst: txTournamentTeamFindFirst, create: txTournamentTeamCreate },
 };
 
 vi.mock("@/lib/prisma", () => ({
@@ -153,18 +159,92 @@ describe("verifyAndRecordPayment", () => {
     expect(paymentTransactionUpdate).not.toHaveBeenCalled();
   });
 
-  it("marks a team fee payment PAID on success", async () => {
+  it("marks a team fee payment for an existing team PAID without creating a team", async () => {
     verifyPaystackTransactionMock.mockResolvedValue(
       paystackResponse({ metadata: { mode: "team_fee", teamId: "team-1", feeId: "fee-1" } }),
     );
-    teamFeePaymentFindFirst.mockResolvedValue({ id: "payment-1", status: "PENDING" });
+    teamFeePaymentFindFirst.mockResolvedValue({ id: "payment-1", status: "PENDING", teamId: "team-1", pendingTeam: null });
+    txTeamFeePaymentUpdateMany.mockResolvedValue({ count: 1 });
 
     const result = await verifyAndRecordPayment("ref3");
 
     expect(result.success).toBe(true);
-    expect(teamFeePaymentUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "payment-1" }, data: expect.objectContaining({ status: "PAID" }) }),
+    expect(txTeamFeePaymentUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "payment-1", status: { not: "PAID" } },
+        data: expect.objectContaining({ status: "PAID" }),
+      }),
     );
+    expect(txTournamentTeamCreate).not.toHaveBeenCalled();
+  });
+
+  const PENDING_TEAM = {
+    name: "Thunder FC",
+    teamCode: "THU",
+    gender: "MIXED",
+    contactName: "Coach",
+    contactEmail: "coach@example.com",
+    contactPhone: null,
+  };
+
+  it("creates a self-registered team only once its payment is confirmed", async () => {
+    verifyPaystackTransactionMock.mockResolvedValue(paystackResponse({ metadata: { mode: "team_fee", feeId: "fee-1" } }));
+    teamFeePaymentFindFirst.mockResolvedValue({
+      id: "payment-1",
+      status: "PENDING",
+      teamId: null,
+      championshipId: "champ-1",
+      pendingTeam: PENDING_TEAM,
+    });
+    txTeamFeePaymentUpdateMany.mockResolvedValue({ count: 1 });
+    txTournamentTeamFindFirst.mockResolvedValue(null);
+    txTournamentTeamCreate.mockResolvedValue({ id: "new-team" });
+
+    const result = await verifyAndRecordPayment("ref4");
+
+    expect(result.success).toBe(true);
+    expect(txTournamentTeamCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ championshipId: "champ-1", name: "Thunder FC", teamCode: "THU", notes: null }),
+    });
+    expect(txTeamFeePaymentUpdate).toHaveBeenCalledWith({ where: { id: "payment-1" }, data: { teamId: "new-team" } });
+  });
+
+  it("does not create a second team when the webhook and redirect verify race", async () => {
+    verifyPaystackTransactionMock.mockResolvedValue(paystackResponse({ metadata: { mode: "team_fee", feeId: "fee-1" } }));
+    teamFeePaymentFindFirst.mockResolvedValue({
+      id: "payment-1",
+      status: "PENDING",
+      teamId: null,
+      championshipId: "champ-1",
+      pendingTeam: PENDING_TEAM,
+    });
+    // The other request already claimed (marked PAID) this payment.
+    txTeamFeePaymentUpdateMany.mockResolvedValue({ count: 0 });
+
+    const result = await verifyAndRecordPayment("ref4");
+
+    expect(result.success).toBe(true);
+    expect(txTournamentTeamCreate).not.toHaveBeenCalled();
+  });
+
+  it("still registers the team, without its code, if the code was taken during checkout", async () => {
+    verifyPaystackTransactionMock.mockResolvedValue(paystackResponse({ metadata: { mode: "team_fee", feeId: "fee-1" } }));
+    teamFeePaymentFindFirst.mockResolvedValue({
+      id: "payment-1",
+      status: "PENDING",
+      teamId: null,
+      championshipId: "champ-1",
+      pendingTeam: PENDING_TEAM,
+    });
+    txTeamFeePaymentUpdateMany.mockResolvedValue({ count: 1 });
+    txTournamentTeamFindFirst.mockResolvedValue({ id: "someone-else" });
+    txTournamentTeamCreate.mockResolvedValue({ id: "new-team" });
+
+    await verifyAndRecordPayment("ref4");
+
+    expect(txTournamentTeamCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ teamCode: null, notes: expect.stringContaining("THU") }),
+    });
   });
 
   it("reports failure when metadata.mode is missing or unrecognized", async () => {

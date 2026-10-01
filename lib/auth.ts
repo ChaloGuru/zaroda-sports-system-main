@@ -50,9 +50,18 @@ declare module "next-auth/jwt" {
   }
 }
 
-/** Consecutive failed sign-ins on one account before it is temporarily locked. */
-const MAX_FAILED_LOGINS = 10;
-const LOCKOUT_MS = 15 * 60_000;
+/**
+ * Brute-force protection (see LoginAttempt in prisma/schema.prisma). Failures
+ * are limited per email+IP, so guessing from one network only blocks that
+ * network - never the real user signing in from their own. The account-wide
+ * ceiling only catches attacks spread across many networks, and even then
+ * networks this account has successfully signed in from recently still work.
+ */
+const MAX_FAILURES_PER_IP = 10;
+const PER_IP_WINDOW_MS = 15 * 60_000;
+const MAX_FAILURES_PER_ACCOUNT = 100;
+const PER_ACCOUNT_WINDOW_MS = 60 * 60_000;
+const TRUSTED_NETWORK_MS = 30 * 24 * 60 * 60_000;
 /** Per-IP cap on sign-in attempts, across all accounts (password spraying). */
 const IP_LOGIN_LIMIT = 30;
 const IP_LOGIN_WINDOW_MS = 15 * 60_000;
@@ -90,6 +99,43 @@ function clientIpFromHeaders(headers: Record<string, unknown> | undefined): stri
   return typeof realIp === "string" && realIp ? realIp : "unknown";
 }
 
+/** Throws a user-facing error if this email+IP is currently blocked from signing in. */
+async function assertLoginAllowed(email: string, ip: string): Promise<void> {
+  const now = Date.now();
+  const ipFailures = await prisma.loginAttempt.count({
+    where: { email, ip, succeeded: false, createdAt: { gt: new Date(now - PER_IP_WINDOW_MS) } },
+  });
+  if (ipFailures >= MAX_FAILURES_PER_IP) {
+    throw new Error("Too many failed sign-ins for this account from your network. Please try again in 15 minutes.");
+  }
+
+  const accountFailures = await prisma.loginAttempt.count({
+    where: { email, succeeded: false, createdAt: { gt: new Date(now - PER_ACCOUNT_WINDOW_MS) } },
+  });
+  if (accountFailures >= MAX_FAILURES_PER_ACCOUNT) {
+    const trustedNetwork = await prisma.loginAttempt.count({
+      where: { email, ip, succeeded: true, createdAt: { gt: new Date(now - TRUSTED_NETWORK_MS) } },
+    });
+    if (trustedNetwork === 0) {
+      throw new Error(
+        "This account is temporarily protected after many failed sign-ins. Please try again later, or sign in from a network you've used before.",
+      );
+    }
+  }
+}
+
+async function recordLoginAttempt(email: string, ip: string, succeeded: boolean): Promise<void> {
+  await prisma.loginAttempt.create({ data: { email, ip, succeeded } });
+  if (succeeded) {
+    // A successful sign-in clears this network's failure count for the account.
+    await prisma.loginAttempt.deleteMany({ where: { email, ip, succeeded: false } });
+  }
+  // Occasional pruning keeps the table bounded without a separate cron job.
+  if (Math.random() < 0.02) {
+    await prisma.loginAttempt.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - TRUSTED_NETWORK_MS) } } });
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
@@ -108,39 +154,19 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Too many sign-in attempts. Please wait a few minutes and try again.");
         }
 
+        // Tracked by email whether or not an account exists, so the limits
+        // and messages never reveal which emails are registered.
+        const email = credentials.email.toLowerCase().trim();
+        await assertLoginAllowed(email, ip);
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase().trim() },
+          where: { email },
           include: { roles: true, tenant: true },
         });
-        if (!user) {
-          await bcrypt.compare(credentials.password, DUMMY_PASSWORD_HASH);
-          return null;
-        }
+        const isValid = await bcrypt.compare(credentials.password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
 
-        if (user.lockedUntil && user.lockedUntil > new Date()) {
-          throw new Error("This account is temporarily locked after too many failed sign-ins. Please try again in 15 minutes.");
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!isValid) {
-          // Atomic increment so concurrent guesses can't slip past the limit.
-          const { failedLoginAttempts } = await prisma.user.update({
-            where: { id: user.id },
-            data: { failedLoginAttempts: { increment: 1 } },
-            select: { failedLoginAttempts: true },
-          });
-          if (failedLoginAttempts >= MAX_FAILED_LOGINS) {
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { failedLoginAttempts: 0, lockedUntil: new Date(Date.now() + LOCKOUT_MS) },
-            });
-          }
-          return null;
-        }
-
-        if (user.failedLoginAttempts > 0 || user.lockedUntil) {
-          await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null } });
-        }
+        await recordLoginAttempt(email, ip, !!user && isValid);
+        if (!user || !isValid) return null;
 
         return {
           id: user.id,
