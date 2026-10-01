@@ -83,6 +83,22 @@ export const CHAMPIONSHIP_OPERATIONAL_ROLES: Role[] = [
   "TEAM_MANAGER",
 ];
 
+/**
+ * True if the caller may see a championship's private data (participant
+ * dates of birth/notes, team contact details) rather than just the public
+ * results view: SUPER_ADMIN, the owning TENANT_OWNER, or anyone holding an
+ * operational role scoped to this championship.
+ */
+export function canViewChampionshipPrivateData(
+  ctx: AuthContext | null,
+  championship: { id: string; tenantId: string },
+): boolean {
+  if (!ctx) return false;
+  if (isSuperAdmin(ctx)) return true;
+  if (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === championship.tenantId) return true;
+  return ctx.roles.some((r) => r.championshipId === championship.id && CHAMPIONSHIP_OPERATIONAL_ROLES.includes(r.role));
+}
+
 /** Championship-scoped roles expire once the event ends, with a one-day grace period. */
 async function isChampionshipRoleActive(championshipId: string): Promise<boolean> {
   const championship = await prisma.championship.findUnique({

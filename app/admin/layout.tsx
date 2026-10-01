@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { AppShell, type NavItem } from "@/components/app-shell";
+import { requireRole } from "@/lib/authorize";
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/admin", label: "Overview", icon: "LayoutDashboard" },
@@ -13,7 +15,14 @@ const NAV_ITEMS: NavItem[] = [
   { href: "https://zarodasolutions.app/", label: "Zaroda School", icon: "ExternalLink", external: true, accent: true },
 ];
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  // Defense in depth - never rely on middleware.ts alone to gate /admin.
+  try {
+    await requireRole(["SUPER_ADMIN"]);
+  } catch {
+    redirect("/dashboard");
+  }
+
   return (
     <AppShell navItems={NAV_ITEMS} title="Zaroda Admin">
       {children}

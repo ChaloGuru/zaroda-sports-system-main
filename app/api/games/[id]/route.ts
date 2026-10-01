@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, isSuperAdmin, hasRole, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, canViewChampionshipPrivateData, isSuperAdmin, hasRole, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { gameCreateSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -34,13 +34,17 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     const game = await loadGame(params.id);
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
 
+    const ctx = await getAuthContext();
     if (!game.championship.isPublished) {
-      const ctx = await getAuthContext();
       const owns = ctx && (isSuperAdmin(ctx) || (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === game.championship.tenantId));
       if (!owns) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ game });
+    if (canViewChampionshipPrivateData(ctx, game.championship)) return NextResponse.json({ game });
+    // Public view: no participant dates of birth or internal notes.
+    return NextResponse.json({
+      game: { ...game, participants: game.participants.map(({ dateOfBirth: _dob, notes: _notes, ...rest }) => rest) },
+    });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

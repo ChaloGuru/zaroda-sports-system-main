@@ -16,7 +16,9 @@ export async function POST(request: Request) {
   try {
     const body: unknown = await request.json();
     const input = roleAssignmentSchema.parse(body);
-    const ctx = await requireChampionshipAccess(input.championshipId);
+    // Only admins of the championship (not scorekeepers/officials) may hand
+    // out roles - otherwise any official could promote themselves.
+    const ctx = await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN"]);
 
     let userId = input.userId ?? null;
 
@@ -27,8 +29,21 @@ export async function POST(request: Request) {
         userId = existingUser.id;
         // Let the admin fill in/correct the official's name and phone even
         // when reusing an existing account - only touches fields actually
-        // provided on this assignment.
-        if (input.name || input.phone) {
+        // provided on this assignment, and only for accounts that are purely
+        // officials within this same tenant's championships (never a tenant
+        // owner, super admin, or another tenant's official).
+        const championship = await prisma.championship.findUniqueOrThrow({
+          where: { id: input.championshipId },
+          select: { tenantId: true },
+        });
+        const rolesOutsideTenant = await prisma.userRole.count({
+          where: {
+            userId: existingUser.id,
+            OR: [{ championshipId: null }, { championship: { tenantId: { not: championship.tenantId } } }],
+          },
+        });
+        const ownsATenant = await prisma.tenant.count({ where: { userId: existingUser.id } });
+        if ((input.name || input.phone) && rolesOutsideTenant === 0 && ownsATenant === 0) {
           await prisma.user.update({
             where: { id: existingUser.id },
             data: { ...(input.name ? { name: input.name } : {}), ...(input.phone ? { phone: input.phone } : {}) },
@@ -63,7 +78,8 @@ export async function POST(request: Request) {
           },
         }),
       recordId: (result) => result.id,
-      newData: input,
+      // Never persist password material in the audit trail.
+      newData: { ...input, password: undefined },
     });
 
     return NextResponse.json({ role }, { status: 201 });
@@ -79,7 +95,7 @@ export async function GET(request: Request) {
     const championshipId = searchParams.get("championshipId");
     if (!championshipId) return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
 
-    await requireChampionshipAccess(championshipId);
+    await requireChampionshipAccess(championshipId, ["TOURNAMENT_ADMIN"]);
 
     const roles = await prisma.userRole.findMany({
       where: { championshipId },

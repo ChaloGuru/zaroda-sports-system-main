@@ -12,7 +12,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const existing = await prisma.userRole.findUnique({ where: { id: params.id } });
     if (!existing || !existing.championshipId) return NextResponse.json({ error: "Role assignment not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(existing.championshipId);
+    const ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN"]);
     const body: unknown = await request.json();
     const input = roleUpdateSchema.parse(body);
 
@@ -48,7 +48,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     const existing = await prisma.userRole.findUnique({ where: { id: params.id } });
     if (!existing || !existing.championshipId) return NextResponse.json({ error: "Role assignment not found" }, { status: 404 });
 
-    const ctx = await requireChampionshipAccess(existing.championshipId);
+    const ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN"]);
 
     await withAudit({
       actorId: ctx.userId,

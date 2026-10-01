@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireGameAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, canViewChampionshipPrivateData, requireGameAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { participantCreateSchema } from "@/lib/validations";
 import { assignNextBibNumber, parseTimeToSeconds } from "@/lib/scoring";
 
@@ -17,17 +17,43 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "gameId, championshipId, or tournamentTeamId is required" }, { status: 400 });
     }
 
+    // Resolve which championship this query targets so we can decide between
+    // the public results view and the full staff view.
+    let targetChampionshipId = championshipId;
+    if (!targetChampionshipId && gameId) {
+      targetChampionshipId = (await prisma.game.findUnique({ where: { id: gameId }, select: { championshipId: true } }))?.championshipId ?? null;
+    }
+    if (!targetChampionshipId && tournamentTeamId) {
+      targetChampionshipId =
+        (await prisma.tournamentTeam.findUnique({ where: { id: tournamentTeamId }, select: { championshipId: true } }))?.championshipId ?? null;
+    }
+    const championship = targetChampionshipId
+      ? await prisma.championship.findUnique({
+          where: { id: targetChampionshipId },
+          select: { id: true, tenantId: true, isPublished: true },
+        })
+      : null;
+    if (!championship) return NextResponse.json({ participants: [] });
+
+    const isStaff = canViewChampionshipPrivateData(await getAuthContext(), championship);
+    if (!isStaff && !championship.isPublished) return NextResponse.json({ participants: [] });
+
     const participants = await prisma.participant.findMany({
       where: {
+        // Pinned to the resolved championship so mixed filters can't reach another one.
+        championshipId: championship.id,
         ...(gameId ? { gameId } : {}),
-        ...(championshipId ? { championshipId } : {}),
         ...(tournamentTeamId ? { tournamentTeamId } : {}),
       },
       orderBy: { bibNumber: "asc" },
       include: { school: { select: { name: true } }, tournamentTeam: { select: { name: true } } },
     });
 
-    return NextResponse.json({ participants });
+    // Public callers (mostly viewing school pupils' results) never get
+    // dates of birth or internal notes.
+    return NextResponse.json({
+      participants: isStaff ? participants : participants.map(({ dateOfBirth: _dob, notes: _notes, ...rest }) => rest),
+    });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

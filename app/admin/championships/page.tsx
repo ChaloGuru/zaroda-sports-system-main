@@ -1,15 +1,23 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/authorize";
 import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 import { DownloadReceiptButton } from "@/components/payments/download-receipt-button";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminChampionshipsPage() {
+  try {
+    await requireRole(["SUPER_ADMIN"]);
+  } catch {
+    redirect("/dashboard");
+  }
+
   const championships = await prisma.championship.findMany({
     orderBy: { createdAt: "desc" },
     include: {

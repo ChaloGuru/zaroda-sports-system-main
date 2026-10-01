@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, canViewChampionshipPrivateData, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { tournamentTeamSchema, dashboardTournamentTeamSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -13,11 +13,25 @@ export async function GET(request: Request) {
     const gameId = searchParams.get("gameId");
     if (!championshipId) return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
 
+    const championship = await prisma.championship.findUnique({
+      where: { id: championshipId },
+      select: { id: true, tenantId: true, isPublished: true },
+    });
+    if (!championship) return NextResponse.json({ teams: [] });
+
+    const isStaff = canViewChampionshipPrivateData(await getAuthContext(), championship);
+    if (!isStaff && !championship.isPublished) return NextResponse.json({ teams: [] });
+
     const where: Record<string, unknown> = { championshipId };
     if (gameId) where.gameId = gameId;
 
     const teams = await prisma.tournamentTeam.findMany({ where, orderBy: { name: "asc" } });
-    return NextResponse.json({ teams });
+    // Contact details and internal notes are staff-only.
+    return NextResponse.json({
+      teams: isStaff
+        ? teams
+        : teams.map(({ contactName: _n, contactEmail: _e, contactPhone: _p, notes: _notes, ...rest }) => rest),
+    });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });
