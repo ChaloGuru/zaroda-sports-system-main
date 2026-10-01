@@ -74,7 +74,7 @@ function heatLabel(heat: HeatRow): string {
  * Call room's second job for timed events with heats (sprints etc, unlike a
  * straight final like a 5000m): group checked-in athletes into a heat with
  * lanes auto-seeded by personal best, then - once the Chief Track Judge has
- * scored that heat on the Track Results tab - review its ranked results and
+ * scored that heat on the Results tab - review its ranked results and
  * decide who actually advances into the next round/final. Qualification is
  * a call-room decision, not an automatic cutoff, even though the backend
  * pre-computes a suggested top-N by finishing position as a starting point.
@@ -156,7 +156,7 @@ function HeatsSection({ gameId, candidates, canManage }: { gameId: string; candi
         <CardDescription>
           For races run in heats (e.g. sprints) - group checked-in athletes into a heat here; lanes are seeded
           automatically by personal best. Skip this for events run straight to a final (e.g. long-distance races) -
-          just check athletes in above and let the Chief Track Judge score them directly on Track Results.
+          just check athletes in above and let the Chief Track Judge score them directly on the Results tab.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -199,7 +199,7 @@ function HeatsSection({ gameId, candidates, canManage }: { gameId: string; candi
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-medium text-foreground">{heatLabel(heat)}</p>
               {heat.heatType !== "final" && !heat.participants.some((hp) => hp.timeTaken !== null || hp.position !== null) && (
-                <span className="text-xs text-muted">Waiting on Track Results</span>
+                <span className="text-xs text-muted">Waiting on results</span>
               )}
             </div>
             <div className="space-y-1">
@@ -261,7 +261,7 @@ function HeatsSection({ gameId, candidates, canManage }: { gameId: string; candi
 /**
  * Call room is eligibility only - confirm the athlete is present/eligible
  * and push them to the track, or scratch them. Race results (time/score/
- * position) are entered by the Chief Track Judge on the Track Results tab
+ * position) are entered by the Chief Track Judge on the Results tab
  * once the race has actually run, not here.
  */
 function ParticipantRowEditor({ participant, gameId, canManage }: { participant: ParticipantRow; gameId: string; canManage: boolean }) {

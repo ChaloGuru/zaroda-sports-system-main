@@ -423,6 +423,10 @@ model Participant {
   timeTaken                 Decimal?          @db.Decimal(10, 3)
   position                  Int?
   score                     Decimal?          @db.Decimal(10, 3)
+  // Field events (jumps/throws) only - each attempt in order: a mark in
+  // metres ("5.32"), a foul ("X") or a pass ("-"). `score` holds the best
+  // valid mark, derived from these (see lib/field-events.ts).
+  fieldAttempts             String[]          @default([])
   isQualified               Boolean           @default(false)
   status                    ParticipantStatus @default(REGISTERED)
   notes                     String?

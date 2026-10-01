@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { LaneChip } from "@/components/ui/lane-chip";
 import { apiGet, apiPatch } from "@/lib/api-client";
 import { useCanManageGame } from "@/hooks/use-game-access";
+import { isFieldEvent } from "@/lib/field-events";
 import type { Role } from "@prisma/client";
 
 const TRACK_RESULTS_ROLES: Role[] = ["TOURNAMENT_ADMIN", "SCOREKEEPER", "OFFICIAL", "CHIEF_CALLROOM_MANAGER", "CHIEF_TRACK_JUDGE", "CHIEF_FIELD_JUDGE", "CHIEF_RECORDER"];
@@ -202,7 +203,20 @@ function ResultRowEditor({ participant, gameId, isTimed, canManage }: { particip
   );
 }
 
-export function TrackResultsPanel({ championshipId }: { championshipId: string }) {
+/**
+ * "track": timed races, for the Chief Track Judge. "scored": events marked by
+ * a single points score rather than a time or a measured mark (Gymnastics,
+ * Kids Athletics, Music). Field events have their own sheet - FieldResultsPanel.
+ */
+export type TrackResultsMode = "track" | "scored";
+
+export function isTrackResultsGame(game: GameOption, mode: TrackResultsMode): boolean {
+  if (mode === "track") return game.category === "ATHLETICS" && game.isTimed;
+  const usesParticipants = game.category === "ATHLETICS" || game.category === "MUSIC";
+  return usesParticipants && !game.isTimed && !isFieldEvent(game);
+}
+
+export function TrackResultsPanel({ championshipId, mode = "track" }: { championshipId: string; mode?: TrackResultsMode }) {
   const [gameId, setGameId] = React.useState("");
   const [search, setSearch] = React.useState("");
 
@@ -229,7 +243,8 @@ export function TrackResultsPanel({ championshipId }: { championshipId: string }
   const filtered = onTrack.filter(
     (p) => !search || p.bibNumber.toString().includes(search) || `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()),
   );
-  const selectedGame = (gamesData?.games ?? []).find((g) => g.id === gameId);
+  const modeGames = (gamesData?.games ?? []).filter((g) => isTrackResultsGame(g, mode));
+  const selectedGame = modeGames.find((g) => g.id === gameId);
   const notYetPushed = (participantsData?.participants ?? []).length - onTrack.length - (participantsData?.participants ?? []).filter((p) => p.status === "DISQUALIFIED").length;
   const canManage = useCanManageGame(championshipId, TRACK_RESULTS_ROLES, selectedGame);
 
@@ -237,18 +252,20 @@ export function TrackResultsPanel({ championshipId }: { championshipId: string }
     <Card>
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <CardTitle>Track Results</CardTitle>
+          <CardTitle>{mode === "track" ? "Track Results" : "Scored Events"}</CardTitle>
           <CardDescription>
-            Chief Track Judge: enter the race/event result for whichever heat or final the Call Room has pushed to the track.
+            {mode === "track"
+              ? "Chief Track Judge: enter the race result for whichever heat or final the Call Room has pushed to the track."
+              : "Enter the points score and placing for events judged on points (e.g. Gymnastics, Kids Athletics, Music)."}
           </CardDescription>
         </div>
         <div className="flex flex-1 flex-wrap items-center gap-3 sm:justify-end">
           <Select value={gameId} onValueChange={setGameId}>
             <SelectTrigger className="h-11 w-64">
-              <SelectValue placeholder="Select a game" />
+              <SelectValue placeholder={mode === "track" ? "Select a race" : "Select an event"} />
             </SelectTrigger>
             <SelectContent>
-              {(gamesData?.games ?? []).map((g) => (
+              {modeGames.map((g) => (
                 <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
               ))}
             </SelectContent>
@@ -282,7 +299,7 @@ export function TrackResultsPanel({ championshipId }: { championshipId: string }
               qualifies for the next round/final.
             </p>
             {heats.map((heat) => (
-              <HeatResultsForm key={heat.id} heat={heat} gameId={gameId} isTimed={selectedGame?.isTimed ?? true} canManage={canManage} />
+              <HeatResultsForm key={heat.id} heat={heat} gameId={gameId} isTimed={mode === "track"} canManage={canManage} />
             ))}
           </>
         )}
@@ -297,7 +314,7 @@ export function TrackResultsPanel({ championshipId }: { championshipId: string }
               <p className="text-sm text-muted">{notYetPushed} more athlete{notYetPushed === 1 ? "" : "s"} still waiting in the call room.</p>
             )}
             {filtered.map((p) => (
-              <ResultRowEditor key={p.id} participant={p} gameId={gameId} isTimed={selectedGame?.isTimed ?? true} canManage={canManage} />
+              <ResultRowEditor key={p.id} participant={p} gameId={gameId} isTimed={mode === "track"} canManage={canManage} />
             ))}
           </>
         )}

@@ -8,6 +8,7 @@ import { LaneChip } from "@/components/ui/lane-chip";
 import { GameResultsActions } from "@/components/championship/game-results-actions";
 import { prisma } from "@/lib/prisma";
 import { formatSecondsToTime, SPORT_CONFIGS } from "@/lib/scoring";
+import { isFieldEvent, isVerticalJump } from "@/lib/field-events";
 import { formatDate } from "@/lib/utils";
 import { resolveTeamNames } from "@/lib/match-pool-teams";
 import { computeSingleGameStandings } from "@/lib/team-standings";
@@ -236,7 +237,11 @@ export default async function GameDetailPage(props: { params: Promise<{ gameId: 
             <CardTitle>Results</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResultsTable participants={game.participants} isTimed={false} />
+            <ResultsTable
+              participants={game.participants}
+              isTimed={false}
+              field={isFieldEvent(game) ? { showAttempts: !isVerticalJump(game.name) } : undefined}
+            />
           </CardContent>
         </Card>
       )}
@@ -253,11 +258,21 @@ interface ParticipantRow {
   position: number | null;
   timeTaken: unknown;
   score: unknown;
+  fieldAttempts: string[];
   school: { name: string } | null;
   tournamentTeam: { name: string } | null;
 }
 
-function ResultsTable({ participants, isTimed }: { participants: ParticipantRow[]; isTimed: boolean }) {
+/** `field` is set for jumps/throws: the result is a mark in metres, optionally with the attempt series. */
+function ResultsTable({
+  participants,
+  isTimed,
+  field,
+}: {
+  participants: ParticipantRow[];
+  isTimed: boolean;
+  field?: { showAttempts: boolean };
+}) {
   return (
     <Table>
       <TableHeader>
@@ -267,7 +282,8 @@ function ResultsTable({ participants, isTimed }: { participants: ParticipantRow[
           <TableHead>Participant</TableHead>
           <TableHead>Gender</TableHead>
           <TableHead>Institution</TableHead>
-          <TableHead>{isTimed ? "Time" : "Score"}</TableHead>
+          <TableHead>{isTimed ? "Time" : field ? "Mark (m)" : "Score"}</TableHead>
+          {field?.showAttempts && <TableHead>Attempts</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -283,13 +299,26 @@ function ResultsTable({ participants, isTimed }: { participants: ParticipantRow[
             <TableCell><GenderBadge gender={p.gender} /></TableCell>
             <TableCell>{p.school?.name ?? p.tournamentTeam?.name ?? "-"}</TableCell>
             <TableCell className="font-mono tabular-nums">
-              {isTimed ? (p.timeTaken ? formatSecondsToTime(Number(p.timeTaken)) : "-") : p.score ? Number(p.score) : "-"}
+              {isTimed
+                ? p.timeTaken
+                  ? formatSecondsToTime(Number(p.timeTaken))
+                  : "-"
+                : p.score
+                  ? field
+                    ? Number(p.score).toFixed(2)
+                    : Number(p.score)
+                  : "-"}
             </TableCell>
+            {field?.showAttempts && (
+              <TableCell className="whitespace-nowrap font-mono text-xs tabular-nums text-muted">
+                {p.fieldAttempts.length > 0 ? p.fieldAttempts.join("  ") : "-"}
+              </TableCell>
+            )}
           </TableRow>
         ))}
         {participants.length === 0 && (
           <TableRow>
-            <TableCell colSpan={6} className="text-center text-muted">
+            <TableCell colSpan={field?.showAttempts ? 7 : 6} className="text-center text-muted">
               No results recorded yet.
             </TableCell>
           </TableRow>

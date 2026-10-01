@@ -17,7 +17,7 @@ import { RegisteredTeamsPanel } from "@/components/dashboard/registered-teams-pa
 import { FeesPanel } from "@/components/dashboard/fees-panel";
 import { FixturesPanel } from "@/components/dashboard/fixtures-panel";
 import { CallRoomPanel } from "@/components/dashboard/call-room-panel";
-import { TrackResultsPanel } from "@/components/dashboard/track-results-panel";
+import { ResultsPanel } from "@/components/dashboard/results-panel";
 import { PromotionsPanel } from "@/components/dashboard/promotions-panel";
 import { BibRangesPanel } from "@/components/dashboard/bib-ranges-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
@@ -162,7 +162,7 @@ export function ChampionshipManager({
           {isOpenTournament && <TabsTrigger value="fees">Fees &amp; Registration</TabsTrigger>}
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="call-room">Call Room</TabsTrigger>
-          {showsParticipants && <TabsTrigger value="track-results">Track Results</TabsTrigger>}
+          <TabsTrigger value="results">Results</TabsTrigger>
           {category === "ATHLETICS" && <TabsTrigger value="promotions">Promotions</TabsTrigger>}
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
@@ -233,13 +233,11 @@ export function ChampionshipManager({
           </PanelErrorBoundary>
         </TabsContent>
 
-        {showsParticipants && (
-          <TabsContent value="track-results">
-            <PanelErrorBoundary fallbackTitle="Track results panel failed to load">
-              <TrackResultsPanel championshipId={championshipId} />
-            </PanelErrorBoundary>
-          </TabsContent>
-        )}
+        <TabsContent value="results">
+          <PanelErrorBoundary fallbackTitle="Results panel failed to load">
+            <ResultsPanel championshipId={championshipId} championshipName={name} />
+          </PanelErrorBoundary>
+        </TabsContent>
 
         {category === "ATHLETICS" && (
           <TabsContent value="promotions">
