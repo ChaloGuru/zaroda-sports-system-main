@@ -67,6 +67,13 @@ describe("score sheet access", () => {
     await expect(requireOwnScoreSheet("a1")).resolves.toMatchObject({ assignment: { id: "a1" } });
   });
 
+  it("doesn't open judging until the edition is activated", async () => {
+    assignmentFindUnique.mockResolvedValue(
+      assignment({ judge: { userId: "u-judge", isActive: true, editionId: "e1", edition: { status: "DRAFT", name: "KSEF X" } } }),
+    );
+    await expect(requireOwnScoreSheet("a1")).rejects.toThrow(/opens once the KSEF administrator activates/);
+  });
+
   it("refuses to change a submitted sheet, even for its own judge", async () => {
     assignmentFindUnique.mockResolvedValue(assignment({ submittedAt: new Date() }));
     await expect(requireOwnScoreSheet("a1")).rejects.toThrow(/submitted/);

@@ -4,12 +4,13 @@ import { requireAuth, toErrorResponse } from "@/lib/authorize";
 
 export const dynamic = "force-dynamic";
 
-// The signed-in judge's assigned projects across non-closed editions.
+// The signed-in judge's assigned projects. Only Active editions are open for
+// judging - a Draft edition's assignments stay hidden until it's activated.
 export async function GET() {
   try {
     const ctx = await requireAuth();
     const assignments = await prisma.ksefJudgeAssignment.findMany({
-      where: { judge: { userId: ctx.userId, isActive: true, edition: { status: { not: "CLOSED" } } } },
+      where: { judge: { userId: ctx.userId, isActive: true, edition: { status: "ACTIVE" } } },
       include: {
         judge: { select: { edition: { select: { id: true, name: true } } } },
         project: {

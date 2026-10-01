@@ -557,16 +557,6 @@ export const ksefProjectSchema = z.object({
 });
 export const ksefProjectUpdateSchema = ksefProjectSchema.omit({ editionId: true }).partial();
 
-export const ksefJudgeSchema = z.object({
-  editionId: z.string().uuid(),
-  email: z.string().trim().email(),
-  name: optionalText(200),
-  phone: optionalText(30),
-  password: passwordSchema.optional(),
-  specialty: optionalText(200),
-  role: z.enum(["JUDGE", "CHIEF_JUDGE", "SRC_MEMBER"]).default("JUDGE"),
-});
-
 export const ksefAssignmentSchema = z.object({
   judgeId: z.string().uuid(),
   projectIds: z.array(z.string().uuid()).min(1).max(500),
@@ -574,7 +564,17 @@ export const ksefAssignmentSchema = z.object({
 });
 
 export const ksefScoreSheetSchema = z.object({
-  scores: z.array(z.object({ criterionId: z.string().uuid(), score: z.number().min(0) })).max(100),
+  scores: z
+    .array(
+      z.object({
+        criterionId: z.string().uuid(),
+        score: z
+          .number()
+          .min(0, "Scores can't be negative")
+          .refine((n) => Math.abs(Math.round(n * 100) - n * 100) < 1e-9, "Scores can have at most 2 decimal places"),
+      }),
+    )
+    .max(100),
   comment: optionalText(2000),
   submit: z.boolean().default(false),
 });
@@ -617,3 +617,20 @@ export const ksefComplaintActionSchema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("REOPEN"), note: z.string().trim().min(1, "Give the reason for reopening").max(5000) }),
 ]);
+
+export const ksefInviteSchema = z.object({
+  editionId: z.string().uuid(),
+  email: z.string().trim().toLowerCase().email(),
+  name: optionalText(200),
+  phone: optionalText(30),
+  specialty: optionalText(200),
+  role: z.enum(["JUDGE", "CHIEF_JUDGE", "SRC_MEMBER"]).default("JUDGE"),
+});
+
+/** Accepting a panel invitation - name/password only needed when creating a new account. */
+export const ksefInviteAcceptSchema = z.object({
+  token: z.string().min(20).max(200),
+  name: optionalText(200),
+  phone: optionalText(30),
+  password: passwordSchema.optional(),
+});

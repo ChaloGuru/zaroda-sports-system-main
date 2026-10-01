@@ -20,6 +20,8 @@ interface ScoreSheetData {
   assignment: { id: string; level: Level; comment: string | null; submittedAt: string | null };
   /** Only the assigned judge, before submitting. Everyone else (admin, Chief Judge) sees it read-only. */
   canEdit: boolean;
+  /** False while the edition is still a Draft (or closed). */
+  judgingOpen: boolean;
   project: {
     code: string | null;
     title: string;
@@ -41,6 +43,24 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
     Object.fromEntries(data.scores.map((s) => [s.criterionId, String(s.score)])),
   );
   const [comment, setComment] = React.useState(data.assignment.comment ?? "");
+  // Which criterion last had a keystroke refused (shown under its box).
+  const [refused, setRefused] = React.useState<{ criterionId: string; message: string } | null>(null);
+
+  // Locks each box to 0..max with at most 2 decimals: a keystroke that would
+  // take it outside that range is refused rather than accepted and flagged.
+  function enterScore(criterionId: string, maxScore: number, raw: string) {
+    const value = raw.trim();
+    if (value !== "" && !/^\d*\.?\d{0,2}$/.test(value)) {
+      setRefused({ criterionId, message: "Numbers only, up to 2 decimal places" });
+      return;
+    }
+    if (value !== "" && value !== "." && Number(value) > maxScore) {
+      setRefused({ criterionId, message: `The maximum for this criterion is ${maxScore}` });
+      return;
+    }
+    setRefused(null);
+    setValues((v) => ({ ...v, [criterionId]: value }));
+  }
 
   const parsed = data.criteria.map((c) => {
     const raw = values[c.id]?.trim() ?? "";
@@ -106,7 +126,9 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
             <CardDescription>
               {data.canEdit
                 ? "Score each criterion out of its maximum on your own - you won't see other judges' scores. Saving keeps a draft; once submitted, your scores are permanent and can't be changed by anyone."
-                : "Read-only view of this judge's original score sheet."}
+                : !data.judgingOpen && !data.assignment.submittedAt
+                  ? "Judging hasn't opened yet - it opens once the KSEF administrator activates this edition."
+                  : "Read-only view of this judge's original score sheet."}
             </CardDescription>
           </div>
           {data.assignment.submittedAt ? (
@@ -125,16 +147,23 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
                 <p className="font-medium text-foreground">{criterion.name}</p>
                 {criterion.description && <p className="text-xs text-muted">{criterion.description}</p>}
               </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  aria-label={`${criterion.name} score`}
-                  inputMode="decimal"
-                  className={`h-10 w-24 text-center font-mono tabular-nums ${invalid ? "border-destructive" : ""}`}
-                  value={values[criterion.id] ?? ""}
-                  disabled={locked}
-                  onChange={(e) => setValues((v) => ({ ...v, [criterion.id]: e.target.value }))}
-                />
-                <span className="w-12 text-sm text-muted">/ {criterion.maxScore}</span>
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  <Input
+                    aria-label={`${criterion.name} score, out of ${criterion.maxScore}`}
+                    inputMode="decimal"
+                    className={`h-10 w-24 text-center font-mono tabular-nums ${invalid ? "border-destructive" : ""}`}
+                    value={values[criterion.id] ?? ""}
+                    disabled={locked}
+                    onChange={(e) => enterScore(criterion.id, criterion.maxScore, e.target.value)}
+                  />
+                  <span className="w-12 text-sm text-muted">/ {criterion.maxScore}</span>
+                </div>
+                {refused?.criterionId === criterion.id && (
+                  <p role="alert" className="text-xs font-medium text-destructive">
+                    {refused.message}
+                  </p>
+                )}
               </div>
             </div>
           ))}

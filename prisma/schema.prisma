@@ -159,6 +159,8 @@ model User {
   postedCirculars       ChampionshipCircular[]
   testimonial           Testimonial?
   ksefJudgeships        KsefJudge[]
+  ksefInvitesSent       KsefJudgeInvite[]       @relation("KsefInviteCreatedBy")
+  ksefInvitesAccepted   KsefJudgeInvite[]       @relation("KsefInviteAcceptedBy")
   ksefCaseEvents        KsefCaseEvent[]
   ksefComplaintsRaised  KsefComplaint[]         @relation("KsefComplaintRaisedBy")
   ksefComplaintsDecided KsefComplaint[]         @relation("KsefComplaintDecidedBy")
@@ -863,6 +865,7 @@ model KsefEdition {
   schools    KsefEditionSchool[]
   projects   KsefProject[]
   judges     KsefJudge[]
+  invites    KsefJudgeInvite[]
   complaints KsefComplaint[]
 
   @@map("ksef_editions")
@@ -1211,4 +1214,33 @@ model KsefCaseEvent {
   @@index([reviewId])
   @@index([complaintId])
   @@map("ksef_case_events")
+}
+
+// A self-onboarding invitation to an edition's panel. The administrator
+// shares a one-time signup link; the invitee sets their own name and
+// password (or signs in to an existing account) and joins the panel in the
+// invited role. Only a hash of the link's token is stored.
+model KsefJudgeInvite {
+  id           String        @id @default(uuid())
+  editionId    String
+  email        String
+  name         String?
+  phone        String?
+  specialty    String?
+  role         KsefPanelRole @default(JUDGE)
+  tokenHash    String        @unique
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  acceptedById String?
+  revokedAt    DateTime?
+  createdById  String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  edition    KsefEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  createdBy  User        @relation("KsefInviteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  acceptedBy User?       @relation("KsefInviteAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([editionId, email])
+  @@map("ksef_judge_invites")
 }

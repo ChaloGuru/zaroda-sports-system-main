@@ -96,6 +96,9 @@ export async function requireOwnScoreSheet(assignmentId: string) {
     throw new AuthorizationError("Only the assigned judge can enter scores on this sheet");
   }
   assertEditionEditable(assignment.judge.edition);
+  if (assignment.judge.edition.status !== "ACTIVE") {
+    throw new AuthorizationError(`Judging for ${assignment.judge.edition.name} opens once the KSEF administrator activates it`, 409);
+  }
   if (assignment.submittedAt) throw new AuthorizationError("This score sheet has been submitted and can no longer be changed", 409);
   return { ctx, assignment };
 }

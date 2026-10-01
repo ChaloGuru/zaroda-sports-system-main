@@ -3,17 +3,14 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { PasswordInput } from "@/components/ui/password-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { KSEF_DIVISION_LABELS, KSEF_PANEL_ROLE_LABELS } from "@/lib/ksef-config";
 import { LEVEL_LABELS } from "@/lib/utils";
+import { JudgeInvites } from "./judge-invites";
 import type { KsefEditionSummary } from "./types";
 import type { Level } from "@prisma/client";
 
@@ -51,78 +48,6 @@ export interface LevelResultRow {
     subCategory: { name: string } | null;
     learners: { firstName: string; lastName: string }[];
   };
-}
-
-function AddJudgeCard({ edition }: { edition: KsefEditionSummary }) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = React.useState({ email: "", name: "", phone: "", password: "", specialty: "", role: "JUDGE" });
-  const addMutation = useMutation({
-    mutationFn: () => apiPost("/api/ksef/judges", { editionId: edition.id, ...form, password: form.password || undefined }),
-    onSuccess: () => {
-      toast.success("Judge added to the panel");
-      setForm({ email: "", name: "", phone: "", password: "", specialty: "", role: "JUDGE" });
-      queryClient.invalidateQueries({ queryKey: ["ksef-judges", edition.id] });
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to add judge"),
-  });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Add a judge</CardTitle>
-        <CardDescription>
-          Use the judge&apos;s email. If they already have a Zaroda account it&apos;s reused; otherwise enter a name and
-          password to create one. Judges sign in and score from their own dashboard.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid gap-3 md:grid-cols-3">
-          <div>
-            <Label>Email</Label>
-            <Input className="mt-1.5" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-          </div>
-          <div>
-            <Label>Full name (new accounts)</Label>
-            <Input className="mt-1.5" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-          </div>
-          <div>
-            <Label>Password (new accounts)</Label>
-            <PasswordInput className="mt-1.5" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
-          </div>
-          <div>
-            <Label>Phone (optional)</Label>
-            <Input className="mt-1.5" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-          </div>
-          <div>
-            <Label>Specialty (optional)</Label>
-            <Input className="mt-1.5" placeholder="e.g. Chemistry, Computer Science" value={form.specialty} onChange={(e) => setForm((f) => ({ ...f, specialty: e.target.value }))} />
-          </div>
-          <div>
-            <Label>Panel role</Label>
-            <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}>
-              <SelectTrigger className="mt-1.5">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PANEL_ROLES.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {KSEF_PANEL_ROLE_LABELS[r]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <p className="text-xs text-muted">
-          Chief Judges review flagged judging discrepancies; SRC members decide written complaints. Neither can act on a
-          project they are judging themselves.
-        </p>
-        <Button disabled={!form.email.trim() || addMutation.isPending} onClick={() => addMutation.mutate()}>
-          <UserPlus className="h-4 w-4" /> Add to panel
-        </Button>
-      </CardContent>
-    </Card>
-  );
 }
 
 function AssignCard({ edition, judges }: { edition: KsefEditionSummary; judges: JudgeRow[] }) {
@@ -271,7 +196,7 @@ export function JudgesManager({ edition }: { edition: KsefEditionSummary }) {
 
   return (
     <div className="space-y-6">
-      {!readOnly && <AddJudgeCard edition={edition} />}
+      <JudgeInvites edition={edition} />
       <Card>
         <CardHeader>
           <CardTitle>Judging panel ({judges.length})</CardTitle>

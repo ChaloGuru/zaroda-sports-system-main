@@ -35,7 +35,10 @@ export default function LoginPage() {
         return;
       }
       toast.success("Welcome back!");
-      router.push("/dashboard");
+      // e.g. a KSEF panel invitation sends people here to sign in, then back
+      // to the invitation. Only same-site paths are honoured.
+      const next = new URLSearchParams(window.location.search).get("callbackUrl");
+      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
       router.refresh();
     } finally {
       setSubmitting(false);
