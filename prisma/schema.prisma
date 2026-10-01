@@ -157,6 +157,7 @@ model User {
   notifications        Notification[]
   auditLogs            AuditLog[]
   postedCirculars      ChampionshipCircular[]
+  testimonial          Testimonial?
 
   @@map("users")
 }
@@ -224,6 +225,7 @@ model Tenant {
   championships       Championship[]
   subscriptions       ChampionshipSubscription[]
   paymentTransactions PaymentTransaction[]
+  testimonials        Testimonial[]
 
   @@map("tenants")
 }
@@ -754,4 +756,37 @@ model LoginAttempt {
   @@index([email, ip, createdAt])
   @@index([createdAt])
   @@map("login_attempts")
+}
+
+enum TestimonialStatus {
+  SUBMITTED
+  FEATURED
+  ARCHIVED
+}
+
+// A real user's own written experience with Zaroda Sports, submitted from
+// their dashboard. Only the super admin can list them across tenants, and the
+// public landing page shows only ones the author agreed to share publicly AND
+// the super admin has featured - nothing here is ever written by Zaroda.
+// One per user; the author name/role/organization are snapshotted at
+// submission time so the quote stays attributed exactly as it was given.
+model Testimonial {
+  id               String            @id @default(uuid())
+  userId           String            @unique
+  tenantId         String?
+  authorName       String
+  authorRole       String
+  organizationName String?
+  message          String
+  rating           Int?
+  allowPublicUse   Boolean           @default(true)
+  status           TestimonialStatus @default(SUBMITTED)
+  createdAt        DateTime          @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([tenantId])
+  @@map("testimonials")
 }

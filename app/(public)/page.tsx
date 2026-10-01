@@ -5,7 +5,9 @@ import { Trophy, Medal, Timer, ShieldCheck, ArrowRight, Users, MapPin, Calendar 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { TestimonialsSection } from "@/components/testimonials-section";
 import { prisma } from "@/lib/prisma";
+import { championshipsRunByTenant } from "@/lib/testimonials";
 import { formatDate, todayUtcRange, LEVEL_LABELS } from "@/lib/utils";
 
 export const revalidate = 60;
@@ -38,7 +40,7 @@ const ORGANIZATION_JSON_LD = {
 
 export default async function LandingPage() {
   const { startOfTodayUtc, startOfTomorrowUtc } = todayUtcRange();
-  const [ongoingChampionships, upcomingChampionships] = await Promise.all([
+  const [ongoingChampionships, upcomingChampionships, featuredTestimonials] = await Promise.all([
     prisma.championship.findMany({
       where: { isPublished: true, startDate: { lt: startOfTomorrowUtc }, endDate: { gte: startOfTodayUtc } },
       orderBy: { startDate: "asc" },
@@ -50,7 +52,28 @@ export default async function LandingPage() {
       take: 6,
       include: { tenant: { select: { organizationName: true } } },
     }),
+    // Only ones the author agreed to have used publicly AND the super admin
+    // has featured - see app/admin/testimonials.
+    prisma.testimonial.findMany({
+      where: { status: "FEATURED", allowPublicUse: true },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        authorName: true,
+        authorRole: true,
+        organizationName: true,
+        message: true,
+        rating: true,
+        tenantId: true,
+      },
+    }),
   ]);
+  const championshipsRun = await championshipsRunByTenant(featuredTestimonials.map((t) => t.tenantId));
+  const testimonials = featuredTestimonials.map(({ tenantId, ...t }) => ({
+    ...t,
+    championshipsRun: tenantId ? (championshipsRun.get(tenantId) ?? 0) : 0,
+  }));
 
   return (
     <div>
@@ -206,6 +229,8 @@ export default async function LandingPage() {
           />
         </div>
       </section>
+
+      <TestimonialsSection testimonials={testimonials} />
 
       <section className="border-t border-border bg-surface-raised py-20">
         <div className="container flex flex-col items-center gap-6 text-center">

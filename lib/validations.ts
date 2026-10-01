@@ -441,3 +441,14 @@ export const championshipCircularSchema = z.object({
   body: z.string().min(1).max(5000),
 });
 export type ChampionshipCircularInput = z.infer<typeof championshipCircularSchema>;
+
+export const testimonialSchema = z.object({
+  message: z.string().trim().min(1, "Please write a few words about your experience").max(1000),
+  rating: z.number().int().min(1).max(5).nullable().optional(),
+  allowPublicUse: z.boolean().default(true),
+});
+export type TestimonialInput = z.infer<typeof testimonialSchema>;
+
+export const testimonialStatusSchema = z.object({
+  status: z.enum(["SUBMITTED", "FEATURED", "ARCHIVED"]),
+});

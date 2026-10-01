@@ -4,6 +4,7 @@ import { Trophy, Users, CreditCard, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TestimonialPrompt } from "@/components/dashboard/testimonial-prompt";
 import { getAuthContext } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { formatDate, LEVEL_LABELS } from "@/lib/utils";
@@ -89,6 +90,8 @@ export default async function DashboardOverviewPage() {
         <h1 className="text-2xl font-bold text-foreground">Welcome back, {tenant?.organizationName}</h1>
         <p className="text-muted">Here's what's happening across your championships.</p>
       </div>
+
+      <TestimonialPrompt userId={ctx.userId} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard icon={<Trophy className="h-5 w-5 text-primary" />} label="Championships" value={championships.length} />

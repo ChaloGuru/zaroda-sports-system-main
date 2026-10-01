@@ -8,6 +8,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/admin/championships", label: "Championships", icon: "Trophy" },
   { href: "/admin/roles", label: "Roles", icon: "ShieldCheck" },
   { href: "/admin/messaging", label: "Messaging", icon: "Megaphone" },
+  { href: "/admin/testimonials", label: "Testimonials", icon: "Quote" },
   { href: "/admin/audit-log", label: "Audit Log", icon: "ScrollText" },
   { href: "/admin/account", label: "Account", icon: "UserCog" },
   { href: "/guide", label: "User Guide", icon: "BookOpen", external: true },
