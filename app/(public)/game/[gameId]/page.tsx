@@ -48,7 +48,7 @@ export default async function GameDetailPage(props: { params: Promise<{ gameId: 
     },
   });
 
-  if (!game || !game.championship.isPublished) notFound();
+  if (!game || !game.isActive || !game.championship.isPublished) notFound();
 
   const teamNames = await resolveTeamNames(game.matchPools.flatMap((mp) => [mp.teamAId, mp.teamBId]));
   const standings = await computeSingleGameStandings(game.id);

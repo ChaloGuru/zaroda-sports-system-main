@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { getAuthContext, canViewChampionshipPrivateData, isSuperAdmin, hasRole, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
-import { gameCreateSchema } from "@/lib/validations";
+import { gameUpdateSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +42,8 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     }
 
     if (canViewChampionshipPrivateData(ctx, game.championship)) return NextResponse.json({ game });
+    // Deactivated games are invisible outside the championship's own staff.
+    if (!game.isActive) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     // Public view: no participant dates of birth or internal notes.
     return NextResponse.json({
       game: { ...game, participants: game.participants.map(({ dateOfBirth: _dob, notes: _notes, ...rest }) => rest) },
@@ -60,7 +62,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     const ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN"]);
     const body: unknown = await request.json();
-    const input = gameCreateSchema.partial().parse(body);
+    const input = gameUpdateSchema.parse(body);
 
     const updated = await withAudit({
       actorId: ctx.userId,

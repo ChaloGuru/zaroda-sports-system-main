@@ -14,8 +14,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
     }
 
+    // Deactivated games are only listed for the Games tab (includeInactive),
+    // so every entry screen and public view naturally skips them.
+    const includeInactive = searchParams.get("includeInactive") === "true";
     const games = await prisma.game.findMany({
-      where: { championshipId },
+      where: { championshipId, ...(includeInactive ? {} : { isActive: true }) },
       orderBy: { name: "asc" },
       include: { _count: { select: { participants: true, tournamentTeams: true, heats: true, matchPools: true } } },
     });

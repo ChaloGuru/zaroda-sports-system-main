@@ -20,9 +20,14 @@ export async function POST(request: Request) {
 
     const ctx = await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN"]);
 
-    const games = await prisma.game.findMany({ where: { championshipId: input.championshipId } });
+    // Teams only apply to fixture-based games (ball/indoor games), and never
+    // to games the admin has deactivated - an athletics championship can
+    // carry a couple of team sports (e.g. Rugby 7s) alongside its events.
+    const games = await prisma.game.findMany({
+      where: { championshipId: input.championshipId, isActive: true, category: { in: ["BALL_GAMES", "OTHER_GAMES"] } },
+    });
     if (games.length === 0) {
-      return NextResponse.json({ error: "Add at least one game before bulk-adding teams" }, { status: 400 });
+      return NextResponse.json({ error: "Add at least one active team game (ball or indoor games) before bulk-adding teams" }, { status: 400 });
     }
 
     const existing = await prisma.tournamentTeam.findMany({

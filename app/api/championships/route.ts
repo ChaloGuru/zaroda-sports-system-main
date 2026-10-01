@@ -10,7 +10,7 @@ import {
   AuthorizationError,
 } from "@/lib/authorize";
 import { championshipCreateSchema } from "@/lib/validations";
-import { PRIMARY_JS_BALL_GAMES_TEMPLATE } from "@/lib/default-games";
+import { defaultGamesFor } from "@/lib/default-games";
 import { withLevelInName, todayUtcRange } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -125,17 +125,19 @@ export async function POST(request: Request) {
       newData: input,
     });
 
-    // Primary/JS ball-games championships all run the same standard event
-    // roster - seed it automatically so tenants only need to add teams.
-    // The Games tab still allows editing/adding/removing any of these.
-    if (championship.schoolLevel === "PRIMARY_JS" && championship.category === "BALL_GAMES") {
-      const gamesToCreate = PRIMARY_JS_BALL_GAMES_TEMPLATE.map((g) => ({
+    // Primary/JS ball-games and athletics championships each run a standard
+    // event roster - seed it automatically so tenants only need to add
+    // teams/athletes. The Games tab lets admins deactivate, edit or delete
+    // any of these they don't run.
+    const template = defaultGamesFor(championship);
+    if (template.length > 0) {
+      const gamesToCreate = template.map((g) => ({
         championshipId: championship.id,
         name: g.name,
-        category: "BALL_GAMES" as const,
+        category: g.category,
         gender: g.gender,
         schoolLevel: g.schoolLevel,
-        isTimed: false,
+        isTimed: g.isTimed,
         sport: g.sport,
       }));
 

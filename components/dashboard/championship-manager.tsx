@@ -70,8 +70,23 @@ export function ChampionshipManager({
   // run entirely on TournamentTeam + MatchPool fixtures instead - see
   // lib/team-standings.ts. Hiding the tab that doesn't apply avoids admins
   // registering data in the wrong place for this championship's category.
-  const showsParticipants = category === "ATHLETICS" || category === "MUSIC";
-  const showsTeams = category === "BALL_GAMES" || category === "OTHER_GAMES";
+  //
+  // A championship can also carry active games outside its own category
+  // (e.g. a Primary/JS athletics championship's auto-created Rugby 7s and
+  // Basketball 5x5 fixtures), so each tab also appears when any active game
+  // needs it.
+  const { data: activeGamesData } = useQuery({
+    queryKey: ["games", championshipId],
+    queryFn: () => apiGet<{ games: { category: string }[] }>(`/api/games?championshipId=${championshipId}`),
+  });
+  const activeGameCategories = new Set((activeGamesData?.games ?? []).map((g) => g.category));
+  const showsParticipants =
+    category === "ATHLETICS" || category === "MUSIC" || activeGameCategories.has("ATHLETICS") || activeGameCategories.has("MUSIC");
+  const showsTeams =
+    category === "BALL_GAMES" ||
+    category === "OTHER_GAMES" ||
+    activeGameCategories.has("BALL_GAMES") ||
+    activeGameCategories.has("OTHER_GAMES");
 
   async function togglePublish() {
     setPublishing(true);

@@ -116,6 +116,21 @@ export const gameCreateSchema = z.object({
 });
 export type GameCreateInput = z.infer<typeof gameCreateSchema>;
 
+// Editing a game: any create field except the championship it belongs to
+// (moving a game between championships would bypass their access checks),
+// plus switching it on/off.
+export const gameUpdateSchema = gameCreateSchema
+  .omit({ championshipId: true })
+  .partial()
+  .extend({ isActive: z.boolean().optional() });
+
+export const gameBulkActionSchema = z.object({
+  championshipId: z.string().uuid(),
+  gameIds: z.array(z.string().uuid()).min(1).max(500),
+  action: z.enum(["activate", "deactivate", "delete"]),
+});
+export type GameBulkActionInput = z.infer<typeof gameBulkActionSchema>;
+
 export const participantCreateSchema = z.object({
   championshipId: z.string().uuid(),
   gameId: z.string().uuid(),

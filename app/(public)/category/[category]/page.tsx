@@ -31,7 +31,7 @@ export default async function CategoryPage(props: { params: Promise<{ category: 
   const championships = await prisma.championship.findMany({
     where: { category, isPublished: true },
     orderBy: { startDate: "desc" },
-    include: { tenant: { select: { organizationName: true } }, _count: { select: { games: true } } },
+    include: { tenant: { select: { organizationName: true } }, _count: { select: { games: { where: { isActive: true } } } } },
   });
 
   return (

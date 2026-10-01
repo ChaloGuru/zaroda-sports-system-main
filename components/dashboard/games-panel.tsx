@@ -5,7 +5,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Power, PowerOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,7 @@ interface GameRow {
   isTimed: boolean;
   sport: string | null;
   maxQualifiers: number;
+  isActive: boolean;
   _count: { participants: number; tournamentTeams: number; heats: number; matchPools: number };
 }
 
@@ -43,6 +44,35 @@ function sportLabel(sport: string): string {
     .split("_")
     .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
     .join(" ");
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  ATHLETICS: "Athletics",
+  BALL_GAMES: "Ball Games",
+  MUSIC: "Music",
+  OTHER_GAMES: "Other Games",
+};
+const LEVEL_ORDER = ["PRIMARY", "JS", "PRIMARY_JS", "SENIOR_SCHOOL", "TERTIARY"];
+
+/** Groups games by school level, then category, so long event lists stay scannable. */
+function groupGames(games: GameRow[]): { key: string; label: string; games: GameRow[] }[] {
+  const groups = new Map<string, { key: string; label: string; games: GameRow[] }>();
+  for (const game of games) {
+    const key = `${game.schoolLevel}|${game.category}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label: `${gameSchoolLevelLabel(game.schoolLevel)} - ${CATEGORY_LABELS[game.category] ?? game.category}`,
+        games: [],
+      });
+    }
+    groups.get(key)!.games.push(game);
+  }
+  const rank = (key: string) => {
+    const [level, category] = key.split("|");
+    return LEVEL_ORDER.indexOf(level ?? "") * 10 + Object.keys(CATEGORY_LABELS).indexOf(category ?? "");
+  };
+  return Array.from(groups.values()).sort((a, b) => rank(a.key) - rank(b.key));
 }
 
 // A championship's schoolLevel is a single pricing tier (Primary/JS bundled,
@@ -99,8 +129,11 @@ export function GamesPanel({
   const levelOptions = isOpenTournament ? GAME_SCHOOL_LEVELS : PRIMARY_JS_GAME_LEVELS;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["games", championshipId],
-    queryFn: () => apiGet<{ games: GameRow[] }>(`/api/games?championshipId=${championshipId}`),
+    // Includes deactivated games (unlike every other panel), so they can be
+    // switched back on. The ["games", championshipId] prefix still matches
+    // for invalidation.
+    queryKey: ["games", championshipId, "all"],
+    queryFn: () => apiGet<{ games: GameRow[] }>(`/api/games?championshipId=${championshipId}&includeInactive=true`),
   });
 
   const {
@@ -152,8 +185,13 @@ export function GamesPanel({
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/api/games/${id}`),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       toast.success("Game deleted");
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: ["games", championshipId] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to delete game"),
@@ -162,6 +200,53 @@ export function GamesPanel({
   function confirmDelete(game: GameRow) {
     if (window.confirm(`Delete "${game.name}"? This also removes its participants, heats, and fixtures.`)) {
       deleteMutation.mutate(game.id);
+    }
+  }
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: (game: GameRow) => apiPatch(`/api/games/${game.id}`, { isActive: !game.isActive }),
+    onSuccess: (_data, game) => {
+      toast.success(game.isActive ? `"${game.name}" deactivated` : `"${game.name}" activated`);
+      queryClient.invalidateQueries({ queryKey: ["games", championshipId] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update game"),
+  });
+
+  // ── Bulk selection (mainly for trimming the auto-created standard events) ──
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const games = data?.games ?? [];
+  const groups = groupGames(games);
+
+  function toggleSelected(ids: string[], checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  const bulkMutation = useMutation({
+    mutationFn: (action: "activate" | "deactivate" | "delete") =>
+      apiPost<{ affected: number }>("/api/games/bulk", { championshipId, gameIds: Array.from(selected), action }),
+    onSuccess: (result, action) => {
+      const verb = action === "delete" ? "deleted" : action === "activate" ? "activated" : "deactivated";
+      toast.success(`${result.affected} game${result.affected === 1 ? "" : "s"} ${verb}`);
+      setSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ["games", championshipId] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Bulk update failed"),
+  });
+
+  function confirmBulkDelete() {
+    if (
+      window.confirm(
+        `Delete ${selected.size} selected game${selected.size === 1 ? "" : "s"}? This also removes their participants, heats, and fixtures. Deactivating instead keeps them for later.`,
+      )
+    ) {
+      bulkMutation.mutate("delete");
     }
   }
 
@@ -270,35 +355,105 @@ export function GamesPanel({
           </DialogContent>
         </Dialog>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-4">
         {isLoading && <p className="text-muted">Loading games...</p>}
-        {!isLoading && (data?.games ?? []).length === 0 && <p className="text-muted">No games yet. Add your first game.</p>}
-        {(data?.games ?? []).map((game) => (
-          <div key={game.id} className="flex items-center justify-between rounded-md border border-border p-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="font-medium text-foreground">{game.name}</p>
-                <GenderBadge gender={game.gender} />
-              </div>
-              <p className="text-sm text-muted">
-                {gameSchoolLevelLabel(game.schoolLevel)}
-                {game.sport ? ` - ${sportLabel(game.sport)}` : ""} -{" "}
-                {game.isTimed
-                  ? `${game._count.participants} participant${game._count.participants === 1 ? "" : "s"}`
-                  : `${game._count.tournamentTeams} team${game._count.tournamentTeams === 1 ? "" : "s"}`}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={game.isTimed ? "secondary" : "outline"}>{game.isTimed ? "Timed" : "Scored"}</Badge>
-              <Button size="icon" variant="ghost" onClick={() => openEdit(game)}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button size="icon" variant="ghost" onClick={() => confirmDelete(game)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
+        {!isLoading && games.length === 0 && <p className="text-muted">No games yet. Add your first game.</p>}
+        {games.length > 0 && (
+          <p className="text-sm text-muted">
+            Deactivate events your championship isn&apos;t running - they&apos;re hidden from the public site and entry
+            screens but kept here so you can switch them back on. Delete removes them for good.
+          </p>
+        )}
+
+        {selected.size > 0 && (
+          <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-3 shadow-sm">
+            <span className="mr-auto text-sm font-medium text-foreground">
+              {selected.size} selected
+            </span>
+            <Button size="sm" variant="outline" disabled={bulkMutation.isPending} onClick={() => bulkMutation.mutate("activate")}>
+              <Power className="h-4 w-4" /> Activate
+            </Button>
+            <Button size="sm" variant="outline" disabled={bulkMutation.isPending} onClick={() => bulkMutation.mutate("deactivate")}>
+              <PowerOff className="h-4 w-4" /> Deactivate
+            </Button>
+            <Button size="sm" variant="outline" disabled={bulkMutation.isPending} onClick={confirmBulkDelete}>
+              <Trash2 className="h-4 w-4 text-destructive" /> Delete
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+              Clear
+            </Button>
           </div>
-        ))}
+        )}
+
+        {groups.map((group) => {
+          const ids = group.games.map((g) => g.id);
+          const allSelected = ids.every((id) => selected.has(id));
+          const activeCount = group.games.filter((g) => g.isActive).length;
+          return (
+            <section key={group.key} className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={(e) => toggleSelected(ids, e.target.checked)}
+                  aria-label={`Select all ${group.label} games`}
+                />
+                {group.label}
+                <span className="font-normal text-muted">
+                  ({activeCount} of {group.games.length} active)
+                </span>
+              </label>
+              {group.games.map((game) => (
+                <div
+                  key={game.id}
+                  className={`flex items-center justify-between gap-3 rounded-md border border-border p-3 ${game.isActive ? "" : "opacity-60"}`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(game.id)}
+                      onChange={(e) => toggleSelected([game.id], e.target.checked)}
+                      aria-label={`Select ${game.name}`}
+                    />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-foreground">{game.name}</p>
+                        <GenderBadge gender={game.gender} />
+                        {!game.isActive && <Badge variant="outline">Inactive</Badge>}
+                      </div>
+                      <p className="text-sm text-muted">
+                        {gameSchoolLevelLabel(game.schoolLevel)}
+                        {game.sport ? ` - ${sportLabel(game.sport)}` : ""} -{" "}
+                        {game.sport
+                          ? `${game._count.tournamentTeams} team${game._count.tournamentTeams === 1 ? "" : "s"}`
+                          : `${game._count.participants} participant${game._count.participants === 1 ? "" : "s"}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Badge variant={game.isTimed ? "secondary" : "outline"}>{game.isTimed ? "Timed" : "Scored"}</Badge>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title={game.isActive ? "Deactivate" : "Activate"}
+                      aria-label={game.isActive ? `Deactivate ${game.name}` : `Activate ${game.name}`}
+                      disabled={toggleActiveMutation.isPending}
+                      onClick={() => toggleActiveMutation.mutate(game)}
+                    >
+                      {game.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4 text-primary" />}
+                    </Button>
+                    <Button size="icon" variant="ghost" title="Edit" aria-label={`Edit ${game.name}`} onClick={() => openEdit(game)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" title="Delete" aria-label={`Delete ${game.name}`} onClick={() => confirmDelete(game)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </section>
+          );
+        })}
       </CardContent>
     </Card>
   );

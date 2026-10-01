@@ -354,6 +354,10 @@ model Game {
   maxQualifiers  Int          @default(5)
   raceType       String?
   scheduledDate  DateTime?
+  // False when a tournament admin has switched off an event their
+  // championship isn't running (e.g. one of the auto-created standard
+  // events) - hidden from public pages and entry screens, kept for re-enabling.
+  isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

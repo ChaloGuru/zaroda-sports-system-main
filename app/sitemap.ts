@@ -30,7 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { id: true, updatedAt: true },
     }),
     prisma.game.findMany({
-      where: { championship: { isPublished: true } },
+      where: { isActive: true, championship: { isPublished: true } },
       select: { id: true, updatedAt: true },
     }),
   ]);

@@ -19,7 +19,7 @@ async function loadChampionship(id: string) {
     where: { id },
     include: {
       tenant: { select: { id: true, organizationName: true, accountType: true } },
-      games: { orderBy: { name: "asc" } },
+      games: { where: { isActive: true }, orderBy: { name: "asc" } },
     },
   });
 }

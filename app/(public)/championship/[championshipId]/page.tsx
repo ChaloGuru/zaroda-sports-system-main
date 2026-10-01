@@ -17,7 +17,7 @@ export default async function ChampionshipPage(props: { params: Promise<{ champi
     where: { id: params.championshipId },
     include: {
       tenant: { select: { organizationName: true } },
-      games: { orderBy: { name: "asc" } },
+      games: { where: { isActive: true }, orderBy: { name: "asc" } },
       tournamentTeams: { orderBy: { name: "asc" } },
       circulars: { orderBy: { createdAt: "desc" }, include: { postedBy: { select: { name: true } } } },
       fees: { select: { id: true } },
