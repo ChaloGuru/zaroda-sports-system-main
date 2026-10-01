@@ -158,6 +158,7 @@ model User {
   auditLogs            AuditLog[]
   postedCirculars      ChampionshipCircular[]
   testimonial          Testimonial?
+  ksefJudgeships       KsefJudge[]
 
   @@map("users")
 }
@@ -286,6 +287,8 @@ model School {
   bibRanges     SchoolBibRange[]
   championships ChampionshipSchool[]
   teams         TournamentTeam[]
+  ksefEditions  KsefEditionSchool[]
+  ksefProjects  KsefProject[]
 
   @@map("schools")
 }
@@ -793,4 +796,280 @@ model Testimonial {
   @@index([status])
   @@index([tenantId])
   @@map("testimonials")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// KSEF (Kenya Science and Engineering Fair)
+//
+// Everything hangs off a KsefEdition (one per competition year). Categories,
+// sub-categories and judging criteria are per-edition data, never code, so a
+// new year's structure can change without touching earlier editions - and
+// a new edition starts with none of an earlier one's projects, scores or
+// results. A CLOSED edition is read-only (see lib/ksef.ts).
+// ─────────────────────────────────────────────────────────────────────────
+
+enum KsefEditionStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum KsefDivision {
+  JUNIOR_SCHOOL
+  SENIOR_SCHOOL
+}
+
+enum KsefProjectStatus {
+  DRAFT
+  SUBMITTED
+  WITHDRAWN
+}
+
+enum KsefResultStatus {
+  PENDING
+  QUALIFIED
+  NOT_QUALIFIED
+}
+
+model KsefEdition {
+  id                    String            @id @default(uuid())
+  year                  Int               @unique
+  name                  String
+  status                KsefEditionStatus @default(DRAFT)
+  startDate             DateTime?
+  endDate               DateTime?
+  // The fair's ladder for this edition, lowest first (normally Sub-County ->
+  // County -> Regional -> National) and the level currently running.
+  levels                Level[]           @default([SUB_COUNTY, COUNTY, REGIONAL, NATIONAL])
+  currentLevel          Level             @default(SUB_COUNTY)
+  // Scoring configuration: how many top projects per category, per
+  // geographic unit, progress to the next level.
+  qualifiersPerCategory Int               @default(4)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  categories KsefCategory[]
+  criteria   KsefCriterion[]
+  schools    KsefEditionSchool[]
+  projects   KsefProject[]
+  judges     KsefJudge[]
+
+  @@map("ksef_editions")
+}
+
+model KsefCategory {
+  id        String       @id @default(uuid())
+  editionId String
+  division  KsefDivision
+  name      String
+  sortOrder Int          @default(0)
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  edition       KsefEdition       @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  subCategories KsefSubCategory[]
+  projects      KsefProject[]
+
+  @@unique([editionId, division, name])
+  @@index([editionId])
+  @@map("ksef_categories")
+}
+
+model KsefSubCategory {
+  id         String   @id @default(uuid())
+  categoryId String
+  name       String
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category KsefCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  projects KsefProject[]
+
+  @@unique([categoryId, name])
+  @@map("ksef_sub_categories")
+}
+
+// One line on the judging score sheet. `division` null = applies to both
+// Junior and Senior School projects.
+model KsefCriterion {
+  id          String        @id @default(uuid())
+  editionId   String
+  division    KsefDivision?
+  name        String
+  description String?
+  maxScore    Int
+  sortOrder   Int           @default(0)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  edition KsefEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  scores  KsefScore[]
+
+  @@index([editionId])
+  @@map("ksef_criteria")
+}
+
+// A school taking part in an edition (reuses the shared School table).
+model KsefEditionSchool {
+  id        String   @id @default(uuid())
+  editionId String
+  schoolId  String
+  createdAt DateTime @default(now())
+
+  edition KsefEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  school  School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([editionId, schoolId])
+  @@index([schoolId])
+  @@map("ksef_edition_schools")
+}
+
+model KsefProject {
+  id            String            @id @default(uuid())
+  editionId     String
+  schoolId      String
+  categoryId    String
+  subCategoryId String?
+  // Assigned when the project is submitted, e.g. "J-0007" - what judges and
+  // results sheets refer to.
+  code          String?
+  title         String
+  abstract      String?
+  documentUrl   String?
+  status        KsefProjectStatus @default(DRAFT)
+  // The highest level the project has reached in this edition.
+  currentLevel  Level             @default(SUB_COUNTY)
+  submittedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  edition     KsefEdition           @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  school      School                @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  category    KsefCategory          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  subCategory KsefSubCategory?      @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
+  learners    KsefLearner[]
+  mentors     KsefMentor[]
+  assignments KsefJudgeAssignment[]
+  results     KsefResult[]
+
+  @@unique([editionId, code])
+  @@index([editionId])
+  @@index([schoolId])
+  @@index([categoryId])
+  @@map("ksef_projects")
+}
+
+model KsefLearner {
+  id        String   @id @default(uuid())
+  projectId String
+  firstName String
+  lastName  String
+  gender    Gender
+  grade     String?
+  // NEMIS / UPI number
+  upiNumber String?
+  createdAt DateTime @default(now())
+
+  project KsefProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("ksef_learners")
+}
+
+// The project's patron / teacher mentor.
+model KsefMentor {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  tscNumber String?
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+
+  project KsefProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("ksef_mentors")
+}
+
+// A user on an edition's judging panel (reuses the shared User accounts).
+model KsefJudge {
+  id        String   @id @default(uuid())
+  editionId String
+  userId    String
+  // Optional specialty, e.g. "Chemistry" - informational only.
+  specialty String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  edition     KsefEdition           @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments KsefJudgeAssignment[]
+
+  @@unique([editionId, userId])
+  @@index([userId])
+  @@map("ksef_judges")
+}
+
+// One judge judging one project at one level. submittedAt is set once the
+// judge submits the score sheet - only submitted sheets count.
+model KsefJudgeAssignment {
+  id          String    @id @default(uuid())
+  judgeId     String
+  projectId   String
+  level       Level
+  comment     String?
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  judge   KsefJudge   @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  project KsefProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scores  KsefScore[]
+
+  @@unique([judgeId, projectId, level])
+  @@index([projectId, level])
+  @@map("ksef_judge_assignments")
+}
+
+model KsefScore {
+  id           String   @id @default(uuid())
+  assignmentId String
+  criterionId  String
+  score        Decimal  @db.Decimal(6, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignment KsefJudgeAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  criterion  KsefCriterion       @relation(fields: [criterionId], references: [id], onDelete: Restrict)
+
+  @@unique([assignmentId, criterionId])
+  @@map("ksef_scores")
+}
+
+// A project's result at one level: the average of its judges' submitted
+// totals, its rank within its category and geographic unit, and whether it
+// progresses. Hidden from schools until published.
+model KsefResult {
+  id          String           @id @default(uuid())
+  projectId   String
+  level       Level
+  totalScore  Decimal?         @db.Decimal(7, 2)
+  judgeCount  Int              @default(0)
+  rank        Int?
+  status      KsefResultStatus @default(PENDING)
+  isPublished Boolean          @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  project KsefProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, level])
+  @@index([level])
+  @@map("ksef_results")
 }

@@ -452,3 +452,131 @@ export type TestimonialInput = z.infer<typeof testimonialSchema>;
 export const testimonialStatusSchema = z.object({
   status: z.enum(["SUBMITTED", "FEATURED", "ARCHIVED"]),
 });
+
+// ── KSEF ─────────────────────────────────────────────────────────────────
+export const ksefDivisionSchema = z.enum(["JUNIOR_SCHOOL", "SENIOR_SCHOOL"]);
+export const ksefLevelSchema = z.enum(["SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL"]);
+const optionalText = (max: number) => z.preprocess(emptyToUndefined, z.string().trim().max(max).nullable().optional());
+const optionalDate = z.preprocess(emptyToUndefined, z.coerce.date().nullable().optional());
+
+export const ksefEditionCreateSchema = z
+  .object({
+    year: z.number().int().min(2000).max(2100),
+    name: optionalText(100),
+    startDate: optionalDate,
+    endDate: optionalDate,
+    configSource: z.enum(["STANDARD", "COPY", "EMPTY"]),
+    copyFromEditionId: z.string().uuid().optional(),
+  })
+  .refine((d) => d.configSource !== "COPY" || !!d.copyFromEditionId, {
+    message: "Pick the edition to copy the configuration from",
+    path: ["copyFromEditionId"],
+  });
+
+export const ksefEditionUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  status: z.enum(["DRAFT", "ACTIVE", "CLOSED"]).optional(),
+  startDate: optionalDate,
+  endDate: optionalDate,
+  levels: z.array(ksefLevelSchema).min(1).optional(),
+  currentLevel: ksefLevelSchema.optional(),
+  qualifiersPerCategory: z.number().int().min(1).max(100).optional(),
+});
+
+export const ksefCategorySchema = z.object({
+  editionId: z.string().uuid(),
+  division: ksefDivisionSchema,
+  name: z.string().trim().min(1).max(200),
+});
+export const ksefCategoryUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export const ksefSubCategorySchema = z.object({
+  categoryId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+});
+export const ksefSubCategoryUpdateSchema = ksefCategoryUpdateSchema;
+
+export const ksefCriterionSchema = z.object({
+  editionId: z.string().uuid(),
+  division: ksefDivisionSchema.nullable(),
+  name: z.string().trim().min(1).max(200),
+  description: optionalText(1000),
+  maxScore: z.number().int().min(1).max(1000),
+});
+export const ksefCriterionUpdateSchema = z.object({
+  division: ksefDivisionSchema.nullable().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  description: optionalText(1000),
+  maxScore: z.number().int().min(1).max(1000).optional(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export const ksefSchoolSchema = z.union([
+  z.object({ editionId: z.string().uuid(), schoolId: z.string().uuid() }),
+  z.object({
+    editionId: z.string().uuid(),
+    name: z.string().trim().min(1).max(200),
+    county: z.string().trim().min(1).max(100),
+    subcounty: z.string().trim().min(1).max(100),
+    zone: optionalText(100),
+  }),
+]);
+
+const ksefLearnerSchema = z.object({
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  gender: z.enum(["BOYS", "GIRLS"]),
+  grade: optionalText(30),
+  upiNumber: optionalText(30),
+});
+const ksefMentorSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  tscNumber: optionalText(30),
+  phone: optionalText(30),
+  email: optionalEmail,
+});
+
+export const ksefProjectSchema = z.object({
+  editionId: z.string().uuid(),
+  schoolId: z.string().uuid(),
+  categoryId: z.string().uuid(),
+  subCategoryId: z.string().uuid().nullable().optional(),
+  title: z.string().trim().min(1).max(300),
+  abstract: optionalText(5000),
+  documentUrl: optionalUrl,
+  learners: z.array(ksefLearnerSchema).max(10).default([]),
+  mentors: z.array(ksefMentorSchema).max(5).default([]),
+});
+export const ksefProjectUpdateSchema = ksefProjectSchema.omit({ editionId: true }).partial();
+
+export const ksefJudgeSchema = z.object({
+  editionId: z.string().uuid(),
+  email: z.string().trim().email(),
+  name: optionalText(200),
+  phone: optionalText(30),
+  password: passwordSchema.optional(),
+  specialty: optionalText(200),
+});
+
+export const ksefAssignmentSchema = z.object({
+  judgeId: z.string().uuid(),
+  projectIds: z.array(z.string().uuid()).min(1).max(500),
+  level: ksefLevelSchema,
+});
+
+export const ksefScoreSheetSchema = z.object({
+  scores: z.array(z.object({ criterionId: z.string().uuid(), score: z.number().min(0) })).max(100),
+  comment: optionalText(2000),
+  submit: z.boolean().default(false),
+});
+
+export const ksefLevelActionSchema = z.object({
+  editionId: z.string().uuid(),
+  level: ksefLevelSchema,
+  action: z.enum(["CALCULATE", "PUBLISH", "PROGRESS"]),
+});
