@@ -37,6 +37,9 @@ interface SendTarget {
   name: string | null;
   phone: string | null;
   role: PanelRole;
+  /** Whether the server emailed the link, and why not if it didn't. */
+  emailed: boolean;
+  emailError: string | null;
 }
 
 const STATE_BADGE = { PENDING: "warning", ACCEPTED: "success", REVOKED: "secondary", EXPIRED: "secondary" } as const;
@@ -75,13 +78,22 @@ function SendInviteDialog({ target, editionName, onClose }: { target: SendTarget
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Send the signup link</DialogTitle>
+          <DialogTitle>Invitation created</DialogTitle>
           <DialogDescription>
             Send this to {target.name ?? target.email}. For security the link is only shown now - if it&apos;s lost, use
             &quot;New link&quot; on the invitation.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          {target.emailed ? (
+            <p className="rounded-md border border-[#12805C]/40 bg-[#E7F6EF] p-3 text-sm text-[#12805C]">
+              ✓ Emailed to {target.email}. You can also send it another way below.
+            </p>
+          ) : (
+            <p className="rounded-md border border-[#B45309]/40 bg-[#FBF2DC] p-3 text-sm text-[#8A6412]">
+              Not emailed{target.emailError ? ` (${target.emailError})` : ""} - send the link below.
+            </p>
+          )}
           <div className="flex gap-2">
             <Input readOnly value={target.url} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
             <Button variant="outline" size="icon" aria-label="Copy link" onClick={() => copy(target.url, "Link")}>
@@ -134,9 +146,18 @@ export function JudgeInvites({ edition }: { edition: KsefEditionSummary }) {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["ksef-invites", edition.id] });
 
   const inviteMutation = useMutation({
-    mutationFn: () => apiPost<{ url: string }>("/api/ksef/invites", { editionId: edition.id, ...form }),
-    onSuccess: ({ url }) => {
-      setSending({ url, email: form.email.trim().toLowerCase(), name: form.name.trim() || null, phone: form.phone.trim() || null, role: form.role });
+    mutationFn: () =>
+      apiPost<{ url: string; emailed: boolean; emailError: string | null }>("/api/ksef/invites", { editionId: edition.id, ...form }),
+    onSuccess: ({ url, emailed, emailError }) => {
+      setSending({
+        url,
+        email: form.email.trim().toLowerCase(),
+        name: form.name.trim() || null,
+        phone: form.phone.trim() || null,
+        role: form.role,
+        emailed,
+        emailError,
+      });
       setForm({ email: "", name: "", phone: "", specialty: "", role: "JUDGE" });
       refresh();
     },
@@ -144,10 +165,18 @@ export function JudgeInvites({ edition }: { edition: KsefEditionSummary }) {
   });
   const actionMutation = useMutation({
     mutationFn: ({ invite, action }: { invite: InviteRow; action: "REGENERATE" | "REVOKE" }) =>
-      apiPost<{ url?: string }>(`/api/ksef/invites/${invite.id}`, { action }),
+      apiPost<{ url?: string; emailed?: boolean; emailError?: string | null }>(`/api/ksef/invites/${invite.id}`, { action }),
     onSuccess: (result, { invite, action }) => {
       if (action === "REGENERATE" && result.url) {
-        setSending({ url: result.url, email: invite.email, name: invite.name, phone: invite.phone, role: invite.role });
+        setSending({
+          url: result.url,
+          email: invite.email,
+          name: invite.name,
+          phone: invite.phone,
+          role: invite.role,
+          emailed: !!result.emailed,
+          emailError: result.emailError ?? null,
+        });
       } else {
         toast.success("Invitation cancelled");
       }
@@ -163,7 +192,7 @@ export function JudgeInvites({ edition }: { edition: KsefEditionSummary }) {
           <CardHeader>
             <CardTitle>Invite to the panel</CardTitle>
             <CardDescription>
-              You&apos;ll get a personal signup link to send by WhatsApp, SMS or email. The invitee sets their own name and
+              The invitee is emailed a personal signup link, which you can also send by WhatsApp or SMS. The invitee sets their own name and
               password; someone who already has a Zaroda account just signs in to accept. Links work once and expire after 14 days.
             </CardDescription>
           </CardHeader>

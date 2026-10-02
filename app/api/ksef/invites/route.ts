@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { toErrorResponse } from "@/lib/authorize";
 import { getEditableEdition, requireKsefAdmin } from "@/lib/ksef";
-import { inviteExpiry, inviteState, inviteUrl, newInviteToken } from "@/lib/ksef-invites";
+import { sendEmail } from "@/lib/email";
+import { KSEF_PANEL_ROLE_LABELS } from "@/lib/ksef-config";
+import { inviteEmail, inviteExpiry, inviteState, inviteUrl, newInviteToken } from "@/lib/ksef-invites";
 import { ksefInviteSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -39,8 +41,9 @@ export async function GET(request: Request) {
 }
 
 /**
- * Invites someone to the edition's panel. Returns the one-time signup link
- * for the administrator to send - it can't be shown again later (regenerate
+ * Invites someone to the edition's panel and emails them the one-time
+ * signup link (when email is set up). Also returns the link for the
+ * administrator to send another way - it can't be shown again later (regenerate
  * a new one instead). Any earlier pending invitation for the same email in
  * this edition is revoked.
  */
@@ -48,7 +51,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireKsefAdmin();
     const input = ksefInviteSchema.parse(await request.json());
-    await getEditableEdition(input.editionId);
+    const edition = await getEditableEdition(input.editionId);
 
     const alreadyOnPanel = await prisma.ksefJudge.findFirst({
       where: { editionId: input.editionId, user: { email: input.email } },
@@ -84,7 +87,15 @@ export async function POST(request: Request) {
       newData: input,
     });
 
-    return NextResponse.json({ invite: { id: invite.id, email: invite.email, expiresAt: invite.expiresAt }, url: inviteUrl(request, token) }, { status: 201 });
+    const url = inviteUrl(request, token);
+    const email = await sendEmail({
+      to: invite.email,
+      ...inviteEmail({ email: invite.email, name: invite.name, roleLabel: KSEF_PANEL_ROLE_LABELS[invite.role], editionName: edition.name, url }),
+    });
+    return NextResponse.json(
+      { invite: { id: invite.id, email: invite.email, expiresAt: invite.expiresAt }, url, emailed: email.sent, emailError: email.error ?? null },
+      { status: 201 },
+    );
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

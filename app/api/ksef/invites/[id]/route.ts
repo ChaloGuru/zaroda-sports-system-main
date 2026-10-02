@@ -4,15 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { AuthorizationError, toErrorResponse } from "@/lib/authorize";
 import { getEditableEdition, requireKsefAdmin } from "@/lib/ksef";
-import { inviteExpiry, inviteUrl, newInviteToken } from "@/lib/ksef-invites";
+import { sendEmail } from "@/lib/email";
+import { KSEF_PANEL_ROLE_LABELS } from "@/lib/ksef-config";
+import { inviteEmail, inviteExpiry, inviteUrl, newInviteToken } from "@/lib/ksef-invites";
 
 export const dynamic = "force-dynamic";
 
 const actionSchema = z.object({ action: z.enum(["REGENERATE", "REVOKE"]) });
 
 /**
- * REGENERATE: issue a fresh link (and a fresh 14-day window) - the old link
- * stops working. REVOKE: cancel the invitation. Accepted invitations can't
+ * REGENERATE: issue a fresh link (and a fresh 14-day window), emailed to the
+ * invitee when email is set up - the old link stops working. REVOKE: cancel the invitation. Accepted invitations can't
  * be changed.
  */
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
@@ -22,7 +24,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     const { action } = actionSchema.parse(await request.json());
     const existing = await prisma.ksefJudgeInvite.findUnique({ where: { id: params.id } });
     if (!existing) throw new AuthorizationError("Invitation not found", 404);
-    await getEditableEdition(existing.editionId);
+    const edition = await getEditableEdition(existing.editionId);
     if (existing.acceptedAt) throw new Error("This invitation has already been accepted");
 
     if (action === "REVOKE") {
@@ -64,7 +66,12 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       recordId: (result) => result.id,
       newData: { action },
     });
-    return NextResponse.json({ url: inviteUrl(request, token) });
+    const url = inviteUrl(request, token);
+    const email = await sendEmail({
+      to: existing.email,
+      ...inviteEmail({ email: existing.email, name: existing.name, roleLabel: KSEF_PANEL_ROLE_LABELS[existing.role], editionName: edition.name, url }),
+    });
+    return NextResponse.json({ url, emailed: email.sent, emailError: email.error ?? null });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });
