@@ -357,7 +357,6 @@ export const roleAssignmentSchema = z
     email: optionalEmail,
     name: z.string().max(200).optional(),
     phone: z.string().max(30).optional(),
-    password: passwordSchema.optional(),
     role: z.enum([
       "TOURNAMENT_ADMIN",
       "SCOREKEEPER",

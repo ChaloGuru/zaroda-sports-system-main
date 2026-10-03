@@ -4,6 +4,7 @@ const verifyPaystackTransactionMock = vi.fn();
 
 vi.mock("@/lib/paystack", () => ({
   verifyPaystackTransaction: (...args: unknown[]) => verifyPaystackTransactionMock(...args),
+  kesToKobo: (amountKes: number) => Math.round(amountKes * 100),
   computeSubscriptionExpiry: (from: Date = new Date()) => new Date(from.getTime() + 365 * 24 * 60 * 60 * 1000),
 }));
 
@@ -163,7 +164,7 @@ describe("verifyAndRecordPayment", () => {
     verifyPaystackTransactionMock.mockResolvedValue(
       paystackResponse({ metadata: { mode: "team_fee", teamId: "team-1", feeId: "fee-1" } }),
     );
-    teamFeePaymentFindFirst.mockResolvedValue({ id: "payment-1", status: "PENDING", teamId: "team-1", pendingTeam: null });
+    teamFeePaymentFindFirst.mockResolvedValue({ id: "payment-1", status: "PENDING", teamId: "team-1", pendingTeam: null, amountKes: 580 });
     txTeamFeePaymentUpdateMany.mockResolvedValue({ count: 1 });
 
     const result = await verifyAndRecordPayment("ref3");
@@ -195,6 +196,7 @@ describe("verifyAndRecordPayment", () => {
       teamId: null,
       championshipId: "champ-1",
       pendingTeam: PENDING_TEAM,
+      amountKes: 580,
     });
     txTeamFeePaymentUpdateMany.mockResolvedValue({ count: 1 });
     txTournamentTeamFindFirst.mockResolvedValue(null);
@@ -217,6 +219,7 @@ describe("verifyAndRecordPayment", () => {
       teamId: null,
       championshipId: "champ-1",
       pendingTeam: PENDING_TEAM,
+      amountKes: 580,
     });
     // The other request already claimed (marked PAID) this payment.
     txTeamFeePaymentUpdateMany.mockResolvedValue({ count: 0 });
@@ -235,6 +238,7 @@ describe("verifyAndRecordPayment", () => {
       teamId: null,
       championshipId: "champ-1",
       pendingTeam: PENDING_TEAM,
+      amountKes: 580,
     });
     txTeamFeePaymentUpdateMany.mockResolvedValue({ count: 1 });
     txTournamentTeamFindFirst.mockResolvedValue({ id: "someone-else" });
@@ -245,6 +249,31 @@ describe("verifyAndRecordPayment", () => {
     expect(txTournamentTeamCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ teamCode: null, notes: expect.stringContaining("THU") }),
     });
+  });
+
+  it("does not activate a subscription when Paystack charged a different amount", async () => {
+    verifyPaystackTransactionMock.mockResolvedValue(
+      paystackResponse({ amount: 100, metadata: { mode: "subscription", tenantId: "tenant-1", planId: "plan-1" } }),
+    );
+    paymentTransactionFindUnique.mockResolvedValue({ id: "txn-1", tenantId: "tenant-1", planId: "plan-1", status: "PENDING", amountKes: 580 });
+
+    const result = await verifyAndRecordPayment("ref1");
+
+    expect(result.success).toBe(false);
+    expect(paymentTransactionUpdate).not.toHaveBeenCalled();
+    expect(championshipSubscriptionCreate).not.toHaveBeenCalled();
+  });
+
+  it("does not mark a team fee PAID when Paystack charged in another currency", async () => {
+    verifyPaystackTransactionMock.mockResolvedValue(
+      paystackResponse({ currency: "NGN", metadata: { mode: "team_fee", teamId: "team-1", feeId: "fee-1" } }),
+    );
+    teamFeePaymentFindFirst.mockResolvedValue({ id: "payment-1", status: "PENDING", teamId: "team-1", pendingTeam: null, amountKes: 580 });
+
+    const result = await verifyAndRecordPayment("ref3");
+
+    expect(result.success).toBe(false);
+    expect(txTeamFeePaymentUpdateMany).not.toHaveBeenCalled();
   });
 
   it("reports failure when metadata.mode is missing or unrecognized", async () => {

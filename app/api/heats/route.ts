@@ -61,10 +61,15 @@ export async function POST(request: Request) {
 
     const ctx = await requireGameAccess(game.id, ["TOURNAMENT_ADMIN", "SCOREKEEPER", "CHIEF_CALLROOM_MANAGER"]);
 
+    // Pinned to this game so athletes from another game (or another
+    // tenant's championship) can't be pulled into the heat.
     const participants = await prisma.participant.findMany({
-      where: { id: { in: input.participantIds } },
+      where: { id: { in: input.participantIds }, gameId: game.id },
       select: { id: true, personalBest: true },
     });
+    if (participants.length !== new Set(input.participantIds).size) {
+      return NextResponse.json({ error: "Every athlete in a heat must be entered in this event" }, { status: 400 });
+    }
 
     const laneSeeds = seedLanes(
       participants.map((p) => ({ participantId: p.id, personalBest: p.personalBest ? Number(p.personalBest) : null })),

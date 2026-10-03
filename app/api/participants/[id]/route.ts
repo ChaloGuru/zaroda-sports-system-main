@@ -24,6 +24,9 @@ const participantUpdateSchema = z.object({
   playingPosition: z.string().max(50).nullable().optional(),
 });
 
+/** Fields only officials may set - not team managers editing their roster. */
+const RESULT_FIELDS = ["status", "timeInput", "score", "position", "laneNumber", "isQualified"] as const;
+
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
@@ -31,6 +34,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (!existing) return NextResponse.json({ error: "Participant not found" }, { status: 404 });
 
     let ctx;
+    let teamAccessOnly = false;
     try {
       ctx = await requireGameAccess(existing.gameId, [
         "TOURNAMENT_ADMIN",
@@ -49,10 +53,20 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       });
       if (!team) throw accessError;
       ctx = await requireTeamAccess(existing.championshipId, team.name);
+      teamAccessOnly = true;
     }
 
     const body: unknown = await request.json();
     const input = participantUpdateSchema.parse(body);
+
+    // Team managers maintain their own roster, never results - otherwise they
+    // could place or qualify their own athletes.
+    if (teamAccessOnly) {
+      const resultField = RESULT_FIELDS.find((field) => input[field] !== undefined);
+      if (resultField) {
+        return NextResponse.json({ error: "Only officials can enter results or change an athlete's status" }, { status: 403 });
+      }
+    }
 
     const data: Record<string, unknown> = {};
     if (input.firstName !== undefined) data.firstName = input.firstName;

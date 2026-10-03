@@ -1,6 +1,6 @@
 import type { Gender, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { verifyPaystackTransaction, computeSubscriptionExpiry } from "./paystack";
+import { verifyPaystackTransaction, computeSubscriptionExpiry, kesToKobo } from "./paystack";
 
 /**
  * Registration details for a publicly self-registered team, stored on its
@@ -20,6 +20,18 @@ export interface VerifyResult {
   mode?: string;
   message: string;
 }
+
+/**
+ * True if Paystack actually charged what this payment record asked for. The
+ * amount is set server-side at initialize, but Paystack recommends checking
+ * it on verify too, so a charge for a different amount or currency is never
+ * treated as payment for this record.
+ */
+function chargeMatches(data: { amount: number; currency: string }, amountKes: number): boolean {
+  return data.amount === kesToKobo(amountKes) && data.currency === "KES";
+}
+
+const AMOUNT_MISMATCH = "The amount paid doesn't match this payment - contact support with your payment reference";
 
 function toJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -55,6 +67,10 @@ export async function verifyAndRecordPayment(reference: string): Promise<VerifyR
     if (!transaction) return { success: false, mode, message: "Transaction record not found" };
     if (transaction.status === "PAID") {
       return { success: true, mode, message: "Payment already verified" };
+    }
+    if (!chargeMatches(data, transaction.amountKes)) {
+      console.error(`[payments] ${reference}: charged ${data.amount} ${data.currency}, expected ${kesToKobo(transaction.amountKes)} KES`);
+      return { success: false, mode, message: AMOUNT_MISMATCH };
     }
 
     await prisma.$transaction(async (tx) => {
@@ -117,6 +133,10 @@ export async function verifyAndRecordPayment(reference: string): Promise<VerifyR
   if (mode === "team_fee") {
     const payment = await prisma.teamFeePayment.findFirst({ where: { paystackReference: reference } });
     if (!payment) return { success: false, mode, message: "Payment record not found" };
+    if (!chargeMatches(data, payment.amountKes)) {
+      console.error(`[payments] ${reference}: charged ${data.amount} ${data.currency}, expected ${kesToKobo(payment.amountKes)} KES`);
+      return { success: false, mode, message: AMOUNT_MISMATCH };
+    }
 
     await prisma.$transaction(async (tx) => {
       // Conditional update claims the payment: if the webhook and the

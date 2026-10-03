@@ -77,7 +77,7 @@ const DUMMY_PASSWORD_HASH = "$2a$12$8oDOXsLyhEDLLhH7yC0CVe.3cV7jOFUZ6R4jUT2VCVMN
  * Short, non-reversible fingerprint of the stored password hash. Kept in the
  * JWT so a password change invalidates every session issued before it.
  */
-function passwordFingerprint(passwordHash: string): string {
+export function passwordFingerprint(passwordHash: string): string {
   return createHash("sha256").update(passwordHash).digest("hex").slice(0, 16);
 }
 

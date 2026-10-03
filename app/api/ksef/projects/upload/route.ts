@@ -26,6 +26,8 @@ export async function POST(request: Request) {
 
     const blob = await put(`ksef-projects/${Date.now()}-${file.name}`, file, {
       access: "public",
+      // Unguessable URL - without it the path is just a timestamp and filename.
+      addRandomSuffix: true,
       contentType: "application/pdf",
     });
 

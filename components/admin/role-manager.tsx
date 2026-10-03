@@ -7,7 +7,6 @@ import { Link2, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -305,7 +304,6 @@ export function RoleManager() {
     email: "",
     name: "",
     phone: "",
-    password: "",
     role: "TOURNAMENT_ADMIN",
     organizationName: "",
     gameCategory: "",
@@ -346,26 +344,32 @@ export function RoleManager() {
 
   const assignMutation = useMutation({
     mutationFn: () =>
-      apiPost("/api/admin/roles", {
+      apiPost<{ newAccount: boolean; setupLink: string | null }>("/api/admin/roles", {
         championshipId,
         role: form.role,
         email: form.email,
         name: form.name || undefined,
         phone: form.phone || undefined,
-        password: form.password || undefined,
         organizationName: form.role === "TEAM_MANAGER" ? form.organizationName : undefined,
         gameCategory: SCOPABLE_ROLES.has(form.role) && form.gameCategory ? form.gameCategory : undefined,
         ballSport: SCOPABLE_ROLES.has(form.role) && form.gameCategory === "BALL_GAMES" && form.ballSport ? form.ballSport : undefined,
         athleticsType:
           SCOPABLE_ROLES.has(form.role) && form.gameCategory === "ATHLETICS" && form.athleticsType ? form.athleticsType : undefined,
       }),
-    onSuccess: () => {
-      copyChampionshipLink();
+    onSuccess: (result) => {
+      if (result.setupLink) {
+        // Only returned to a super admin, when email isn't working.
+        navigator.clipboard.writeText(result.setupLink);
+        toast.success(`Email isn't working - ${form.email}'s account setup link was copied. Send it to them directly.`);
+      } else if (result.newAccount) {
+        toast.success(`${form.email} has been emailed a link to set up their account`);
+      } else {
+        copyChampionshipLink();
+      }
       setForm({
         email: "",
         name: "",
         phone: "",
-        password: "",
         role: "TOURNAMENT_ADMIN",
         organizationName: "",
         gameCategory: "",
@@ -491,17 +495,9 @@ export function RoleManager() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Password (new accounts only)</Label>
-            <PasswordInput
-              autoComplete="new-password"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-          </div>
+          <p className="text-xs text-muted">
+            Someone new to Zaroda is emailed a link to choose their own password. Existing accounts just gain the role.
+          </p>
 
           <div className="space-y-2">
             <Label>Role</Label>
