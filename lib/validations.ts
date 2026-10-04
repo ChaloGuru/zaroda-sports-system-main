@@ -607,6 +607,15 @@ export const ksefAssignmentSchema = z.object({
   level: ksefLevelSchema,
 });
 
+export const ksefAutoAssignSchema = z.object({
+  editionId: z.string().uuid(),
+  level: ksefLevelSchema,
+  // Which school level's projects to cover - or every project at this level.
+  division: z.enum(["ALL", "JUNIOR_SCHOOL", "SENIOR_SCHOOL"]),
+  judgeIds: z.array(z.string().uuid()).min(1, "Pick at least one judge").max(100),
+  judgesPerProject: z.number().int().min(1).max(10),
+});
+
 export const ksefScoreSheetSchema = z.object({
   scores: z
     .array(

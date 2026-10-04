@@ -186,3 +186,64 @@ export const KSEF_PANEL_ROLE_LABELS = {
   CHIEF_JUDGE: "Chief Judge",
   SRC_MEMBER: "SRC Member",
 } as const;
+
+/**
+ * Only panel members with the Judge role score projects. Chief Judges review
+ * judging discrepancies (and mustn't be judging the projects they review) and
+ * SRC members handle complaints, so neither is given projects.
+ */
+export const ASSIGNABLE_PANEL_ROLE = "JUDGE" as const;
+
+export interface AutoAssignProject {
+  id: string;
+  /** Judges already assigned to this project at this level. */
+  judgeIds: readonly string[];
+}
+
+export interface AutoAssignJudge {
+  id: string;
+  /** Projects this judge already has at this level. */
+  load: number;
+}
+
+export interface AutoAssignPlan {
+  assignments: { judgeId: string; projectId: string }[];
+  /** Projects that couldn't reach `judgesPerProject` - not enough distinct judges. */
+  shortfall: { projectId: string; missing: number }[];
+}
+
+/**
+ * Tops each project up to `judgesPerProject` judges, keeping existing
+ * assignments and never giving a project the same judge twice. Projects with
+ * the fewest judges go first, and each place goes to the least-loaded judge
+ * (ties broken by the judges' order), so work is spread as evenly as possible.
+ */
+export function planAutoAssignments(
+  projects: readonly AutoAssignProject[],
+  judges: readonly AutoAssignJudge[],
+  judgesPerProject: number,
+): AutoAssignPlan {
+  const load = new Map(judges.map((j) => [j.id, j.load]));
+  const order = new Map(judges.map((j, i) => [j.id, i]));
+  const plan: AutoAssignPlan = { assignments: [], shortfall: [] };
+
+  const queue = projects
+    .map((p, i) => ({ ...p, i }))
+    .sort((a, b) => a.judgeIds.length - b.judgeIds.length || a.i - b.i);
+  for (const project of queue) {
+    const missing = judgesPerProject - project.judgeIds.length;
+    if (missing <= 0) continue;
+    const already = new Set(project.judgeIds);
+    const picks = judges
+      .map((j) => j.id)
+      .filter((id) => !already.has(id))
+      .sort((a, b) => load.get(a)! - load.get(b)! || order.get(a)! - order.get(b)!)
+      .slice(0, missing);
+    for (const judgeId of picks) {
+      plan.assignments.push({ judgeId, projectId: project.id });
+      load.set(judgeId, load.get(judgeId)! + 1);
+    }
+    if (picks.length < missing) plan.shortfall.push({ projectId: project.id, missing: missing - picks.length });
+  }
+  return plan;
+}

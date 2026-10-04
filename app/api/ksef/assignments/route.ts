@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { AuthorizationError, toErrorResponse } from "@/lib/authorize";
 import { getEditableEdition, requireKsefAdmin } from "@/lib/ksef";
+import { ASSIGNABLE_PANEL_ROLE } from "@/lib/ksef-config";
 import { ksefAssignmentSchema, ksefLevelSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,12 @@ export async function POST(request: Request) {
     const inactive = judges.filter((j) => !j.isActive);
     if (inactive.length > 0) {
       throw new Error(`${inactive.map((j) => j.user.name).join(", ")} ${inactive.length === 1 ? "is" : "are"} deactivated - reactivate them first`);
+    }
+    const notJudges = judges.filter((j) => j.role !== ASSIGNABLE_PANEL_ROLE);
+    if (notJudges.length > 0) {
+      throw new Error(
+        `${notJudges.map((j) => j.user.name).join(", ")} ${notJudges.length === 1 ? "isn't a" : "aren't"} Judge${notJudges.length === 1 ? "" : "s"} - Chief Judges and SRC members aren't given projects to score`,
+      );
     }
     await getEditableEdition(editionId);
 
