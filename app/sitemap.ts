@@ -13,6 +13,7 @@ const staticRoutes: MetadataRoute.Sitemap = [
   { url: `${BASE_URL}/guide`, changeFrequency: "monthly", priority: 0.4 },
   { url: `${BASE_URL}/rankings`, changeFrequency: "daily", priority: 0.7 },
   { url: `${BASE_URL}/medal-table`, changeFrequency: "daily", priority: 0.7 },
+  { url: `${BASE_URL}/ksef/results`, changeFrequency: "daily", priority: 0.7 },
   { url: `${BASE_URL}/circulars`, changeFrequency: "weekly", priority: 0.6 },
   { url: `${BASE_URL}/contacts`, changeFrequency: "monthly", priority: 0.5 },
   { url: `${BASE_URL}/signup`, changeFrequency: "monthly", priority: 0.6 },
