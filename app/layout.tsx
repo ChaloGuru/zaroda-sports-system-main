@@ -30,7 +30,9 @@ const DESCRIPTION =
   "Zaroda Sports helps Kenyan schools manage championships, athletics meets, and ball games - registration, live results, rankings, and medal tables in one place.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://zarodasports.live"),
+  // www is the primary domain (the bare domain redirects to it) - pointing
+  // preview images straight at it saves link scrapers a redirect.
+  metadataBase: new URL("https://www.zarodasports.live"),
   title: TITLE,
   description: DESCRIPTION,
   openGraph: {
