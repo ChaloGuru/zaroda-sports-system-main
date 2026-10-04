@@ -32,7 +32,85 @@ export interface StandardKsefCriterion {
   name: string;
   description: string;
   maxScore: number;
+  /** Score-sheet heading; criteria with the same section are grouped and subtotalled. */
+  section?: string | null;
+  /** Scored by BE/AE/ME/EE level rather than any number up to maxScore. */
+  levelScored?: boolean;
 }
+
+/**
+ * Performance levels on the official KSEF score sheets. A criterion scored by
+ * level earns this fraction of its maximum - e.g. out of 2: BE 0.5, AE 1,
+ * ME 1.5, EE 2.
+ */
+export const KSEF_SCORE_LEVELS = [
+  { code: "BE", label: "Below Expectation", fraction: 0.25 },
+  { code: "AE", label: "Approaching Expectation", fraction: 0.5 },
+  { code: "ME", label: "Meeting Expectation", fraction: 0.75 },
+  { code: "EE", label: "Exceeding Expectation", fraction: 1 },
+] as const;
+
+/** The score each level gives for a criterion out of `maxScore`. */
+export function levelScores(maxScore: number): { code: string; label: string; score: number }[] {
+  return KSEF_SCORE_LEVELS.map((l) => ({ code: l.code, label: l.label, score: Math.round(maxScore * l.fraction * 100) / 100 }));
+}
+
+/** True if `score` is exactly one of the level scores for a criterion out of `maxScore`. */
+export function isLevelScore(maxScore: number, score: number): boolean {
+  return levelScores(maxScore).some((l) => Math.abs(l.score - score) < 1e-9);
+}
+
+const PART_A = "Part A: Written Communication (Write-up and Posters) - Session One";
+const PART_B = "Part B: Oral Communication (Interaction) - Session Two";
+const PART_C = "Part C: Scientific Thought, Method and Creativity - Session Two";
+
+/**
+ * The official KSEF Junior School score sheet: Part A /20, Part B /10,
+ * Part C /35 - 65 in all, every criterion scored BE/AE/ME/EE.
+ */
+export const KSEF_JUNIOR_SCORE_SHEET: StandardKsefCriterion[] = (
+  [
+    [PART_A, "Write-up neatly and logically organized", "Written with clearly labelled sections, e.g. abstract and plagiarism pledge.", 2],
+    [PART_A, "Evidence of background research in write-up", "Background information and knowledge summarized in the write-up, with articles in an appendix.", 1],
+    [PART_A, "Written language in write-up or on display board", "Legible, correct fonts, scientific, suitable headings, no spelling mistakes.", 1],
+    [PART_A, "Objectives of project reflected in write-up and on display board", "", 2],
+    [PART_A, "Methods (and materials) or technologies used, in write-up and on display board", "Presented in logical order, correct expression; more extensive in the report than on the poster.", 2],
+    [PART_A, "Results in write-up and on display board", "Full observations presented in tabular form and in graphs in the write-up; summary in graph or diagram form on the poster. Results should be scientifically and mathematically suitable and correct.", 2],
+    [PART_A, "Analysis of results in write-up or on display board", "Report, findings and graphs explained in words - more extensive in the write-up than on the poster.", 1],
+    [PART_A, "Discussion of results in write-up or on display board", "Patterns and trends are noted and explained, anomalies/unusual results are discussed, limitations noted and clarified.", 1],
+    [PART_A, "Future possibilities of research in write-up / recommendations", "Future extensions and possibilities are identified.", 1],
+    [PART_A, "Conclusions reflected in write-up or on display board", "They are valid, based on findings and linked to objectives.", 1],
+    [PART_A, "References in write-up", "References to books, magazines and internet addresses given in the correct format.", 1],
+    [PART_A, "Acknowledgements in write-up or on display board", "Find out the depth of adult assistance received and how this assistance has been used.", 1],
+    [PART_A, "Display board summarises the project and is neatly organized", "Includes the correct size of board and a logical flow of presentation.", 2],
+    [PART_A, "Project data file / portfolio", "Research plan, rough work, original data sheets, plans, diagrams, photos, questionnaires, previous models, emails, etc. - showing what was done and when, where and how observations were made, circumstances, results, etc.", 2],
+
+    [PART_B, "Enthusiasm / effort", "A worthwhile effort was made to explain, lots of enthusiasm.", 1],
+    [PART_B, "Voice / tone", "Totally audible, varying intonation.", 1],
+    [PART_B, "Self-confidence", "Ease of presentation.", 1],
+    [PART_B, "Scientific language", "Use of appropriate language and vocabulary.", 2],
+    [PART_B, "Response to questions", "Carefully listens to questions, responds clearly and intelligently.", 2],
+    [PART_B, "Limitations / weaknesses and gaps", "The learner is fully aware of limitations and can explain reasons for gaps.", 1],
+    [PART_B, "Possible suggestions for expanding the project / recommendations", "The learner is fully aware of possibilities for expanding the project.", 1],
+    [PART_B, "Authenticity", "The learner takes complete ownership of the project and integrates assistance received in their answers to questions; can demonstrate all of the methods/techniques used. Ask questions to find out the amount of assistance received and how it has been used.", 1],
+
+    [PART_C, "Statement of the problem", "Clear statement of the problem and objectives.", 2],
+    [PART_C, "Introduction / background information", "Relationship between the project and other research done in the same area.", 2],
+    [PART_C, "Application of scientific concepts to everyday life", "", 3],
+    [PART_C, "Subject mastery", "Demonstration of deep and accurate knowledge of the scientific and engineering principles involved.", 3],
+    [PART_C, "Literature review", "Project shows understanding of existing knowledge.", 2],
+    [PART_C, "Data", "Adequate data obtained to verify conclusions.", 3],
+    [PART_C, "Variables", "Variables/parameters were clearly defined and recognized, controls used.", 2],
+    [PART_C, "Statement of originality", "What inspired the learner to come up with the project.", 2],
+    [PART_C, "Logical sequence - apparatus / requirements", "Experimental design demonstrates understanding of scientific methods of research.", 2],
+    [PART_C, "Logical sequence - procedure / method", "Experimental design demonstrates understanding of scientific methods of research.", 2],
+    [PART_C, "Logical sequence - correct illustrations", "Experimental design demonstrates understanding of scientific methods of research.", 3],
+    [PART_C, "Linkage to emerging issues", "Links the innovation with emerging issues or adds value to the existing body of knowledge.", 2],
+    [PART_C, "Originality", "Is the problem original, or does the approach to it show originality? Does the construction or design of equipment/project show originality?", 3],
+    [PART_C, "Creativity", "Have materials/equipment been used in an ingenious way? To what extent does the project/exhibit represent the learner's own effort/skill?", 2],
+    [PART_C, "Skill", "Was the workmanship of the display skilful? Workmanship is neat and well done; the project requires minimum maintenance.", 2],
+  ] as const
+).map(([section, name, description, maxScore]) => ({ division: "JUNIOR_SCHOOL" as const, section, name, description, maxScore, levelScored: true }));
 
 export const STANDARD_KSEF_STRUCTURE: { categories: StandardKsefCategory[]; criteria: StandardKsefCriterion[] } = {
   categories: [
@@ -58,11 +136,13 @@ export const STANDARD_KSEF_STRUCTURE: { categories: StandardKsefCategory[]; crit
     { division: "SENIOR_SCHOOL", name: "Behavioural Science", subCategories: [] },
   ],
   criteria: [
-    { division: null, name: "Written communication", description: "Abstract and project report: clarity, structure, referencing.", maxScore: 20 },
-    { division: null, name: "Scientific thought / engineering goals", description: "Problem, hypothesis or design goals; methodology; data and analysis; conclusions.", maxScore: 30 },
-    { division: null, name: "Creativity and innovation", description: "Originality of the idea, approach and solution.", maxScore: 20 },
-    { division: null, name: "Oral presentation", description: "Explanation of the project and response to judges' questions.", maxScore: 20 },
-    { division: null, name: "Display / exhibit", description: "Quality and relevance of the exhibit and display board.", maxScore: 10 },
+    ...KSEF_JUNIOR_SCORE_SHEET,
+    // General criteria for Senior School until its official sheet is added.
+    { division: "SENIOR_SCHOOL", name: "Written communication", description: "Abstract and project report: clarity, structure, referencing.", maxScore: 20 },
+    { division: "SENIOR_SCHOOL", name: "Scientific thought / engineering goals", description: "Problem, hypothesis or design goals; methodology; data and analysis; conclusions.", maxScore: 30 },
+    { division: "SENIOR_SCHOOL", name: "Creativity and innovation", description: "Originality of the idea, approach and solution.", maxScore: 20 },
+    { division: "SENIOR_SCHOOL", name: "Oral presentation", description: "Explanation of the project and response to judges' questions.", maxScore: 20 },
+    { division: "SENIOR_SCHOOL", name: "Display / exhibit", description: "Quality and relevance of the exhibit and display board.", maxScore: 10 },
   ],
 };
 

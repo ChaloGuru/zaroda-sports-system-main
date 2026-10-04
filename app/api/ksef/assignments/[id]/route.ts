@@ -10,6 +10,7 @@ import {
   requireOwnScoreSheet,
   requireScoreSheetViewer,
 } from "@/lib/ksef";
+import { isLevelScore, levelScores } from "@/lib/ksef-config";
 import { ksefScoreSheetSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -38,8 +39,13 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
         },
       }),
       criteriaForDivision(assignment.judge.editionId, assignment.project.category.division),
-      prisma.ksefScore.findMany({ where: { assignmentId: assignment.id } }),
+      prisma.ksefScore.findMany({ where: { assignmentId: assignment.id }, include: { criterion: true } }),
     ]);
+    // A submitted sheet always shows what it was scored on, even if the
+    // edition's criteria have changed since.
+    const sheetCriteria = assignment.submittedAt
+      ? scores.map((s) => s.criterion).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      : criteria;
     return NextResponse.json({
       assignment: {
         id: assignment.id,
@@ -50,7 +56,14 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
       canEdit: isOwnSheet && !assignment.submittedAt && assignment.judge.edition.status === "ACTIVE",
       judgingOpen: assignment.judge.edition.status === "ACTIVE",
       project,
-      criteria,
+      criteria: sheetCriteria.map((c) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        maxScore: c.maxScore,
+        section: c.section,
+        levelScored: c.levelScored,
+      })),
       scores: scores.map((s) => ({ criterionId: s.criterionId, score: Number(s.score) })),
     });
   } catch (error) {
@@ -77,6 +90,9 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       const criterion = byId.get(s.criterionId);
       if (!criterion) throw new Error("A score was given for a criterion that isn't on this score sheet");
       if (s.score > criterion.maxScore) throw new Error(`${criterion.name} is out of ${criterion.maxScore}`);
+      if (criterion.levelScored && !isLevelScore(criterion.maxScore, s.score)) {
+        throw new Error(`${criterion.name} is scored BE/AE/ME/EE: ${levelScores(criterion.maxScore).map((l) => `${l.code} ${l.score}`).join(", ")}`);
+      }
     }
     if (input.submit) {
       const scored = new Set(input.scores.map((s) => s.criterionId));

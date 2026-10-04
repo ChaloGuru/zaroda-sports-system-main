@@ -157,12 +157,16 @@ function CriterionEditor({ criterion, readOnly }: { criterion: KsefCriterionRow;
     description: criterion.description ?? "",
     maxScore: String(criterion.maxScore),
     division: criterion.division ?? "BOTH",
+    section: criterion.section ?? "",
+    levelScored: criterion.levelScored,
   });
   const dirty =
     form.name !== criterion.name ||
     form.description !== (criterion.description ?? "") ||
     form.maxScore !== String(criterion.maxScore) ||
-    form.division !== (criterion.division ?? "BOTH");
+    form.division !== (criterion.division ?? "BOTH") ||
+    form.section !== (criterion.section ?? "") ||
+    form.levelScored !== criterion.levelScored;
 
   const patch = useMutation({
     mutationFn: (body: Record<string, unknown>) => apiPatch(`/api/ksef/criteria/${criterion.id}`, body),
@@ -202,6 +206,8 @@ function CriterionEditor({ criterion, readOnly }: { criterion: KsefCriterionRow;
               description: form.description,
               maxScore: Number(form.maxScore),
               division: form.division === "BOTH" ? null : form.division,
+              section: form.section,
+              levelScored: form.levelScored,
             })
           }
         >
@@ -210,6 +216,20 @@ function CriterionEditor({ criterion, readOnly }: { criterion: KsefCriterionRow;
         <Button size="sm" variant="ghost" className="h-9" disabled={readOnly || patch.isPending} onClick={() => patch.mutate({ isActive: !criterion.isActive })}>
           {criterion.isActive ? "Disable" : "Enable"}
         </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 md:col-span-full">
+        <Input
+          className="h-8 max-w-md flex-1 text-xs"
+          placeholder="Section on the score sheet (optional), e.g. Part A: Written Communication"
+          value={form.section}
+          disabled={readOnly}
+          onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}
+          aria-label="Section"
+        />
+        <label className="flex items-center gap-2 text-xs text-muted">
+          <input type="checkbox" checked={form.levelScored} disabled={readOnly} onChange={(e) => setForm((f) => ({ ...f, levelScored: e.target.checked }))} />
+          Score by level (BE/AE/ME/EE)
+        </label>
       </div>
     </div>
   );
@@ -234,6 +254,35 @@ function CriteriaCard({ edition, criteria, readOnly }: { edition: KsefEditionSum
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to add criterion"),
   });
 
+  const juniorOnOfficialSheet = criteria.some(
+    (c) => c.isActive && c.division === "JUNIOR_SCHOOL" && c.levelScored && c.section?.startsWith("Part A"),
+  );
+  const officialMutation = useMutation({
+    mutationFn: () => apiPost<{ submittedOnOld: number }>("/api/ksef/criteria/official-junior", { editionId: edition.id }),
+    onSuccess: ({ submittedOnOld }) => {
+      toast.success("Junior School now uses the official KSEF score sheet (/65)");
+      if (submittedOnOld > 0) {
+        toast.warning(`${submittedOnOld} Junior School score sheet${submittedOnOld === 1 ? " was" : "s were"} already submitted on the old criteria - re-judge those projects so all their sheets match.`, { duration: 12_000 });
+      }
+      queryClient.invalidateQueries({ queryKey: ["ksef-config", edition.id] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to switch score sheet"),
+  });
+  async function switchToOfficial() {
+    const { submitted } = await apiGet<{ submitted: number }>(`/api/ksef/criteria/official-junior?editionId=${edition.id}`);
+    const warning =
+      submitted > 0
+        ? `\n\n${submitted} Junior School score sheet${submitted === 1 ? " has" : "s have"} already been submitted on the current criteria. They stay as they are, but those projects should be re-judged on the new sheet so their judges' totals are comparable.`
+        : "";
+    if (
+      window.confirm(
+        `Use the official KSEF Junior School score sheet (Part A /20, Part B /10, Part C /35 - 65 in all, scored BE/AE/ME/EE) for Junior School projects?\n\nThe current Junior School criteria are kept for the record but stop applying; criteria shared with Senior School become Senior-only.${warning}`,
+      )
+    ) {
+      officialMutation.mutate();
+    }
+  }
+
   const totals = KSEF_DIVISIONS.map((d) => ({
     division: d,
     total: criteria.filter((c) => c.isActive && (c.division === null || c.division === d)).reduce((sum, c) => sum + c.maxScore, 0),
@@ -255,6 +304,14 @@ function CriteriaCard({ edition, criteria, readOnly }: { edition: KsefEditionSum
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
+        {!juniorOnOfficialSheet && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-overlay p-3 text-sm">
+            <span>Junior School projects can use the official KSEF Junior School score sheet (Parts A, B and C - 65 marks, scored BE/AE/ME/EE).</span>
+            <Button size="sm" disabled={readOnly || officialMutation.isPending} onClick={switchToOfficial}>
+              Use official Junior School sheet
+            </Button>
+          </div>
+        )}
         <div className="hidden gap-2 px-3 text-xs uppercase text-muted md:grid md:grid-cols-[1fr_1.4fr_90px_150px_auto]">
           <span>Criterion</span>
           <span>Description</span>
@@ -263,7 +320,7 @@ function CriteriaCard({ edition, criteria, readOnly }: { edition: KsefEditionSum
           <span />
         </div>
         {criteria.map((c) => (
-          <CriterionEditor key={`${c.id}:${c.isActive}:${c.maxScore}:${c.name}`} criterion={c} readOnly={readOnly} />
+          <CriterionEditor key={`${c.id}:${c.isActive}:${c.maxScore}:${c.name}:${c.section}:${c.levelScored}:${c.division}`} criterion={c} readOnly={readOnly} />
         ))}
         <div className="grid gap-2 rounded-md border border-dashed border-border p-3 md:grid-cols-[1fr_90px_150px_auto]">
           <Input className="h-9" placeholder="New criterion" value={form.name} disabled={readOnly} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />

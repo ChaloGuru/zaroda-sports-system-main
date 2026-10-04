@@ -12,8 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiGet, apiPut } from "@/lib/api-client";
-import { KSEF_DIVISION_LABELS } from "@/lib/ksef-config";
-import { LEVEL_LABELS } from "@/lib/utils";
+import { KSEF_DIVISION_LABELS, KSEF_SCORE_LEVELS, levelScores } from "@/lib/ksef-config";
+import { LEVEL_LABELS, cn } from "@/lib/utils";
 import type { KsefDivision, Level } from "@prisma/client";
 
 interface ScoreSheetData {
@@ -32,7 +32,7 @@ interface ScoreSheetData {
     school: { name: string };
     learners: { firstName: string; lastName: string; grade: string | null }[];
   };
-  criteria: { id: string; name: string; description: string | null; maxScore: number }[];
+  criteria: { id: string; name: string; description: string | null; maxScore: number; section: string | null; levelScored: boolean }[];
   scores: { criterionId: string; score: number }[];
 }
 
@@ -72,6 +72,15 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
   const maxTotal = data.criteria.reduce((sum, c) => sum + c.maxScore, 0);
   const complete = parsed.every((p) => p.value !== null && !p.invalid);
   const anyInvalid = parsed.some((p) => p.invalid);
+  const anyLevelScored = data.criteria.some((c) => c.levelScored);
+  // Consecutive criteria with the same section form one block on the sheet.
+  const sections = parsed.reduce<{ title: string | null; rows: typeof parsed }[]>((acc, row) => {
+    const last = acc[acc.length - 1];
+    if (last && last.title === row.criterion.section) last.rows.push(row);
+    else acc.push({ title: row.criterion.section, rows: [row] });
+    return acc;
+  }, []);
+  const sum = (rows: typeof parsed) => Math.round(rows.reduce((s, r) => s + (r.value !== null && !r.invalid ? r.value : 0), 0) * 100) / 100;
 
   const saveMutation = useMutation({
     mutationFn: (submit: boolean) =>
@@ -141,30 +150,78 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
         </CardHeader>
         <CardContent className="space-y-3">
           {data.criteria.length === 0 && <p className="text-muted">No judging criteria are configured for this division yet.</p>}
-          {parsed.map(({ criterion, invalid }) => (
-            <div key={criterion.id} className="flex flex-col gap-2 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-medium text-foreground">{criterion.name}</p>
-                {criterion.description && <p className="text-xs text-muted">{criterion.description}</p>}
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-2">
-                  <Input
-                    aria-label={`${criterion.name} score, out of ${criterion.maxScore}`}
-                    inputMode="decimal"
-                    className={`h-10 w-24 text-center font-mono tabular-nums ${invalid ? "border-destructive" : ""}`}
-                    value={values[criterion.id] ?? ""}
-                    disabled={locked}
-                    onChange={(e) => enterScore(criterion.id, criterion.maxScore, e.target.value)}
-                  />
-                  <span className="w-12 text-sm text-muted">/ {criterion.maxScore}</span>
+          {anyLevelScored && (
+            <p className="rounded-md bg-surface-overlay px-3 py-2 text-xs text-muted">
+              {KSEF_SCORE_LEVELS.map((l) => `${l.code} = ${l.label}`).join(" · ")}. Each level earns 25%, 50%, 75% or 100% of the
+              criterion&apos;s maximum.
+            </p>
+          )}
+          {sections.map((section, sectionIndex) => (
+            <div key={`${section.title ?? "criteria"}-${sectionIndex}`} className="space-y-2">
+              {section.title && (
+                <div className="flex items-center justify-between gap-3 border-b border-border pb-1 pt-2">
+                  <h3 className="font-heading text-sm font-bold uppercase tracking-wide text-foreground">{section.title}</h3>
+                  <span className="shrink-0 font-mono text-sm tabular-nums text-muted">
+                    {sum(section.rows)} / {section.rows.reduce((s, r) => s + r.criterion.maxScore, 0)}
+                  </span>
                 </div>
-                {refused?.criterionId === criterion.id && (
-                  <p role="alert" className="text-xs font-medium text-destructive">
-                    {refused.message}
-                  </p>
-                )}
-              </div>
+              )}
+              {section.rows.map(({ criterion, invalid }) => (
+                <div key={criterion.id} className="flex flex-col gap-2 rounded-md border border-border p-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">
+                      {criterion.name} <span className="text-sm font-normal text-muted">(/{criterion.maxScore})</span>
+                    </p>
+                    {criterion.description && <p className="text-xs text-muted">{criterion.description}</p>}
+                  </div>
+                  {criterion.levelScored ? (
+                    <div className="flex shrink-0 flex-wrap gap-1.5" role="radiogroup" aria-label={`${criterion.name} level`}>
+                      {levelScores(criterion.maxScore).map((level) => {
+                        const chosen = values[criterion.id] !== undefined && values[criterion.id] !== "" && Number(values[criterion.id]) === level.score;
+                        return (
+                          <button
+                            key={level.code}
+                            type="button"
+                            role="radio"
+                            aria-checked={chosen}
+                            title={`${level.label} - ${level.score}`}
+                            disabled={locked}
+                            onClick={() => setValues((v) => ({ ...v, [criterion.id]: String(level.score) }))}
+                            className={cn(
+                              "flex min-w-[3.75rem] flex-col items-center rounded-md border px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed",
+                              chosen
+                                ? "border-primary bg-primary text-white"
+                                : "border-border text-foreground hover:border-primary disabled:opacity-60",
+                            )}
+                          >
+                            <span className="font-bold">{level.code}</span>
+                            <span className="font-mono tabular-nums">{level.score}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          aria-label={`${criterion.name} score, out of ${criterion.maxScore}`}
+                          inputMode="decimal"
+                          className={`h-10 w-24 text-center font-mono tabular-nums ${invalid ? "border-destructive" : ""}`}
+                          value={values[criterion.id] ?? ""}
+                          disabled={locked}
+                          onChange={(e) => enterScore(criterion.id, criterion.maxScore, e.target.value)}
+                        />
+                        <span className="w-12 text-sm text-muted">/ {criterion.maxScore}</span>
+                      </div>
+                      {refused?.criterionId === criterion.id && (
+                        <p role="alert" className="text-xs font-medium text-destructive">
+                          {refused.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           ))}
           <div className="flex items-center justify-between rounded-md bg-surface-overlay px-4 py-3">

@@ -53,6 +53,8 @@ export interface KsefCriterionRow {
   name: string;
   description: string | null;
   maxScore: number;
+  section: string | null;
+  levelScored: boolean;
   isActive: boolean;
   _count: { scores: number };
 }

@@ -508,12 +508,16 @@ export const ksefCriterionSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: optionalText(1000),
   maxScore: z.number().int().min(1).max(1000),
+  section: optionalText(200),
+  levelScored: z.boolean().default(false),
 });
 export const ksefCriterionUpdateSchema = z.object({
   division: ksefDivisionSchema.nullable().optional(),
   name: z.string().trim().min(1).max(200).optional(),
   description: optionalText(1000),
   maxScore: z.number().int().min(1).max(1000).optional(),
+  section: optionalText(200),
+  levelScored: z.boolean().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 });

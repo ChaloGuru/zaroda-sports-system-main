@@ -3,6 +3,7 @@ import type { KsefEdition, KsefDivision, Level, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { AuthorizationError, requireAuth, requireRole, isSuperAdmin, type AuthContext } from "./authorize";
 import {
+  KSEF_JUNIOR_SCORE_SHEET,
   STANDARD_KSEF_STRUCTURE,
   averageJudgeTotal,
   checkJudgeDiscrepancy,
@@ -295,10 +296,59 @@ export async function seedEditionConfig(tx: Prisma.TransactionClient, editionId:
       name: c.name,
       description: c.description || null,
       maxScore: c.maxScore,
+      section: c.section ?? null,
+      levelScored: c.levelScored ?? false,
       sortOrder: index,
       isActive: "isActive" in c ? (c.isActive as boolean) : true,
     })),
   });
+}
+
+/**
+ * Switches an edition's Junior School projects to the official KSEF Junior
+ * School score sheet. Criteria that applied to Junior School are kept for the
+ * record (submitted sheets still reference them) but stop applying: Junior-only
+ * ones are disabled, and ones shared with Senior School become Senior-only.
+ * Returns how many Junior score sheets were already submitted on the old
+ * criteria, so the administrator can have those projects re-judged.
+ */
+export async function applyOfficialJuniorScoreSheet(editionId: string, actorId: string) {
+  const existing = await prisma.ksefCriterion.findMany({ where: { editionId, isActive: true, OR: [{ division: null }, { division: "JUNIOR_SCHOOL" }] } });
+  if (existing.some((c) => c.division === "JUNIOR_SCHOOL" && c.levelScored && c.section?.startsWith("Part A"))) {
+    throw new Error("Junior School projects already use the official KSEF score sheet");
+  }
+  const submittedOnOld = await prisma.ksefJudgeAssignment.count({
+    where: { submittedAt: { not: null }, project: { editionId, category: { division: "JUNIOR_SCHOOL" } } },
+  });
+  const nextSort = (await prisma.ksefCriterion.aggregate({ where: { editionId }, _max: { sortOrder: true } }))._max.sortOrder ?? 0;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ksefCriterion.updateMany({ where: { editionId, isActive: true, division: "JUNIOR_SCHOOL" }, data: { isActive: false } });
+    await tx.ksefCriterion.updateMany({ where: { editionId, isActive: true, division: null }, data: { division: "SENIOR_SCHOOL" } });
+    await tx.ksefCriterion.createMany({
+      data: KSEF_JUNIOR_SCORE_SHEET.map((c, i) => ({
+        editionId,
+        division: c.division,
+        section: c.section ?? null,
+        name: c.name,
+        description: c.description || null,
+        maxScore: c.maxScore,
+        levelScored: true,
+        sortOrder: nextSort + 1 + i,
+      })),
+    });
+    await tx.auditLog.create({
+      data: {
+        changedBy: actorId,
+        operation: "UPDATE",
+        tableName: "ksef_criteria",
+        recordId: editionId,
+        oldData: { juniorCriteria: existing.map((c) => ({ id: c.id, name: c.name, division: c.division })) },
+        newData: { officialJuniorScoreSheet: true, criteria: KSEF_JUNIOR_SCORE_SHEET.length },
+      },
+    });
+  });
+  return { submittedOnOld };
 }
 
 /**

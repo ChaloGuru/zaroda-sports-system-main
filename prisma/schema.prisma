@@ -923,6 +923,12 @@ model KsefCriterion {
   name        String
   description String?
   maxScore    Int
+  // Score-sheet heading the criterion sits under, e.g. "Part A: Written
+  // Communication" - criteria with the same section are grouped and subtotalled.
+  section     String?
+  // Scored by performance level (BE/AE/ME/EE = 25/50/75/100% of maxScore), as
+  // on the official KSEF score sheets, instead of any number up to maxScore.
+  levelScored Boolean       @default(false)
   sortOrder   Int           @default(0)
   isActive    Boolean       @default(true)
   createdAt   DateTime      @default(now())
