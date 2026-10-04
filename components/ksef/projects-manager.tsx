@@ -135,6 +135,11 @@ export function ProjectsManager({ edition }: { edition: KsefEditionSummary }) {
                 {p.title}
                 <Badge variant={STATUS_BADGE[p.status]}>{p.status.toLowerCase()}</Badge>
                 {p.status === "SUBMITTED" && <Badge variant="outline">{LEVEL_LABELS[p.currentLevel as Level]}</Badge>}
+                {p.registration && (
+                  <Badge variant={p.registration.status === "PENDING" ? "warning" : "secondary"}>
+                    {p.registration.status === "PENDING" ? "Entered by school · school awaiting approval" : "Entered by school"}
+                  </Badge>
+                )}
               </p>
               <p className="text-sm text-muted">
                 {p.school.name} ({p.school.subcounty}, {p.school.county}) · {KSEF_DIVISION_LABELS[p.category.division]} · {p.category.name}
@@ -156,7 +161,12 @@ export function ProjectsManager({ edition }: { edition: KsefEditionSummary }) {
               </Button>
               {p.status === "DRAFT" && (
                 <>
-                  <Button size="sm" disabled={readOnly || statusMutation.isPending} onClick={() => statusMutation.mutate({ id: p.id, action: "SUBMIT" })}>
+                  <Button
+                    size="sm"
+                    disabled={readOnly || statusMutation.isPending || p.registration?.status === "PENDING"}
+                    title={p.registration?.status === "PENDING" ? "Approve the school on the Schools page first" : undefined}
+                    onClick={() => statusMutation.mutate({ id: p.id, action: "SUBMIT" })}
+                  >
                     Submit
                   </Button>
                   <Button

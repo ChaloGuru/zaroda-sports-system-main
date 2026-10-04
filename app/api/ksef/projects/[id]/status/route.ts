@@ -31,6 +31,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       include: {
         category: { select: { division: true } },
         _count: { select: { learners: true, mentors: true } },
+        registration: { select: { status: true, schoolName: true } },
       },
     });
     if (!project) throw new AuthorizationError("Project not found", 404);
@@ -40,6 +41,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     switch (action) {
       case "SUBMIT": {
         if (project.status !== "DRAFT") throw new Error("Only a draft project can be submitted");
+        if (project.registration && project.registration.status !== "APPROVED") {
+          throw new Error(`Approve ${project.registration.schoolName}'s registration (Schools page) before submitting its projects`);
+        }
         if (project._count.learners === 0) throw new Error("Add at least one learner before submitting");
         if (project._count.mentors === 0) throw new Error("Add the project's mentor before submitting");
         const firstLevel = edition.levels[0];

@@ -149,22 +149,23 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  roles                 UserRole[]
-  tenant                Tenant?
-  createdChampionships  Championship[]          @relation("ChampionshipCreatedBy")
-  sentMessages          AdminMessage[]          @relation("MessageSender")
-  receivedMessages      AdminMessage[]          @relation("MessageRecipient")
-  notifications         Notification[]
-  auditLogs             AuditLog[]
-  postedCirculars       ChampionshipCircular[]
-  testimonial           Testimonial?
-  ksefJudgeships        KsefJudge[]
-  ksefInvitesSent       KsefJudgeInvite[]       @relation("KsefInviteCreatedBy")
-  ksefInvitesAccepted   KsefJudgeInvite[]       @relation("KsefInviteAcceptedBy")
-  ksefCaseEvents        KsefCaseEvent[]
-  ksefComplaintsRaised  KsefComplaint[]         @relation("KsefComplaintRaisedBy")
-  ksefComplaintsDecided KsefComplaint[]         @relation("KsefComplaintDecidedBy")
-  ksefReviewsApproved   KsefDiscrepancyReview[]
+  roles                     UserRole[]
+  tenant                    Tenant?
+  createdChampionships      Championship[]           @relation("ChampionshipCreatedBy")
+  sentMessages              AdminMessage[]           @relation("MessageSender")
+  receivedMessages          AdminMessage[]           @relation("MessageRecipient")
+  notifications             Notification[]
+  auditLogs                 AuditLog[]
+  postedCirculars           ChampionshipCircular[]
+  testimonial               Testimonial?
+  ksefJudgeships            KsefJudge[]
+  ksefInvitesSent           KsefJudgeInvite[]        @relation("KsefInviteCreatedBy")
+  ksefInvitesAccepted       KsefJudgeInvite[]        @relation("KsefInviteAcceptedBy")
+  ksefCaseEvents            KsefCaseEvent[]
+  ksefComplaintsRaised      KsefComplaint[]          @relation("KsefComplaintRaisedBy")
+  ksefComplaintsDecided     KsefComplaint[]          @relation("KsefComplaintDecidedBy")
+  ksefReviewsApproved       KsefDiscrepancyReview[]
+  ksefRegistrationsReviewed KsefSchoolRegistration[] @relation("KsefRegistrationReviewedBy")
 
   @@map("users")
 }
@@ -289,12 +290,13 @@ model School {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  participants  Participant[]
-  bibRanges     SchoolBibRange[]
-  championships ChampionshipSchool[]
-  teams         TournamentTeam[]
-  ksefEditions  KsefEditionSchool[]
-  ksefProjects  KsefProject[]
+  participants      Participant[]
+  bibRanges         SchoolBibRange[]
+  championships     ChampionshipSchool[]
+  teams             TournamentTeam[]
+  ksefEditions      KsefEditionSchool[]
+  ksefProjects      KsefProject[]
+  ksefRegistrations KsefSchoolRegistration[]
 
   @@map("schools")
 }
@@ -857,16 +859,22 @@ model KsefEdition {
   // results can't be published until it's set.
   discrepancyThreshold  Decimal?             @db.Decimal(6, 2)
   discrepancyBasis      KsefDiscrepancyBasis @default(POINTS)
+  // School self-registration: the open link schools use to sign up (shared
+  // publicly, so kept as-is rather than hashed - each school still proves its
+  // email and needs approval) and when it stops accepting registrations.
+  registrationToken     String?              @unique
+  registrationClosesAt  DateTime?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
-  categories KsefCategory[]
-  criteria   KsefCriterion[]
-  schools    KsefEditionSchool[]
-  projects   KsefProject[]
-  judges     KsefJudge[]
-  invites    KsefJudgeInvite[]
-  complaints KsefComplaint[]
+  categories    KsefCategory[]
+  criteria      KsefCriterion[]
+  schools       KsefEditionSchool[]
+  projects      KsefProject[]
+  judges        KsefJudge[]
+  invites       KsefJudgeInvite[]
+  complaints    KsefComplaint[]
+  registrations KsefSchoolRegistration[]
 
   @@map("ksef_editions")
 }
@@ -943,39 +951,44 @@ model KsefEditionSchool {
 }
 
 model KsefProject {
-  id            String            @id @default(uuid())
-  editionId     String
-  schoolId      String
-  categoryId    String
-  subCategoryId String?
+  id             String            @id @default(uuid())
+  editionId      String
+  schoolId       String
+  categoryId     String
+  subCategoryId  String?
   // Assigned when the project is submitted, e.g. "J-0007" - what judges and
   // results sheets refer to.
-  code          String?
-  title         String
-  abstract      String?
-  documentUrl   String?
-  status        KsefProjectStatus @default(DRAFT)
+  code           String?
+  title          String
+  abstract       String?
+  documentUrl    String?
+  status         KsefProjectStatus @default(DRAFT)
   // The highest level the project has reached in this edition.
-  currentLevel  Level             @default(SUB_COUNTY)
-  submittedAt   DateTime?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  currentLevel   Level             @default(SUB_COUNTY)
+  submittedAt    DateTime?
+  // Set when the school entered this project itself through its registration
+  // link - that link may only edit the projects it created.
+  registrationId String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
-  edition     KsefEdition             @relation(fields: [editionId], references: [id], onDelete: Cascade)
-  school      School                  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  category    KsefCategory            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  subCategory KsefSubCategory?        @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
-  learners    KsefLearner[]
-  mentors     KsefMentor[]
-  assignments KsefJudgeAssignment[]
-  results     KsefResult[]
-  reviews     KsefDiscrepancyReview[]
-  complaints  KsefComplaint[]
+  edition      KsefEdition             @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  school       School                  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  category     KsefCategory            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  subCategory  KsefSubCategory?        @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
+  learners     KsefLearner[]
+  mentors      KsefMentor[]
+  assignments  KsefJudgeAssignment[]
+  results      KsefResult[]
+  reviews      KsefDiscrepancyReview[]
+  complaints   KsefComplaint[]
+  registration KsefSchoolRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
 
   @@unique([editionId, code])
   @@index([editionId])
   @@index([schoolId])
   @@index([categoryId])
+  @@index([registrationId])
   @@map("ksef_projects")
 }
 
@@ -1243,4 +1256,48 @@ model KsefJudgeInvite {
 
   @@index([editionId, email])
   @@map("ksef_judge_invites")
+}
+
+enum KsefRegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// A school that signed itself up through an edition's open registration
+// link. Its contact gets a private link (only the hash is stored) to enter
+// the school's projects; the KSEF administrator approves the school - as a
+// new school or linked to one already on record - before its projects can
+// be submitted for judging.
+model KsefSchoolRegistration {
+  id              String                 @id @default(uuid())
+  editionId       String
+  // The school row this registration enters projects under: a new row
+  // created at sign-up, or the existing school it was linked to on approval.
+  // Null once rejected.
+  schoolId        String?
+  schoolName      String
+  county          String
+  subcounty       String
+  zone            String?
+  contactName     String
+  contactEmail    String
+  contactPhone    String?
+  tokenHash       String                 @unique
+  status          KsefRegistrationStatus @default(PENDING)
+  rejectionReason String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  edition    KsefEdition   @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  school     School?       @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  reviewedBy User?         @relation("KsefRegistrationReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  projects   KsefProject[]
+
+  @@unique([editionId, contactEmail])
+  @@index([editionId, status])
+  @@index([schoolId])
+  @@map("ksef_school_registrations")
 }

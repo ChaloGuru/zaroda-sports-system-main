@@ -24,6 +24,7 @@ export async function GET(request: Request) {
         learners: { orderBy: { createdAt: "asc" } },
         mentors: { orderBy: { createdAt: "asc" } },
         _count: { select: { assignments: true } },
+        registration: { select: { status: true } },
       },
     });
     return NextResponse.json({ projects });

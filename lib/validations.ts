@@ -556,6 +556,45 @@ export const ksefProjectSchema = z.object({
 });
 export const ksefProjectUpdateSchema = ksefProjectSchema.omit({ editionId: true }).partial();
 
+// --- School self-registration (see lib/ksef-registration.ts) ---
+
+export const ksefRegistrationLinkSchema = z.object({
+  editionId: z.string().uuid(),
+  // OPEN creates the link (or keeps the current one), ROTATE replaces it so
+  // the old one stops working, CLOSE turns registration off, DEADLINE only
+  // changes closesAt.
+  action: z.enum(["OPEN", "ROTATE", "CLOSE", "DEADLINE"]),
+  closesAt: optionalDate,
+});
+
+export const ksefSchoolRegistrationSchema = z.object({
+  token: z.string().min(1).max(100),
+  schoolName: z.string().trim().min(2).max(200),
+  county: z.string().trim().min(1).max(100),
+  subcounty: z.string().trim().min(1).max(100),
+  zone: optionalText(100),
+  contactName: z.string().trim().min(2).max(200),
+  contactEmail: z.string().trim().toLowerCase().email(),
+  contactPhone: optionalText(30),
+});
+
+export const ksefPortalProjectSchema = z.object({
+  categoryId: z.string().uuid(),
+  subCategoryId: z.string().uuid().nullable().optional(),
+  title: z.string().trim().min(1).max(300),
+  abstract: optionalText(5000),
+  documentUrl: optionalUrl,
+  learners: z.array(ksefLearnerSchema).min(1, "Add at least one learner").max(2, "A project can have at most 2 learners"),
+  mentors: z.array(ksefMentorSchema).min(1, "Add the project's mentor").max(5),
+});
+
+export const ksefRegistrationDecisionSchema = z.discriminatedUnion("action", [
+  // schoolId links the registration to a school already on record instead
+  // of accepting the one it created.
+  z.object({ action: z.literal("APPROVE"), schoolId: z.string().uuid().optional() }),
+  z.object({ action: z.literal("REJECT"), reason: z.string().trim().min(1, "Give a reason").max(500) }),
+]);
+
 export const ksefAssignmentSchema = z.object({
   judgeId: z.string().uuid(),
   projectIds: z.array(z.string().uuid()).min(1).max(500),

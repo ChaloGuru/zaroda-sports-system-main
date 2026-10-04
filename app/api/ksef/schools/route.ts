@@ -25,7 +25,12 @@ export async function GET(request: Request) {
     if (search !== undefined) {
       if (search.length < 2) return NextResponse.json({ schools: [] });
       const matches = await prisma.school.findMany({
-        where: { name: { contains: search, mode: "insensitive" }, ksefEditions: { none: { editionId } } },
+        where: {
+          name: { contains: search, mode: "insensitive" },
+          ksefEditions: { none: { editionId } },
+          // Schools that signed themselves up stay out of search until approved.
+          ksefRegistrations: { none: { status: "PENDING" } },
+        },
         select: { id: true, name: true, subcounty: true, county: true, schoolLevel: true },
         orderBy: { name: "asc" },
         take: 50,

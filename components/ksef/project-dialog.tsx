@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ApiError, apiPatch, apiPost } from "@/lib/api-client";
+import { portalRequest } from "@/lib/ksef-portal-client";
 import { KSEF_DIVISIONS, KSEF_DIVISION_LABELS } from "@/lib/ksef-config";
 import type { KsefCategoryRow, KsefEditionSummary } from "./types";
 
@@ -42,6 +43,19 @@ export interface ProjectRow {
   subCategory: { id: string; name: string } | null;
   learners: ProjectLearner[];
   mentors: ProjectMentor[];
+  /** Set when the school entered this project itself through its registration link. */
+  registration?: { status: "PENDING" | "APPROVED" | "REJECTED" } | null;
+}
+
+/**
+ * A school entering its own projects through its private registration link
+ * (see lib/ksef-registration.ts): no school picker, the portal endpoints, and
+ * at most `maxLearners` learners.
+ */
+export interface PortalMode {
+  token: string;
+  maxLearners: number;
+  onSaved: () => void;
 }
 
 const EMPTY_LEARNER: ProjectLearner = { firstName: "", lastName: "", gender: "GIRLS", grade: "", upiNumber: "" };
@@ -55,9 +69,13 @@ export function ProjectDialog({
   project,
   open,
   onOpenChange,
+  portal,
 }: {
-  edition: KsefEditionSummary;
-  schools: { schoolId: string; name: string }[];
+  /** Admin mode only. */
+  edition?: KsefEditionSummary;
+  /** Admin mode only - a portal project always belongs to the school entering it. */
+  schools?: { schoolId: string; name: string }[];
+  portal?: PortalMode;
   categories: KsefCategoryRow[];
   project: ProjectRow | null;
   open: boolean;
@@ -77,6 +95,7 @@ export function ProjectDialog({
   const [learners, setLearners] = React.useState<ProjectLearner[]>(project?.learners.length ? project.learners : [{ ...EMPTY_LEARNER }]);
   const [mentors, setMentors] = React.useState<ProjectMentor[]>(project?.mentors.length ? project.mentors : [{ ...EMPTY_MENTOR }]);
   const [uploading, setUploading] = React.useState(false);
+  const maxLearners = portal?.maxLearners ?? Infinity;
 
   const divisionCategories = categories.filter((c) => c.division === division && (c.isActive || c.id === form.categoryId));
   const subCategories = categories.find((c) => c.id === form.categoryId)?.subCategories.filter((s) => s.isActive || s.id === form.subCategoryId) ?? [];
@@ -90,11 +109,20 @@ export function ProjectDialog({
         learners: learners.filter((l) => l.firstName.trim() || l.lastName.trim()),
         mentors: mentors.filter((m) => m.name.trim()),
       };
-      return project ? apiPatch(`/api/ksef/projects/${project.id}`, body) : apiPost("/api/ksef/projects", { editionId: edition.id, ...body });
+      if (portal) {
+        const { schoolId: _schoolId, ...portalBody } = body;
+        return portalRequest(portal.token, project ? `/api/ksef/school-portal/projects/${project.id}` : "/api/ksef/school-portal/projects", {
+          method: project ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(portalBody),
+        });
+      }
+      return project ? apiPatch(`/api/ksef/projects/${project.id}`, body) : apiPost("/api/ksef/projects", { editionId: edition?.id, ...body });
     },
     onSuccess: () => {
-      toast.success(project ? "Project updated" : "Project registered as a draft");
-      queryClient.invalidateQueries({ queryKey: ["ksef-projects", edition.id] });
+      toast.success(project ? "Project updated" : portal ? "Project saved" : "Project registered as a draft");
+      if (portal) portal.onSaved();
+      else queryClient.invalidateQueries({ queryKey: ["ksef-projects", edition?.id] });
       onOpenChange(false);
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to save project"),
@@ -105,9 +133,14 @@ export function ProjectDialog({
     try {
       const body = new FormData();
       body.append("file", file);
-      const response = await fetch("/api/ksef/projects/upload", { method: "POST", body });
-      const json = await response.json();
-      if (!response.ok) throw new ApiError(json.error ?? "Upload failed", response.status);
+      let json: { url: string };
+      if (portal) {
+        json = await portalRequest(portal.token, "/api/ksef/school-portal/upload", { method: "POST", body });
+      } else {
+        const response = await fetch("/api/ksef/projects/upload", { method: "POST", body });
+        json = await response.json();
+        if (!response.ok) throw new ApiError((json as { error?: string }).error ?? "Upload failed", response.status);
+      }
       setForm((f) => ({ ...f, documentUrl: json.url }));
       toast.success("Project report attached");
     } catch (error) {
@@ -132,6 +165,7 @@ export function ProjectDialog({
               <Label>Project title</Label>
               <Input className="mt-1.5" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
             </div>
+            {schools && (
             <div>
               <Label>School</Label>
               <Select value={form.schoolId} onValueChange={(v) => setForm((f) => ({ ...f, schoolId: v }))} disabled={placementLocked}>
@@ -148,6 +182,7 @@ export function ProjectDialog({
               </Select>
               {schools.length === 0 && <p className="mt-1 text-xs text-muted">Register schools on the Schools page first.</p>}
             </div>
+            )}
             <div>
               <Label>Division</Label>
               <Select
@@ -225,8 +260,8 @@ export function ProjectDialog({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Learners</Label>
-              <Button size="sm" variant="outline" onClick={() => setLearners((l) => [...l, { ...EMPTY_LEARNER }])}>
+              <Label>Learners{Number.isFinite(maxLearners) ? ` (up to ${maxLearners})` : ""}</Label>
+              <Button size="sm" variant="outline" disabled={learners.length >= maxLearners} onClick={() => setLearners((l) => [...l, { ...EMPTY_LEARNER }])}>
                 <Plus className="h-3.5 w-3.5" /> Add learner
               </Button>
             </div>
@@ -274,10 +309,10 @@ export function ProjectDialog({
 
           <Button
             className="w-full"
-            disabled={saveMutation.isPending || uploading || !form.title.trim() || !form.schoolId || !form.categoryId}
+            disabled={saveMutation.isPending || uploading || !form.title.trim() || (!portal && !form.schoolId) || !form.categoryId}
             onClick={() => saveMutation.mutate()}
           >
-            {saveMutation.isPending ? "Saving..." : project ? "Save changes" : "Register project"}
+            {saveMutation.isPending ? "Saving..." : project ? "Save changes" : portal ? "Save project" : "Register project"}
           </Button>
         </div>
       </DialogContent>
