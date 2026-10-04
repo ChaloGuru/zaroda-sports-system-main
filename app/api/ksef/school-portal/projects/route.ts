@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const registration = await requirePortalRegistration(request);
     assertPortalWritable(registration);
     if (!registration.schoolId) throw new Error("This registration has no school to enter projects under");
-    const data = await portalProjectData(registration.editionId, ksefPortalProjectSchema.parse(await request.json()));
+    const data = await portalProjectData(registration, ksefPortalProjectSchema.parse(await request.json()));
 
     const project = await prisma.$transaction(async (tx) => {
       const created = await tx.ksefProject.create({

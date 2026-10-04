@@ -42,6 +42,7 @@ const SIGNUP = {
   schoolName: "Alpha Girls",
   county: "Nairobi",
   subcounty: "Westlands",
+  divisions: ["SENIOR_SCHOOL"],
   contactName: "Jane Patron",
   contactEmail: "Jane@Alpha.example",
 };
@@ -106,6 +107,23 @@ describe("KSEF school self-registration", () => {
     expect(db.ksefSchoolRegistration.create).not.toHaveBeenCalled();
   });
 
+  it("requires the school to choose its level", async () => {
+    const { divisions: _divisions, ...withoutLevel } = SIGNUP;
+    const res = await register(request("http://x/api/ksef/register", "POST", withoutLevel));
+    expect(res.status).toBe(400);
+    expect(db.ksefSchoolRegistration.create).not.toHaveBeenCalled();
+  });
+
+  it("stores the level the school chose", async () => {
+    db.ksefSchoolRegistration.findUnique.mockResolvedValue(null);
+    db.school.create.mockResolvedValue({ id: "school-1" });
+    db.ksefSchoolRegistration.create.mockImplementation(({ data }) => ({ id: "reg-1", ...data }));
+
+    await register(request("http://x/api/ksef/register", "POST", SIGNUP));
+
+    expect(db.ksefSchoolRegistration.create.mock.calls[0]![0].data.divisions).toEqual(["SENIOR_SCHOOL"]);
+  });
+
   it("rejects an unknown open link", async () => {
     db.ksefEdition.findUnique.mockResolvedValue(null);
     const res = await register(request("http://x/api/ksef/register", "POST", SIGNUP));
@@ -114,7 +132,7 @@ describe("KSEF school self-registration", () => {
 });
 
 describe("KSEF school portal", () => {
-  const REGISTRATION = { id: "reg-1", editionId: "ed-1", schoolId: "school-1", status: "PENDING", edition: OPEN_EDITION };
+  const REGISTRATION = { id: "reg-1", editionId: "ed-1", schoolId: "school-1", status: "PENDING", divisions: ["JUNIOR_SCHOOL"], edition: OPEN_EDITION };
   const PROJECT_BODY = {
     categoryId: "11111111-1111-1111-1111-111111111111",
     title: "Solar dryer",
@@ -129,7 +147,7 @@ describe("KSEF school portal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     db.ksefSchoolRegistration.findUnique.mockResolvedValue(REGISTRATION);
-    db.ksefCategory.findUnique.mockResolvedValue({ id: PROJECT_BODY.categoryId, editionId: "ed-1", isActive: true, name: "Physics" });
+    db.ksefCategory.findUnique.mockResolvedValue({ id: PROJECT_BODY.categoryId, editionId: "ed-1", isActive: true, name: "Physics", division: "JUNIOR_SCHOOL" });
     db.ksefProject.updateMany.mockResolvedValue({ count: 1 });
   });
 
@@ -158,6 +176,13 @@ describe("KSEF school portal", () => {
   it("only accepts documents uploaded through Zaroda", async () => {
     db.ksefProject.findUnique.mockResolvedValue({ id: "p1", registrationId: "reg-1", status: "DRAFT" });
     expect((await put({ ...PROJECT_BODY, documentUrl: "https://evil.example/x.pdf" })).status).toBe(400);
+  });
+
+  it("rejects a project at a level the school didn't register for", async () => {
+    db.ksefProject.findUnique.mockResolvedValue({ id: "p1", registrationId: "reg-1", status: "DRAFT" });
+    db.ksefCategory.findUnique.mockResolvedValue({ id: PROJECT_BODY.categoryId, editionId: "ed-1", isActive: true, name: "Physics", division: "SENIOR_SCHOOL" });
+    expect((await put(PROJECT_BODY)).status).toBe(400);
+    expect(db.ksefProject.updateMany).not.toHaveBeenCalled();
   });
 
   it("saves the school's own draft", async () => {

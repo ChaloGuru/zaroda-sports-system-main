@@ -28,7 +28,7 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
   const params = await props.params;
   try {
     const { registration, project } = await loadOwnDraft(request, params.id);
-    const data = await portalProjectData(registration.editionId, ksefPortalProjectSchema.parse(await request.json()));
+    const data = await portalProjectData(registration, ksefPortalProjectSchema.parse(await request.json()));
 
     await prisma.$transaction(async (tx) => {
       // Conditional on still being a draft, in case the administrator

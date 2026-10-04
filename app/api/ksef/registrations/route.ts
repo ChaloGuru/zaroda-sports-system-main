@@ -26,6 +26,7 @@ export async function GET(request: Request) {
         county: true,
         subcounty: true,
         zone: true,
+        divisions: true,
         contactName: true,
         contactEmail: true,
         contactPhone: true,

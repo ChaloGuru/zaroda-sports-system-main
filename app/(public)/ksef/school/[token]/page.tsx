@@ -40,6 +40,7 @@ interface PortalData {
     schoolName: string;
     county: string;
     subcounty: string;
+    divisions: KsefDivision[];
     contactName: string;
     contactEmail: string;
     status: KsefRegistrationStatus;
@@ -131,7 +132,7 @@ export default function KsefSchoolPortalPage() {
             <div className="flex-1">
               <CardTitle>{registration.schoolName}</CardTitle>
               <CardDescription>
-                {edition.name} · {registration.subcounty}, {registration.county} · Contact: {registration.contactName}
+                {edition.name} · {registration.divisions.map((d) => KSEF_DIVISION_LABELS[d]).join(" & ") || "All levels"} · {registration.subcounty}, {registration.county} · Contact: {registration.contactName}
               </CardDescription>
             </div>
             <Badge variant={badge.variant}>{badge.label}</Badge>
@@ -231,7 +232,7 @@ export default function KsefSchoolPortalPage() {
           project={editing}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          portal={{ token, maxLearners: MAX_REGISTERED_LEARNERS, onSaved: () => refetch() }}
+          portal={{ token, maxLearners: MAX_REGISTERED_LEARNERS, divisions: registration.divisions, onSaved: () => refetch() }}
         />
       )}
     </div>

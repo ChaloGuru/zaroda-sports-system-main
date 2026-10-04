@@ -1280,6 +1280,9 @@ model KsefSchoolRegistration {
   county          String
   subcounty       String
   zone            String?
+  // The levels the school entered for - Junior and/or Senior School. Its
+  // projects can only be entered in these divisions.
+  divisions       KsefDivision[]         @default([])
   contactName     String
   contactEmail    String
   contactPhone    String?

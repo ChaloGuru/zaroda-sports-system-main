@@ -25,7 +25,11 @@ export async function GET(request: Request) {
 
     const [categories, projects] = await Promise.all([
       prisma.ksefCategory.findMany({
-        where: { editionId: registration.editionId, isActive: true },
+        where: {
+          editionId: registration.editionId,
+          isActive: true,
+          ...(registration.divisions.length > 0 ? { division: { in: registration.divisions } } : {}),
+        },
         orderBy: [{ division: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
         select: {
           id: true,
@@ -57,6 +61,7 @@ export async function GET(request: Request) {
         schoolName: registration.schoolName,
         county: registration.county,
         subcounty: registration.subcounty,
+        divisions: registration.divisions,
         contactName: registration.contactName,
         contactEmail: registration.contactEmail,
         status: registration.status,

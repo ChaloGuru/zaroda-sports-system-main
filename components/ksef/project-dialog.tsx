@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ApiError, apiPatch, apiPost } from "@/lib/api-client";
 import { portalRequest } from "@/lib/ksef-portal-client";
 import { KSEF_DIVISIONS, KSEF_DIVISION_LABELS } from "@/lib/ksef-config";
+import type { KsefDivision } from "@prisma/client";
 import type { KsefCategoryRow, KsefEditionSummary } from "./types";
 
 export interface ProjectLearner {
@@ -55,6 +56,8 @@ export interface ProjectRow {
 export interface PortalMode {
   token: string;
   maxLearners: number;
+  /** The level(s) the school registered for - projects can only be entered at these. */
+  divisions: KsefDivision[];
   onSaved: () => void;
 }
 
@@ -83,7 +86,9 @@ export function ProjectDialog({
 }) {
   const queryClient = useQueryClient();
   const placementLocked = !!project && project.status !== "DRAFT";
-  const [division, setDivision] = React.useState<string>(project?.category.division ?? "JUNIOR_SCHOOL");
+  // A school's own projects start at (and, for a single-level school, stay at) the level it registered for.
+  const divisionOptions = portal?.divisions.length ? portal.divisions : KSEF_DIVISIONS;
+  const [division, setDivision] = React.useState<string>(project?.category.division ?? divisionOptions[0] ?? "JUNIOR_SCHOOL");
   const [form, setForm] = React.useState({
     schoolId: project?.school.id ?? "",
     categoryId: project?.category.id ?? "",
@@ -96,6 +101,7 @@ export function ProjectDialog({
   const [mentors, setMentors] = React.useState<ProjectMentor[]>(project?.mentors.length ? project.mentors : [{ ...EMPTY_MENTOR }]);
   const [uploading, setUploading] = React.useState(false);
   const maxLearners = portal?.maxLearners ?? Infinity;
+  const abstractWords = form.abstract.trim() ? form.abstract.trim().split(/\s+/).length : 0;
 
   const divisionCategories = categories.filter((c) => c.division === division && (c.isActive || c.id === form.categoryId));
   const subCategories = categories.find((c) => c.id === form.categoryId)?.subCategories.filter((s) => s.isActive || s.id === form.subCategoryId) ?? [];
@@ -191,13 +197,13 @@ export function ProjectDialog({
                   setDivision(v);
                   setForm((f) => ({ ...f, categoryId: "", subCategoryId: "" }));
                 }}
-                disabled={placementLocked}
+                disabled={placementLocked || divisionOptions.length === 1}
               >
                 <SelectTrigger className="mt-1.5">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {KSEF_DIVISIONS.map((d) => (
+                  {divisionOptions.map((d) => (
                     <SelectItem key={d} value={d}>
                       {KSEF_DIVISION_LABELS[d]}
                     </SelectItem>
@@ -242,10 +248,18 @@ export function ProjectDialog({
             </div>
             <div className="md:col-span-2">
               <Label>Abstract</Label>
-              <Textarea className="mt-1.5" rows={4} value={form.abstract} onChange={(e) => setForm((f) => ({ ...f, abstract: e.target.value }))} />
+              <p className="mt-0.5 text-xs text-muted">
+                A short summary of the project, about 250 words: the problem, what the learners set out to do, how they did it, what they
+                found and their conclusion.
+              </p>
+              <Textarea className="mt-1.5" rows={5} value={form.abstract} onChange={(e) => setForm((f) => ({ ...f, abstract: e.target.value }))} />
+              <p className="mt-1 text-right text-xs text-muted">{abstractWords} word{abstractWords === 1 ? "" : "s"}</p>
             </div>
             <div className="md:col-span-2">
-              <Label>Project report (PDF)</Label>
+              <Label>Project report (PDF, optional)</Label>
+              <p className="mt-0.5 text-xs text-muted">
+                The project&apos;s full written report - introduction, method, results, conclusion and references - as one PDF of up to 10 MB.
+              </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-3">
                 <Input type="file" accept="application/pdf" className="max-w-xs" disabled={uploading} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
                 {form.documentUrl && (

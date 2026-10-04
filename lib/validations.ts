@@ -573,6 +573,11 @@ export const ksefSchoolRegistrationSchema = z.object({
   county: z.string().trim().min(1).max(100),
   subcounty: z.string().trim().min(1).max(100),
   zone: optionalText(100),
+  divisions: z
+    .array(z.enum(["JUNIOR_SCHOOL", "SENIOR_SCHOOL"]), { required_error: "Choose your school's level" })
+    .min(1, "Choose your school's level")
+    .max(2)
+    .transform((divisions) => Array.from(new Set(divisions))),
   contactName: z.string().trim().min(2).max(200),
   contactEmail: z.string().trim().toLowerCase().email(),
   contactPhone: optionalText(30),

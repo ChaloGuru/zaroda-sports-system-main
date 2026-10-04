@@ -89,6 +89,7 @@ export async function POST(request: Request) {
             county,
             subcounty: input.subcounty,
             zone: input.zone ?? null,
+            divisions: input.divisions,
             contactName: input.contactName,
             contactEmail: input.contactEmail,
             contactPhone: input.contactPhone ?? null,
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
             operation: "INSERT",
             tableName: "ksef_school_registrations",
             recordId: row.id,
-            newData: { schoolName: input.schoolName, county, subcounty: input.subcounty, contactEmail: input.contactEmail },
+            newData: { schoolName: input.schoolName, county, subcounty: input.subcounty, divisions: input.divisions, contactEmail: input.contactEmail },
           },
         });
         return row;

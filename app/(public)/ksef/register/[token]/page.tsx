@@ -19,7 +19,13 @@ interface LinkInfo {
   isOpen: boolean;
 }
 
-const EMPTY_FORM = { schoolName: "", county: "", subcounty: "", zone: "", contactName: "", contactEmail: "", contactPhone: "" };
+const LEVEL_DIVISIONS = {
+  JUNIOR_SCHOOL: ["JUNIOR_SCHOOL"],
+  SENIOR_SCHOOL: ["SENIOR_SCHOOL"],
+  BOTH: ["JUNIOR_SCHOOL", "SENIOR_SCHOOL"],
+} as const;
+
+const EMPTY_FORM ={ schoolName: "", county: "", subcounty: "", zone: "", contactName: "", contactEmail: "", contactPhone: "" };
 
 /**
  * KSEF school self-registration (the edition's open link). Collects the
@@ -33,6 +39,8 @@ export default function KsefRegisterPage() {
   const [form, setForm] = React.useState(EMPTY_FORM);
   const [busy, setBusy] = React.useState(false);
   const [sentTo, setSentTo] = React.useState<string | null>(null);
+  // Deliberately starts empty - the school must say which level(s) it enters.
+  const [level, setLevel] = React.useState<keyof typeof LEVEL_DIVISIONS | "">("");
   const set = (field: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
   React.useEffect(() => {
@@ -49,7 +57,7 @@ export default function KsefRegisterPage() {
     event.preventDefault();
     setBusy(true);
     try {
-      const result = await apiPost<{ email: string }>("/api/ksef/register", { token, ...form });
+      const result = await apiPost<{ email: string }>("/api/ksef/register", { token, ...form, divisions: level ? LEVEL_DIVISIONS[level] : [] });
       setSentTo(result.email);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't register your school");
@@ -59,7 +67,7 @@ export default function KsefRegisterPage() {
   }
 
   const subcounties = getSubcounties(form.county);
-  const complete = form.schoolName.trim() && form.county && form.subcounty.trim() && form.contactName.trim() && form.contactEmail.trim();
+  const complete = form.schoolName.trim() && level && form.county && form.subcounty.trim() && form.contactName.trim() && form.contactEmail.trim();
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-16">
@@ -104,6 +112,20 @@ export default function KsefRegisterPage() {
               <div>
                 <Label htmlFor="schoolName">School name</Label>
                 <Input id="schoolName" className="mt-1.5" value={form.schoolName} onChange={set("schoolName")} placeholder="e.g. Moi Girls High School" />
+              </div>
+              <div>
+                <Label>School level</Label>
+                <Select value={level} onValueChange={(v) => setLevel(v as keyof typeof LEVEL_DIVISIONS)}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder="Select your school's level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="JUNIOR_SCHOOL">Junior School (Grades 7–9)</SelectItem>
+                    <SelectItem value="SENIOR_SCHOOL">Senior School (Grades 10–12)</SelectItem>
+                    <SelectItem value="BOTH">Both Junior and Senior School</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted">Your projects will be entered at this level.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>

@@ -4,7 +4,8 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Copy, Link2 } from "lucide-react";
-import type { KsefRegistrationStatus } from "@prisma/client";
+import type { KsefDivision, KsefRegistrationStatus } from "@prisma/client";
+import { KSEF_DIVISION_LABELS } from "@/lib/ksef-config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ interface Registration {
   county: string;
   subcounty: string;
   zone: string | null;
+  divisions: KsefDivision[];
   contactName: string;
   contactEmail: string;
   contactPhone: string | null;
@@ -180,7 +182,7 @@ export function SchoolRegistrations({ edition }: { edition: KsefEditionSummary }
                   <span className="font-medium text-foreground">{r.schoolName}</span>
                   <Badge variant={badge.variant}>{badge.label}</Badge>
                   <span className="text-sm text-muted">
-                    {r.subcounty}, {r.county} · {r._count.projects} project{r._count.projects === 1 ? "" : "s"}
+                    {r.divisions.map((d) => KSEF_DIVISION_LABELS[d]).join(" & ") || "Level not given"} · {r.subcounty}, {r.county} · {r._count.projects} project{r._count.projects === 1 ? "" : "s"}
                   </span>
                 </div>
                 <p className="text-sm text-muted">
