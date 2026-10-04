@@ -32,23 +32,33 @@ export async function GET(request: Request) {
 }
 
 /**
- * Assigns a judge to projects at a level. Only submitted projects competing
+ * Assigns one or more judges to projects at a level - every judge gets every
+ * project. Only active judges, and only submitted projects competing
  * at that level can be assigned; existing assignments are left as they are.
  */
 export async function POST(request: Request) {
   try {
     const ctx = await requireKsefAdmin();
     const input = ksefAssignmentSchema.parse(await request.json());
-    const judge = await prisma.ksefJudge.findUnique({ where: { id: input.judgeId } });
-    if (!judge) throw new AuthorizationError("Judge not found", 404);
-    if (!judge.isActive) throw new Error("This judge is deactivated - reactivate them first");
-    await getEditableEdition(judge.editionId);
+    const judgeIds = Array.from(new Set(input.judgeIds));
+    const judges = await prisma.ksefJudge.findMany({
+      where: { id: { in: judgeIds } },
+      include: { user: { select: { name: true } } },
+    });
+    if (judges.length !== judgeIds.length) throw new AuthorizationError("Judge not found", 404);
+    const editionId = judges[0]!.editionId;
+    if (judges.some((j) => j.editionId !== editionId)) throw new Error("Those judges aren't all on the same competition's panel");
+    const inactive = judges.filter((j) => !j.isActive);
+    if (inactive.length > 0) {
+      throw new Error(`${inactive.map((j) => j.user.name).join(", ")} ${inactive.length === 1 ? "is" : "are"} deactivated - reactivate them first`);
+    }
+    await getEditableEdition(editionId);
 
     const competing = await prisma.ksefResult.findMany({
       where: {
         level: input.level,
         projectId: { in: input.projectIds },
-        project: { editionId: judge.editionId, status: "SUBMITTED" },
+        project: { editionId, status: "SUBMITTED" },
       },
       select: { projectId: true },
     });
@@ -62,10 +72,10 @@ export async function POST(request: Request) {
       tableName: "ksef_judge_assignments",
       mutate: (tx) =>
         tx.ksefJudgeAssignment.createMany({
-          data: input.projectIds.map((projectId) => ({ judgeId: judge.id, projectId, level: input.level })),
+          data: judgeIds.flatMap((judgeId) => input.projectIds.map((projectId) => ({ judgeId, projectId, level: input.level }))),
           skipDuplicates: true,
         }),
-      recordId: () => judge.id,
+      recordId: () => judgeIds.join(","),
       newData: input,
     });
     return NextResponse.json({ assigned: created.count }, { status: 201 });

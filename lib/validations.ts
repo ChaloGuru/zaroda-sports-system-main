@@ -601,7 +601,8 @@ export const ksefRegistrationDecisionSchema = z.discriminatedUnion("action", [
 ]);
 
 export const ksefAssignmentSchema = z.object({
-  judgeId: z.string().uuid(),
+  // Every judge listed is assigned every project listed.
+  judgeIds: z.array(z.string().uuid()).min(1, "Pick at least one judge").max(100),
   projectIds: z.array(z.string().uuid()).min(1).max(500),
   level: ksefLevelSchema,
 });

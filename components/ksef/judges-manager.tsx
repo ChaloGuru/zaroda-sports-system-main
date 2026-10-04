@@ -54,7 +54,8 @@ function AssignCard({ edition, judges }: { edition: KsefEditionSummary; judges: 
   const queryClient = useQueryClient();
   const readOnly = edition.status === "CLOSED";
   const [level, setLevel] = React.useState<Level>(edition.currentLevel);
-  const [judgeId, setJudgeId] = React.useState("");
+  const [judgeIds, setJudgeIds] = React.useState<Set<string>>(new Set());
+  const activeJudges = judges.filter((j) => j.isActive);
   const [categoryId, setCategoryId] = React.useState("ALL");
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
@@ -69,7 +70,8 @@ function AssignCard({ edition, judges }: { edition: KsefEditionSummary; judges: 
     .sort((a, b) => (a.project.code ?? "").localeCompare(b.project.code ?? ""));
 
   const assignMutation = useMutation({
-    mutationFn: () => apiPost<{ assigned: number }>("/api/ksef/assignments", { judgeId, level, projectIds: Array.from(selected) }),
+    mutationFn: () =>
+      apiPost<{ assigned: number }>("/api/ksef/assignments", { judgeIds: Array.from(judgeIds), level, projectIds: Array.from(selected) }),
     onSuccess: ({ assigned }) => {
       toast.success(`${assigned} new assignment${assigned === 1 ? "" : "s"}`);
       setSelected(new Set());
@@ -80,20 +82,24 @@ function AssignCard({ edition, judges }: { edition: KsefEditionSummary; judges: 
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to assign"),
   });
 
-  function toggle(id: string) {
-    setSelected((prev) => {
+  function toggleIn(setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) {
+    setter((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
   }
+  const toggle = (id: string) => toggleIn(setSelected, id);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Assign judges to projects</CardTitle>
-        <CardDescription>Pick a judge, tick the projects they&apos;ll judge at this level, then assign. A project can have several judges.</CardDescription>
+        <CardDescription>
+          Tick one or more judges and the projects they&apos;ll judge at this level, then assign - every ticked judge gets every ticked
+          project. Projects already assigned to a judge are left as they are.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
@@ -105,19 +111,6 @@ function AssignCard({ edition, judges }: { edition: KsefEditionSummary; judges: 
               {edition.levels.map((l) => (
                 <SelectItem key={l} value={l}>
                   {LEVEL_LABELS[l]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={judgeId} onValueChange={setJudgeId}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Select judge" />
-            </SelectTrigger>
-            <SelectContent>
-              {judges.filter((j) => j.isActive).map((j) => (
-                <SelectItem key={j.id} value={j.id}>
-                  {j.user.name}
-                  {j.specialty ? ` (${j.specialty})` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -136,6 +129,33 @@ function AssignCard({ edition, judges }: { edition: KsefEditionSummary; judges: 
             </SelectContent>
           </Select>
         </div>
+
+        {activeJudges.length === 0 ? (
+          <p className="text-sm text-muted">No active judges on the panel yet.</p>
+        ) : (
+          <div className="space-y-1 rounded-md border border-border p-2">
+            <label className="flex items-center gap-2 border-b border-border px-2 pb-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={activeJudges.every((j) => judgeIds.has(j.id))}
+                onChange={(e) => setJudgeIds(e.target.checked ? new Set(activeJudges.map((j) => j.id)) : new Set())}
+              />
+              Judges - select all ({activeJudges.length})
+            </label>
+            <div className="grid gap-1 sm:grid-cols-2">
+              {activeJudges.map((j) => (
+                <label key={j.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-overlay">
+                  <input type="checkbox" checked={judgeIds.has(j.id)} onChange={() => toggleIn(setJudgeIds, j.id)} />
+                  <span className="min-w-0 flex-1 truncate">
+                    {j.user.name}
+                    {j.specialty ? ` (${j.specialty})` : ""}
+                  </span>
+                  {j.role !== "JUDGE" && <Badge variant="outline">{KSEF_PANEL_ROLE_LABELS[j.role]}</Badge>}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         {competing.length === 0 ? (
           <p className="text-sm text-muted">No submitted projects are competing at {LEVEL_LABELS[level]} yet.</p>
@@ -163,8 +183,10 @@ function AssignCard({ edition, judges }: { edition: KsefEditionSummary; judges: 
           </div>
         )}
 
-        <Button disabled={readOnly || !judgeId || selected.size === 0 || assignMutation.isPending} onClick={() => assignMutation.mutate()}>
-          Assign {selected.size > 0 ? `${selected.size} project${selected.size === 1 ? "" : "s"}` : ""}
+        <Button disabled={readOnly || judgeIds.size === 0 || selected.size === 0 || assignMutation.isPending} onClick={() => assignMutation.mutate()}>
+          {judgeIds.size > 0 && selected.size > 0
+            ? `Assign ${selected.size} project${selected.size === 1 ? "" : "s"} to ${judgeIds.size} judge${judgeIds.size === 1 ? "" : "s"}`
+            : "Assign"}
         </Button>
       </CardContent>
     </Card>
