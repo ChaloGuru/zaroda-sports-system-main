@@ -71,6 +71,21 @@ function AssignCard({ edition, judges }: { edition: KsefEditionSummary; judges: 
     queryKey: ["ksef-results", edition.id, level],
     queryFn: () => apiGet<{ results: LevelResultRow[] }>(`/api/ksef/results?editionId=${edition.id}&level=${level}`),
   });
+  // Who already judges each project at this level (same query as the judging overview).
+  const { data: assignmentData } = useQuery({
+    queryKey: ["ksef-assignments", edition.id, level],
+    queryFn: () =>
+      apiGet<{ assignments: { submittedAt: string | null; judge: { id: string; user: { name: string } }; project: { id: string } }[] }>(
+        `/api/ksef/assignments?editionId=${edition.id}&level=${level}`,
+      ),
+  });
+  const judgesByProject = React.useMemo(() => {
+    const map = new Map<string, { id: string; name: string; submitted: boolean }[]>();
+    for (const a of assignmentData?.assignments ?? []) {
+      map.set(a.project.id, [...(map.get(a.project.id) ?? []), { id: a.judge.id, name: a.judge.user.name, submitted: !!a.submittedAt }]);
+    }
+    return map;
+  }, [assignmentData]);
   const competing = (data?.results ?? []).filter((r) => r.project.status === "SUBMITTED");
   const categories = Array.from(new Map(competing.map((r) => [r.project.category.id, r.project.category])).values());
   const shown = competing
@@ -262,17 +277,42 @@ function AssignCard({ edition, judges }: { edition: KsefEditionSummary; judges: 
                   />
                   Select all shown ({shown.length})
                 </label>
-                {shown.map((r) => (
-                  <label key={r.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-overlay">
-                    <input type="checkbox" checked={selected.has(r.project.id)} onChange={() => toggle(r.project.id)} />
-                    <span className="font-mono text-primary">{r.project.code}</span>
-                    <span className="min-w-0 flex-1 truncate">{r.project.title}</span>
-                    <span className="hidden text-xs text-muted md:inline">{r.project.school.name}</span>
-                    <Badge variant={r.assignedJudges === 0 ? "warning" : "outline"}>
-                      {r.assignedJudges} judge{r.assignedJudges === 1 ? "" : "s"}
-                    </Badge>
-                  </label>
-                ))}
+                {shown.map((r) => {
+                  const assigned = judgesByProject.get(r.project.id) ?? [];
+                  return (
+                    <label key={r.id} className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-overlay">
+                      <input type="checkbox" className="mt-1" checked={selected.has(r.project.id)} onChange={() => toggle(r.project.id)} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="font-mono text-primary">{r.project.code}</span>
+                          <span className="min-w-0 flex-1 truncate">{r.project.title}</span>
+                          <span className="hidden text-xs text-muted md:inline">{r.project.school.name}</span>
+                          <Badge variant={r.assignedJudges === 0 ? "warning" : "outline"}>
+                            {r.assignedJudges} judge{r.assignedJudges === 1 ? "" : "s"}
+                          </Badge>
+                        </span>
+                        <span className="block text-xs text-muted">
+                          {!assignmentData
+                            ? ""
+                            : assigned.length === 0
+                            ? "No judges yet"
+                            : assigned.map((j, i) => (
+                                <React.Fragment key={j.id}>
+                                  {i > 0 && ", "}
+                                  <span
+                                    className={judgeIds.has(j.id) ? "font-semibold text-foreground" : undefined}
+                                    title={judgeIds.has(j.id) ? "Ticked above - already has this project, so it will be skipped" : undefined}
+                                  >
+                                    {j.name}
+                                    {j.submitted ? " ✓" : ""}
+                                  </span>
+                                </React.Fragment>
+                              ))}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             )}
             <Button disabled={readOnly || judgeIds.size === 0 || selected.size === 0 || assignMutation.isPending} onClick={() => assignMutation.mutate()}>
