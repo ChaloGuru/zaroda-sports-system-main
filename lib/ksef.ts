@@ -3,7 +3,7 @@ import type { KsefEdition, KsefDivision, Level, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { AuthorizationError, requireAuth, requireRole, isSuperAdmin, type AuthContext } from "./authorize";
 import {
-  KSEF_JUNIOR_SCORE_SHEET,
+  KSEF_OFFICIAL_SCORE_SHEETS,
   STANDARD_KSEF_STRUCTURE,
   averageJudgeTotal,
   checkJudgeDiscrepancy,
@@ -305,30 +305,33 @@ export async function seedEditionConfig(tx: Prisma.TransactionClient, editionId:
 }
 
 /**
- * Switches an edition's Junior School projects to the official KSEF Junior
- * School score sheet. Criteria that applied to Junior School are kept for the
- * record (submitted sheets still reference them) but stop applying: Junior-only
- * ones are disabled, and ones shared with Senior School become Senior-only.
- * Returns how many Junior score sheets were already submitted on the old
- * criteria, so the administrator can have those projects re-judged.
+ * Switches an edition's projects at one school level to that level's
+ * official KSEF score sheet. Criteria that applied to that level are kept
+ * for the record (submitted sheets still reference them) but stop applying:
+ * ones for that level only are disabled, and ones shared with the other level
+ * become the other level's only. Returns how many of that level's score
+ * sheets were already submitted on the old criteria, so the administrator
+ * can have those projects re-judged.
  */
-export async function applyOfficialJuniorScoreSheet(editionId: string, actorId: string) {
-  const existing = await prisma.ksefCriterion.findMany({ where: { editionId, isActive: true, OR: [{ division: null }, { division: "JUNIOR_SCHOOL" }] } });
-  if (existing.some((c) => c.division === "JUNIOR_SCHOOL" && c.levelScored && c.section?.startsWith("Part A"))) {
-    throw new Error("Junior School projects already use the official KSEF score sheet");
+export async function applyOfficialScoreSheet(editionId: string, division: KsefDivision, actorId: string) {
+  const sheet = KSEF_OFFICIAL_SCORE_SHEETS[division];
+  const other: KsefDivision = division === "JUNIOR_SCHOOL" ? "SENIOR_SCHOOL" : "JUNIOR_SCHOOL";
+  const existing = await prisma.ksefCriterion.findMany({ where: { editionId, isActive: true, OR: [{ division: null }, { division }] } });
+  if (existing.some((c) => c.division === division && c.levelScored && c.section?.startsWith("Part A"))) {
+    throw new Error("This school level already uses the official KSEF score sheet");
   }
   const submittedOnOld = await prisma.ksefJudgeAssignment.count({
-    where: { submittedAt: { not: null }, project: { editionId, category: { division: "JUNIOR_SCHOOL" } } },
+    where: { submittedAt: { not: null }, project: { editionId, category: { division } } },
   });
   const nextSort = (await prisma.ksefCriterion.aggregate({ where: { editionId }, _max: { sortOrder: true } }))._max.sortOrder ?? 0;
 
   await prisma.$transaction(async (tx) => {
-    await tx.ksefCriterion.updateMany({ where: { editionId, isActive: true, division: "JUNIOR_SCHOOL" }, data: { isActive: false } });
-    await tx.ksefCriterion.updateMany({ where: { editionId, isActive: true, division: null }, data: { division: "SENIOR_SCHOOL" } });
+    await tx.ksefCriterion.updateMany({ where: { editionId, isActive: true, division }, data: { isActive: false } });
+    await tx.ksefCriterion.updateMany({ where: { editionId, isActive: true, division: null }, data: { division: other } });
     await tx.ksefCriterion.createMany({
-      data: KSEF_JUNIOR_SCORE_SHEET.map((c, i) => ({
+      data: sheet.map((c, i) => ({
         editionId,
-        division: c.division,
+        division,
         section: c.section ?? null,
         name: c.name,
         description: c.description || null,
@@ -343,8 +346,8 @@ export async function applyOfficialJuniorScoreSheet(editionId: string, actorId: 
         operation: "UPDATE",
         tableName: "ksef_criteria",
         recordId: editionId,
-        oldData: { juniorCriteria: existing.map((c) => ({ id: c.id, name: c.name, division: c.division })) },
-        newData: { officialJuniorScoreSheet: true, criteria: KSEF_JUNIOR_SCORE_SHEET.length },
+        oldData: { division, criteria: existing.map((c) => ({ id: c.id, name: c.name, division: c.division })) },
+        newData: { officialScoreSheet: division, criteria: sheet.length },
       },
     });
   });

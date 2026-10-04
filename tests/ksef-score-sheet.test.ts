@@ -1,30 +1,54 @@
 import { describe, it, expect } from "vitest";
-import { KSEF_JUNIOR_SCORE_SHEET, STANDARD_KSEF_STRUCTURE, isLevelScore, levelScores } from "@/lib/ksef-config";
+import {
+  KSEF_JUNIOR_SCORE_SHEET,
+  KSEF_SENIOR_SCORE_SHEET,
+  STANDARD_KSEF_STRUCTURE,
+  isLevelScore,
+  levelScores,
+  type StandardKsefCriterion,
+} from "@/lib/ksef-config";
 
-const totalFor = (prefix: string) =>
-  KSEF_JUNIOR_SCORE_SHEET.filter((c) => c.section?.startsWith(prefix)).reduce((sum, c) => sum + c.maxScore, 0);
+const part = (sheet: StandardKsefCriterion[], prefix: string) => sheet.filter((c) => c.section?.startsWith(prefix));
+const total = (rows: StandardKsefCriterion[]) => rows.reduce((sum, c) => sum + c.maxScore, 0);
 
-describe("official KSEF Junior School score sheet", () => {
-  it("matches the printed totals: Part A /20, Part B /10, Part C /35 - 65 in all", () => {
-    expect(totalFor("Part A")).toBe(20);
-    expect(totalFor("Part B")).toBe(10);
-    expect(totalFor("Part C")).toBe(35);
-    expect(KSEF_JUNIOR_SCORE_SHEET.reduce((sum, c) => sum + c.maxScore, 0)).toBe(65);
+describe.each([
+  { name: "Junior School", sheet: KSEF_JUNIOR_SCORE_SHEET, division: "JUNIOR_SCHOOL", a: [14, 20], b: [8, 10], c: [15, 35], all: 65 },
+  { name: "Senior School", sheet: KSEF_SENIOR_SCORE_SHEET, division: "SENIOR_SCHOOL", a: [16, 30], b: [10, 15], c: [15, 35], all: 80 },
+])("official KSEF $name score sheet", ({ sheet, division, a, b, c, all }) => {
+  it(`has Part A /${a[1]}, Part B /${b[1]}, Part C /${c[1]} - ${all} in all`, () => {
+    expect([part(sheet, "Part A").length, total(part(sheet, "Part A"))]).toEqual(a);
+    expect([part(sheet, "Part B").length, total(part(sheet, "Part B"))]).toEqual(b);
+    expect([part(sheet, "Part C").length, total(part(sheet, "Part C"))]).toEqual(c);
+    expect(total(sheet)).toBe(all);
   });
 
-  it("has every criterion from the sheets (14 + 8 + 15, with logical sequence split in three)", () => {
-    expect(KSEF_JUNIOR_SCORE_SHEET.filter((c) => c.section?.startsWith("Part A"))).toHaveLength(14);
-    expect(KSEF_JUNIOR_SCORE_SHEET.filter((c) => c.section?.startsWith("Part B"))).toHaveLength(8);
-    expect(KSEF_JUNIOR_SCORE_SHEET.filter((c) => c.section?.startsWith("Part C"))).toHaveLength(15);
+  it("is for its own school level only and scored by level", () => {
+    expect(sheet.every((row) => row.division === division && row.levelScored)).toBe(true);
   });
 
-  it("is Junior School only and scored by level", () => {
-    expect(KSEF_JUNIOR_SCORE_SHEET.every((c) => c.division === "JUNIOR_SCHOOL" && c.levelScored)).toBe(true);
+  it("is what a new edition starts from for that school level", () => {
+    expect(total(STANDARD_KSEF_STRUCTURE.criteria.filter((row) => row.division === division || row.division === null))).toBe(all);
+  });
+});
+
+describe("Junior vs Senior differences (from the comparison sheet)", () => {
+  const max = (sheet: StandardKsefCriterion[], name: string) => sheet.find((c) => c.name.startsWith(name))?.maxScore;
+
+  it("Senior-only criteria exist only on the Senior sheet", () => {
+    for (const name of ["Introduction in write-up", "Variables identified", "Capture of interest", "Presentation of project"]) {
+      expect(max(KSEF_SENIOR_SCORE_SHEET, name)).toBeDefined();
+      expect(max(KSEF_JUNIOR_SCORE_SHEET, name)).toBeUndefined();
+    }
   });
 
-  it("is what a new edition starts from for Junior School", () => {
-    const junior = STANDARD_KSEF_STRUCTURE.criteria.filter((c) => c.division === "JUNIOR_SCHOOL" || c.division === null);
-    expect(junior.reduce((sum, c) => sum + c.maxScore, 0)).toBe(65);
+  it("Junior gives scientific language more marks than Senior", () => {
+    expect(max(KSEF_JUNIOR_SCORE_SHEET, "Scientific language")).toBe(2);
+    expect(max(KSEF_SENIOR_SCORE_SHEET, "Scientific language")).toBe(1);
+  });
+
+  it("Part C is identical on both sheets", () => {
+    const partC = (sheet: StandardKsefCriterion[]) => part(sheet, "Part C").map((row) => [row.name, row.maxScore]);
+    expect(partC(KSEF_SENIOR_SCORE_SHEET)).toEqual(partC(KSEF_JUNIOR_SCORE_SHEET));
   });
 });
 

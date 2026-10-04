@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
-import { KSEF_DIVISIONS, KSEF_DIVISION_LABELS } from "@/lib/ksef-config";
+import { KSEF_DIVISIONS, KSEF_DIVISION_LABELS, KSEF_OFFICIAL_SCORE_SHEETS } from "@/lib/ksef-config";
 import { cn } from "@/lib/utils";
 import type { KsefCategoryRow, KsefCriterionRow, KsefEditionSummary } from "./types";
 import type { KsefDivision } from "@prisma/client";
@@ -254,32 +254,44 @@ function CriteriaCard({ edition, criteria, readOnly }: { edition: KsefEditionSum
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to add criterion"),
   });
 
-  const juniorOnOfficialSheet = criteria.some(
-    (c) => c.isActive && c.division === "JUNIOR_SCHOOL" && c.levelScored && c.section?.startsWith("Part A"),
-  );
+  const onOfficialSheet = (division: KsefDivision) =>
+    criteria.some((c) => c.isActive && c.division === division && c.levelScored && c.section?.startsWith("Part A"));
+  const sheetTotal = (division: KsefDivision) => KSEF_OFFICIAL_SCORE_SHEETS[division].reduce((sum, c) => sum + c.maxScore, 0);
   const officialMutation = useMutation({
-    mutationFn: () => apiPost<{ submittedOnOld: number }>("/api/ksef/criteria/official-junior", { editionId: edition.id }),
-    onSuccess: ({ submittedOnOld }) => {
-      toast.success("Junior School now uses the official KSEF score sheet (/65)");
+    mutationFn: (division: KsefDivision) =>
+      apiPost<{ submittedOnOld: number }>("/api/ksef/criteria/official-sheet", { editionId: edition.id, division }),
+    onSuccess: ({ submittedOnOld }, division) => {
+      const label = KSEF_DIVISION_LABELS[division];
+      toast.success(`${label} now uses the official KSEF score sheet (/${sheetTotal(division)})`);
       if (submittedOnOld > 0) {
-        toast.warning(`${submittedOnOld} Junior School score sheet${submittedOnOld === 1 ? " was" : "s were"} already submitted on the old criteria - re-judge those projects so all their sheets match.`, { duration: 12_000 });
+        toast.warning(`${submittedOnOld} ${label} score sheet${submittedOnOld === 1 ? " was" : "s were"} already submitted on the old criteria - re-judge those projects so all their sheets match.`, { duration: 12_000 });
       }
       queryClient.invalidateQueries({ queryKey: ["ksef-config", edition.id] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to switch score sheet"),
   });
-  async function switchToOfficial() {
-    const { submitted } = await apiGet<{ submitted: number }>(`/api/ksef/criteria/official-junior?editionId=${edition.id}`);
+  async function switchToOfficial(division: KsefDivision) {
+    const label = KSEF_DIVISION_LABELS[division];
+    const other = KSEF_DIVISION_LABELS[division === "JUNIOR_SCHOOL" ? "SENIOR_SCHOOL" : "JUNIOR_SCHOOL"];
+    const parts = KSEF_OFFICIAL_SCORE_SHEETS[division].reduce<Record<string, number>>((acc, c) => {
+      const part = c.section?.slice(0, 6) ?? "";
+      return { ...acc, [part]: (acc[part] ?? 0) + c.maxScore };
+    }, {});
+    const { submitted } = await apiGet<{ submitted: number }>(`/api/ksef/criteria/official-sheet?editionId=${edition.id}&division=${division}`);
     const warning =
       submitted > 0
-        ? `\n\n${submitted} Junior School score sheet${submitted === 1 ? " has" : "s have"} already been submitted on the current criteria. They stay as they are, but those projects should be re-judged on the new sheet so their judges' totals are comparable.`
+        ? `
+
+${submitted} ${label} score sheet${submitted === 1 ? " has" : "s have"} already been submitted on the current criteria. They stay as they are, but those projects should be re-judged on the new sheet so their judges' totals are comparable.`
         : "";
     if (
       window.confirm(
-        `Use the official KSEF Junior School score sheet (Part A /20, Part B /10, Part C /35 - 65 in all, scored BE/AE/ME/EE) for Junior School projects?\n\nThe current Junior School criteria are kept for the record but stop applying; criteria shared with Senior School become Senior-only.${warning}`,
+        `Use the official KSEF ${label} score sheet (${Object.entries(parts).map(([part, max]) => `${part} /${max}`).join(", ")} - ${sheetTotal(division)} in all, scored BE/AE/ME/EE) for ${label} projects?
+
+The current ${label} criteria are kept for the record but stop applying; criteria shared with ${other} become ${other}-only.${warning}`,
       )
     ) {
-      officialMutation.mutate();
+      officialMutation.mutate(division);
     }
   }
 
@@ -304,14 +316,17 @@ function CriteriaCard({ edition, criteria, readOnly }: { edition: KsefEditionSum
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {!juniorOnOfficialSheet && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-overlay p-3 text-sm">
-            <span>Junior School projects can use the official KSEF Junior School score sheet (Parts A, B and C - 65 marks, scored BE/AE/ME/EE).</span>
-            <Button size="sm" disabled={readOnly || officialMutation.isPending} onClick={switchToOfficial}>
-              Use official Junior School sheet
+        {KSEF_DIVISIONS.filter((d) => !onOfficialSheet(d)).map((d) => (
+          <div key={d} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-overlay p-3 text-sm">
+            <span>
+              {KSEF_DIVISION_LABELS[d]} projects can use the official KSEF {KSEF_DIVISION_LABELS[d]} score sheet (Parts A, B and C - {sheetTotal(d)} marks,
+              scored BE/AE/ME/EE).
+            </span>
+            <Button size="sm" disabled={readOnly || officialMutation.isPending} onClick={() => switchToOfficial(d)}>
+              Use official {KSEF_DIVISION_LABELS[d]} sheet
             </Button>
           </div>
-        )}
+        ))}
         <div className="hidden gap-2 px-3 text-xs uppercase text-muted md:grid md:grid-cols-[1fr_1.4fr_90px_150px_auto]">
           <span>Criterion</span>
           <span>Description</span>
