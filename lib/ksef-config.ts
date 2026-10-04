@@ -41,9 +41,11 @@ export interface StandardKsefCriterion {
 /**
  * Performance levels on the official KSEF score sheets. A criterion scored by
  * level earns this fraction of its maximum - e.g. out of 2: BE 0.5, AE 1,
- * ME 1.5, EE 2.
+ * ME 1.5, EE 2. "0" is from the KSEF scoring guide, for something missing or
+ * not done (e.g. no exhibit, a copied project).
  */
 export const KSEF_SCORE_LEVELS = [
+  { code: "0", label: "Missing / not done", fraction: 0 },
   { code: "BE", label: "Below Expectation", fraction: 0.25 },
   { code: "AE", label: "Approaching Expectation", fraction: 0.5 },
   { code: "ME", label: "Meeting Expectation", fraction: 0.75 },
@@ -58,6 +60,49 @@ export function levelScores(maxScore: number): { code: string; label: string; sc
 /** True if `score` is exactly one of the level scores for a criterion out of `maxScore`. */
 export function isLevelScore(maxScore: number, score: number): boolean {
   return levelScores(maxScore).some((l) => Math.abs(l.score - score) < 1e-9);
+}
+
+const METHODS = "Methods (and materials) or technologies used, in write-up and on display board";
+const APPARATUS = "Logical sequence - apparatus / requirements";
+const PROCEDURE = "Logical sequence - procedure / method";
+
+/**
+ * KSEF scoring-guide rules: when the first criterion scores 0, the others
+ * must too - there can be no results or data without a method, and no
+ * procedure without apparatus. Matched by the official criterion names, so
+ * they apply to the official score sheets (and stop if those are renamed).
+ */
+export const KSEF_ZERO_RULES: { when: string; zero: string[] }[] = [
+  {
+    when: METHODS,
+    zero: [
+      "Analysis of results in write-up or on display board",
+      "Discussion of results in write-up or on display board",
+      "Data",
+      APPARATUS,
+      PROCEDURE,
+      "Logical sequence - correct illustrations",
+    ],
+  },
+  { when: APPARATUS, zero: [PROCEDURE] },
+];
+
+/**
+ * Criteria forced to 0 by a zero rule, given the scores entered so far:
+ * criterion id -> name of the criterion that scored 0 and caused it.
+ */
+export function zeroedByRules(criteria: readonly { id: string; name: string }[], scoreOf: (criterionId: string) => number | null): Map<string, string> {
+  const byName = new Map(criteria.map((c) => [c.name, c]));
+  const forced = new Map<string, string>();
+  for (const rule of KSEF_ZERO_RULES) {
+    const trigger = byName.get(rule.when);
+    if (!trigger || scoreOf(trigger.id) !== 0) continue;
+    for (const name of rule.zero) {
+      const dependent = byName.get(name);
+      if (dependent && !forced.has(dependent.id)) forced.set(dependent.id, trigger.name);
+    }
+  }
+  return forced;
 }
 
 const PART_A = "Part A: Written Communication (Write-up and Posters) - Session One";

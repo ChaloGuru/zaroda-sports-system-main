@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiGet, apiPut } from "@/lib/api-client";
-import { KSEF_DIVISION_LABELS, KSEF_SCORE_LEVELS, levelScores } from "@/lib/ksef-config";
+import { KSEF_DIVISION_LABELS, KSEF_SCORE_LEVELS, levelScores, zeroedByRules } from "@/lib/ksef-config";
 import { LEVEL_LABELS, cn } from "@/lib/utils";
 import type { KsefDivision, Level } from "@prisma/client";
 
@@ -62,11 +62,18 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
     setValues((v) => ({ ...v, [criterionId]: value }));
   }
 
+  const entered = (criterionId: string) => {
+    const raw = values[criterionId]?.trim() ?? "";
+    return raw === "" ? null : Number(raw);
+  };
+  // Scoring-guide rules (e.g. Methods 0 -> results and data 0). Derived, not
+  // stored, so un-zeroing the cause brings back what the judge had entered.
+  const forced = zeroedByRules(data.criteria, entered);
   const parsed = data.criteria.map((c) => {
-    const raw = values[c.id]?.trim() ?? "";
-    const n = raw === "" ? null : Number(raw);
+    const forcedBy = forced.get(c.id) ?? null;
+    const n = forcedBy ? 0 : entered(c.id);
     const invalid = n !== null && (!Number.isFinite(n) || n < 0 || n > c.maxScore);
-    return { criterion: c, value: n, invalid };
+    return { criterion: c, value: n, invalid, forcedBy };
   });
   const total = parsed.reduce((sum, p) => sum + (p.value !== null && !p.invalid ? p.value : 0), 0);
   const maxTotal = data.criteria.reduce((sum, c) => sum + c.maxScore, 0);
@@ -152,8 +159,8 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
           {data.criteria.length === 0 && <p className="text-muted">No judging criteria are configured for this division yet.</p>}
           {anyLevelScored && (
             <p className="rounded-md bg-surface-overlay px-3 py-2 text-xs text-muted">
-              {KSEF_SCORE_LEVELS.map((l) => `${l.code} = ${l.label}`).join(" · ")}. Each level earns 25%, 50%, 75% or 100% of the
-              criterion&apos;s maximum.
+              {KSEF_SCORE_LEVELS.map((l) => `${l.code} = ${l.label}`).join(" · ")}. BE to EE earn 25%, 50%, 75% or 100% of the
+              criterion&apos;s maximum. If Methods scores 0, results and data items are 0 too; if Apparatus scores 0, so does Procedure.
             </p>
           )}
           {sections.map((section, sectionIndex) => (
@@ -166,18 +173,21 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
                   </span>
                 </div>
               )}
-              {section.rows.map(({ criterion, invalid }) => (
+              {section.rows.map(({ criterion, invalid, value, forcedBy }) => (
                 <div key={criterion.id} className="flex flex-col gap-2 rounded-md border border-border p-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
                     <p className="font-medium text-foreground">
                       {criterion.name} <span className="text-sm font-normal text-muted">(/{criterion.maxScore})</span>
                     </p>
                     {criterion.description && <p className="text-xs text-muted">{criterion.description}</p>}
+                    {forcedBy && (
+                      <p className="mt-1 text-xs font-medium text-foreground">0 because &ldquo;{forcedBy}&rdquo; scored 0.</p>
+                    )}
                   </div>
                   {criterion.levelScored ? (
                     <div className="flex shrink-0 flex-wrap gap-1.5" role="radiogroup" aria-label={`${criterion.name} level`}>
                       {levelScores(criterion.maxScore).map((level) => {
-                        const chosen = values[criterion.id] !== undefined && values[criterion.id] !== "" && Number(values[criterion.id]) === level.score;
+                        const chosen = value !== null && value === level.score;
                         return (
                           <button
                             key={level.code}
@@ -185,7 +195,7 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
                             role="radio"
                             aria-checked={chosen}
                             title={`${level.label} - ${level.score}`}
-                            disabled={locked}
+                            disabled={locked || !!forcedBy}
                             onClick={() => setValues((v) => ({ ...v, [criterion.id]: String(level.score) }))}
                             className={cn(
                               "flex min-w-[3.75rem] flex-col items-center rounded-md border px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed",
@@ -207,8 +217,8 @@ function SheetForm({ data, backHref }: { data: ScoreSheetData; backHref: string 
                           aria-label={`${criterion.name} score, out of ${criterion.maxScore}`}
                           inputMode="decimal"
                           className={`h-10 w-24 text-center font-mono tabular-nums ${invalid ? "border-destructive" : ""}`}
-                          value={values[criterion.id] ?? ""}
-                          disabled={locked}
+                          value={forcedBy ? "0" : (values[criterion.id] ?? "")}
+                          disabled={locked || !!forcedBy}
                           onChange={(e) => enterScore(criterion.id, criterion.maxScore, e.target.value)}
                         />
                         <span className="w-12 text-sm text-muted">/ {criterion.maxScore}</span>

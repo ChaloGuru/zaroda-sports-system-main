@@ -10,7 +10,7 @@ import {
   requireOwnScoreSheet,
   requireScoreSheetViewer,
 } from "@/lib/ksef";
-import { isLevelScore, levelScores } from "@/lib/ksef-config";
+import { isLevelScore, levelScores, zeroedByRules } from "@/lib/ksef-config";
 import { ksefScoreSheetSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -91,7 +91,15 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       if (!criterion) throw new Error("A score was given for a criterion that isn't on this score sheet");
       if (s.score > criterion.maxScore) throw new Error(`${criterion.name} is out of ${criterion.maxScore}`);
       if (criterion.levelScored && !isLevelScore(criterion.maxScore, s.score)) {
-        throw new Error(`${criterion.name} is scored BE/AE/ME/EE: ${levelScores(criterion.maxScore).map((l) => `${l.code} ${l.score}`).join(", ")}`);
+        throw new Error(`${criterion.name} is scored by level: ${levelScores(criterion.maxScore).map((l) => `${l.code} ${l.score}`).join(", ")}`);
+      }
+    }
+    // Scoring-guide rules, e.g. no method -> no results or data.
+    const given = new Map(input.scores.map((s) => [s.criterionId, s.score]));
+    for (const [criterionId, cause] of zeroedByRules(criteria, (id) => given.get(id) ?? null)) {
+      const score = given.get(criterionId);
+      if (score !== undefined && score !== 0) {
+        throw new Error(`${byId.get(criterionId)!.name} must be 0 because "${cause}" scored 0`);
       }
     }
     if (input.submit) {
