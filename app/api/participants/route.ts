@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
+import type { z } from "zod";
+import type { Role, SchoolLevel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { getAuthContext, canViewChampionshipPrivateData, requireGameAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
-import { participantCreateSchema } from "@/lib/validations";
+import { learnerEntryCreateSchema, learnerEntrySchema } from "@/lib/validations";
 import { requireChampionshipSchool } from "@/lib/championship-schools";
 import { schoolEntryLabel, gameSchoolLevelLabel } from "@/lib/school-levels";
-import { assignNextBibNumber, parseTimeToSeconds } from "@/lib/scoring";
+import { parseTimeToSeconds } from "@/lib/scoring";
+import { bibConflict, highestBib, nextSchoolBib, normalizeUpi } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
+
+const PARTICIPANT_ROLES: Role[] = ["TOURNAMENT_ADMIN", "SCOREKEEPER"];
 
 export async function GET(request: Request) {
   try {
@@ -48,13 +53,30 @@ export async function GET(request: Request) {
         ...(tournamentTeamId ? { tournamentTeamId } : {}),
       },
       orderBy: { bibNumber: "asc" },
-      include: { school: { select: { name: true } }, tournamentTeam: { select: { name: true } } },
+      include: {
+        school: { select: { name: true } },
+        tournamentTeam: { select: { name: true } },
+        // Identity details for officials checking learners in the call room.
+        ...(isStaff
+          ? {
+              learner: {
+                select: {
+                  id: true,
+                  upiNumber: true,
+                  dateOfBirth: true,
+                  photoUpdatedAt: true,
+                  participants: { select: { gameId: true, game: { select: { name: true } } } },
+                },
+              },
+            }
+          : {}),
+      },
     });
 
     // Public callers (mostly viewing school pupils' results) never get
-    // dates of birth or internal notes.
+    // dates of birth, identity details or internal notes.
     return NextResponse.json({
-      participants: isStaff ? participants : participants.map(({ dateOfBirth: _dob, notes: _notes, ...rest }) => rest),
+      participants: isStaff ? participants : participants.map(({ dateOfBirth: _dob, notes: _notes, learnerId: _learner, ...rest }) => rest),
     });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
@@ -65,7 +87,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body: unknown = await request.json();
-    const input = participantCreateSchema.parse(body);
+    if (body && typeof body === "object" && (body as { learnerId?: unknown }).learnerId) {
+      return await enterExistingLearner(learnerEntrySchema.parse(body));
+    }
+    const input = learnerEntryCreateSchema.parse(body);
 
     let ctx;
     if (input.tournamentTeamId) {
@@ -78,7 +103,7 @@ export async function POST(request: Request) {
       }
       ctx = await requireTeamAccess(input.championshipId, team.name);
     } else {
-      ctx = await requireGameAccess(input.gameId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+      ctx = await requireGameAccess(input.gameId, PARTICIPANT_ROLES);
     }
 
     const game = await prisma.game.findUnique({
@@ -93,13 +118,7 @@ export async function POST(request: Request) {
     if (input.schoolId) {
       const school = await requireChampionshipSchool(input.championshipId, input.schoolId);
       schoolName = schoolEntryLabel(school.name, school.schoolLevel);
-      // Primary/JS championships split each school into a Primary and a JS
-      // entry - an athlete enters under the one matching the event's level.
-      if (school.schoolLevel && school.schoolLevel !== game.schoolLevel) {
-        throw new Error(
-          `${schoolName} can't enter a ${gameSchoolLevelLabel(game.schoolLevel)} event - pick the school's ${gameSchoolLevelLabel(game.schoolLevel)} entry.`,
-        );
-      }
+      assertSchoolLevelMatches(schoolName, school.schoolLevel, game.schoolLevel);
       const championship = await prisma.championship.findUnique({
         where: { id: input.championshipId },
         select: { level: true, county: true },
@@ -109,38 +128,104 @@ export async function POST(request: Request) {
       }
     }
 
-    let bibNumber = input.bibNumber ?? null;
-    if (!bibNumber && input.schoolId) {
-      const range = await prisma.schoolBibRange.findUnique({
-        where: { championshipId_schoolId: { championshipId: input.championshipId, schoolId: input.schoolId } },
-      });
-      if (!range) {
-        throw new Error(`${schoolName} has no bib range yet - allocate one in the Bib Ranges tab, or enter a bib number.`);
+    const personalBest = input.personalBest ? parseTimeToSeconds(input.personalBest) : null;
+
+    // A school's athlete is registered as a learner (who they are, with one
+    // bib) plus this first event entry; further events reuse the learner.
+    if (input.schoolId && !input.tournamentTeamId) {
+      const schoolId = input.schoolId;
+      const label = schoolName ?? "this school";
+      const upiNumber = normalizeUpi(input.upiNumber);
+      if (upiNumber) {
+        const sameUpi = await prisma.learner.findUnique({
+          where: { championshipId_upiNumber: { championshipId: input.championshipId, upiNumber } },
+          select: { firstName: true, lastName: true },
+        });
+        if (sameUpi) {
+          throw new Error(
+            `UPI ${upiNumber} is already registered to ${sameUpi.firstName} ${sameUpi.lastName} - add them to this event as an existing learner.`,
+          );
+        }
       }
-      const existing = await prisma.participant.findMany({
-        where: { championshipId: input.championshipId, schoolId: input.schoolId },
-        select: { bibNumber: true },
+      const sameName = await prisma.learner.findFirst({
+        where: {
+          championshipId: input.championshipId,
+          schoolId,
+          firstName: { equals: input.firstName.trim(), mode: "insensitive" },
+          lastName: { equals: input.lastName.trim(), mode: "insensitive" },
+        },
+        select: { bibNumber: true, dateOfBirth: true },
       });
-      bibNumber = assignNextBibNumber(
-        input.schoolId,
-        range ? { schoolId: range.schoolId, rangeStart: range.rangeStart, rangeEnd: range.rangeEnd } : undefined,
-        existing.map((p) => p.bibNumber),
-      );
-    } else if (!bibNumber && input.tournamentTeamId) {
+      // Two learners with one name at one school only when their dates of
+      // birth show they're different people.
+      const provenDifferent =
+        sameName?.dateOfBirth && input.dateOfBirth && sameName.dateOfBirth.getTime() !== input.dateOfBirth.getTime();
+      if (sameName && !provenDifferent) {
+        throw new Error(
+          `${input.firstName} ${input.lastName} is already registered for ${label} (bib ${sameName.bibNumber}) - add them to this event as an existing learner.`,
+        );
+      }
+
+      let bib = input.bibNumber ?? null;
+      if (bib) {
+        const conflict = await bibConflict(prisma, input.championshipId, bib, null);
+        if (conflict) throw new Error(conflict);
+      } else {
+        bib = await nextSchoolBib(prisma, input.championshipId, schoolId, label);
+      }
+      const bibNumber = bib;
+
+      const participant = await withAudit({
+        actorId: ctx.userId,
+        operation: "INSERT",
+        tableName: "participants",
+        mutate: async (tx) => {
+          const learner = await tx.learner.create({
+            data: {
+              championshipId: input.championshipId,
+              schoolId,
+              firstName: input.firstName.trim(),
+              lastName: input.lastName.trim(),
+              gender: input.gender,
+              dateOfBirth: input.dateOfBirth ?? null,
+              upiNumber,
+              bibNumber,
+            },
+          });
+          return tx.participant.create({
+            data: {
+              championshipId: input.championshipId,
+              gameId: input.gameId,
+              schoolId,
+              learnerId: learner.id,
+              firstName: learner.firstName,
+              lastName: learner.lastName,
+              gender: learner.gender,
+              dateOfBirth: learner.dateOfBirth,
+              bibNumber,
+              personalBest,
+              notes: input.notes ?? null,
+            },
+          });
+        },
+        recordId: (result) => result.id,
+        newData: { ...input, upiNumber, bibNumber },
+      });
+      return NextResponse.json({ participant }, { status: 201 });
+    }
+
+    let bibNumber = input.bibNumber ?? null;
+    if (bibNumber) {
+      const conflict = await bibConflict(prisma, input.championshipId, bibNumber, null);
+      if (conflict) throw new Error(conflict);
+    } else if (input.tournamentTeamId) {
       // Ball-game roster entries have no school bib range to draw from - bibNumber
       // is purely an internal identifier here (jerseyNumber is what's shown to
       // people), so just take the next unused number championship-wide.
-      const highest = await prisma.participant.findFirst({
-        where: { championshipId: input.championshipId },
-        orderBy: { bibNumber: "desc" },
-        select: { bibNumber: true },
-      });
-      bibNumber = (highest?.bibNumber ?? 0) + 1;
-    } else if (!bibNumber) {
+      bibNumber = (await highestBib(prisma, input.championshipId)) + 1;
+    } else {
       throw new Error("bibNumber must be provided directly when a participant has no schoolId or tournamentTeamId (e.g. open-tournament entries)");
     }
-
-    const personalBest = input.personalBest ? parseTimeToSeconds(input.personalBest) : null;
 
     const participant = await withAudit({
       actorId: ctx.userId,
@@ -173,4 +258,63 @@ export async function POST(request: Request) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });
   }
+}
+
+/** Primary/JS championships split each school into a Primary and a JS entry - an athlete enters under the one matching the event's level. */
+function assertSchoolLevelMatches(schoolName: string, schoolLevel: SchoolLevel | null, gameLevel: SchoolLevel) {
+  if (schoolLevel && schoolLevel !== gameLevel) {
+    throw new Error(
+      `${schoolName} can't enter a ${gameSchoolLevelLabel(gameLevel)} event - pick the school's ${gameSchoolLevelLabel(gameLevel)} entry.`,
+    );
+  }
+}
+
+/** Enters an already-registered learner in another event, with the same bib. */
+async function enterExistingLearner(input: z.infer<typeof learnerEntrySchema>) {
+  const ctx = await requireGameAccess(input.gameId, PARTICIPANT_ROLES);
+  const [game, learner] = await Promise.all([
+    prisma.game.findUnique({ where: { id: input.gameId }, select: { championshipId: true, schoolLevel: true, name: true } }),
+    prisma.learner.findUnique({
+      where: { id: input.learnerId },
+      include: { school: { select: { name: true, schoolLevel: true } } },
+    }),
+  ]);
+  if (!game || game.championshipId !== input.championshipId) {
+    return NextResponse.json({ error: "Game not found in this championship" }, { status: 404 });
+  }
+  if (!learner || learner.championshipId !== input.championshipId) {
+    return NextResponse.json({ error: "Learner not found in this championship" }, { status: 404 });
+  }
+  if (learner.school) {
+    const label = schoolEntryLabel(learner.school.name, learner.school.schoolLevel);
+    assertSchoolLevelMatches(label, learner.school.schoolLevel, game.schoolLevel);
+  }
+  const already = await prisma.participant.findFirst({ where: { gameId: input.gameId, learnerId: learner.id }, select: { id: true } });
+  if (already) {
+    return NextResponse.json({ error: `${learner.firstName} ${learner.lastName} is already entered in ${game.name}` }, { status: 409 });
+  }
+
+  const participant = await withAudit({
+    actorId: ctx.userId,
+    operation: "INSERT",
+    tableName: "participants",
+    mutate: (tx) =>
+      tx.participant.create({
+        data: {
+          championshipId: input.championshipId,
+          gameId: input.gameId,
+          schoolId: learner.schoolId,
+          learnerId: learner.id,
+          firstName: learner.firstName,
+          lastName: learner.lastName,
+          gender: learner.gender,
+          dateOfBirth: learner.dateOfBirth,
+          bibNumber: learner.bibNumber,
+          personalBest: input.personalBest ? parseTimeToSeconds(input.personalBest) : null,
+        },
+      }),
+    recordId: (result) => result.id,
+    newData: { ...input, bibNumber: learner.bibNumber },
+  });
+  return NextResponse.json({ participant }, { status: 201 });
 }

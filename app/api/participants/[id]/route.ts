@@ -5,6 +5,7 @@ import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, requireGameAccess, requireTeamAccess, toErrorResponse } from "@/lib/authorize";
 import { participantStatusSchema, timeInputSchema, genderSchema } from "@/lib/validations";
 import { parseTimeToSeconds } from "@/lib/scoring";
+import { bibConflict, updateLearner, type LearnerChanges } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -69,10 +70,18 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     }
 
     const data: Record<string, unknown> = {};
-    if (input.firstName !== undefined) data.firstName = input.firstName;
-    if (input.lastName !== undefined) data.lastName = input.lastName;
-    if (input.gender !== undefined) data.gender = input.gender;
-    if (input.bibNumber !== undefined) data.bibNumber = input.bibNumber;
+    // A learner's name, gender and bib are theirs, not this entry's - change
+    // them on the learner so every event they're entered in follows.
+    const learnerChanges: LearnerChanges = {};
+    const identity = existing.learnerId ? learnerChanges : data;
+    if (input.firstName !== undefined) identity.firstName = input.firstName;
+    if (input.lastName !== undefined) identity.lastName = input.lastName;
+    if (input.gender !== undefined) identity.gender = input.gender;
+    if (input.bibNumber !== undefined) identity.bibNumber = input.bibNumber;
+    if (!existing.learnerId && input.bibNumber !== undefined && input.bibNumber !== existing.bibNumber) {
+      const conflict = await bibConflict(prisma, existing.championshipId, input.bibNumber, null);
+      if (conflict) throw new Error(conflict);
+    }
     if (input.status !== undefined) data.status = input.status;
     if (input.timeInput !== undefined) data.timeTaken = parseTimeToSeconds(input.timeInput);
     if (input.score !== undefined) data.score = input.score;
@@ -88,15 +97,24 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       operation: "UPDATE",
       tableName: "participants",
       oldData: existing,
-      mutate: (tx) => tx.participant.update({ where: { id: params.id }, data }),
+      mutate: async (tx) => {
+        if (existing.learnerId && Object.keys(learnerChanges).length > 0) {
+          const learner = await tx.learner.findUniqueOrThrow({
+            where: { id: existing.learnerId },
+            select: { id: true, championshipId: true, bibNumber: true, upiNumber: true },
+          });
+          await updateLearner(tx, learner, learnerChanges);
+        }
+        return tx.participant.update({ where: { id: params.id }, data });
+      },
       recordId: () => params.id,
-      newData: data,
+      newData: { ...data, ...learnerChanges },
     });
 
     return NextResponse.json({ participant: updated });
   } catch (error) {
     if (error instanceof Error && error.message.includes("Unique constraint")) {
-      return NextResponse.json({ error: "That bib number is already in use in this championship" }, { status: 409 });
+      return NextResponse.json({ error: "That bib number is already in use in this event" }, { status: 409 });
     }
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

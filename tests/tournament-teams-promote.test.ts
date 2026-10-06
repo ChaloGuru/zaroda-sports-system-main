@@ -8,6 +8,7 @@ const tournamentTeamFindFirst = vi.fn();
 const tournamentTeamCreate = vi.fn();
 const participantFindMany = vi.fn();
 const participantFindFirst = vi.fn();
+const learnerFindFirst = vi.fn();
 const participantCreate = vi.fn();
 const auditLogCreate = vi.fn();
 const requireChampionshipAccessMock = vi.fn();
@@ -28,6 +29,7 @@ vi.mock("@/lib/prisma", () => ({
       findMany: (...args: unknown[]) => participantFindMany(...args),
       findFirst: (...args: unknown[]) => participantFindFirst(...args),
     },
+    learner: { findFirst: (...args: unknown[]) => learnerFindFirst(...args) },
     $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
       fn({
         // No school list in the target championship - promoted teams stay unlinked.
@@ -91,6 +93,7 @@ describe("POST /api/tournament-teams/promote", () => {
     tournamentTeamFindFirst.mockResolvedValue(null); // not already promoted
     participantFindMany.mockResolvedValue([]);
     participantFindFirst.mockResolvedValue(null); // no existing bib numbers
+    learnerFindFirst.mockResolvedValue(null);
     gameFindFirst.mockResolvedValue({ id: TARGET_GAME_ID });
     championshipFindUnique.mockResolvedValue({ id: TARGET_CHAMP_ID, level: "ZONE", county: "Kisumu" });
     computeSingleGameStandingsMock.mockResolvedValue([{ teamId: TEAM_ID, teamName: "Kisangura", points: 9 }]);

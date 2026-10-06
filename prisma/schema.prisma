@@ -254,6 +254,7 @@ model Championship {
   creator         User                       @relation("ChampionshipCreatedBy", fields: [createdBy], references: [id])
   userRoles       UserRole[]
   games           Game[]
+  learners        Learner[]
   participants    Participant[]
   tournamentTeams TournamentTeam[]
   bibRanges       SchoolBibRange[]
@@ -282,6 +283,7 @@ model School {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
+  learners      Learner[]
   participants  Participant[]
   bibRanges     SchoolBibRange[]
   championships ChampionshipSchool[]
@@ -440,6 +442,10 @@ model Participant {
   // - points at the origin Participant row in the other championship, so
   // re-running promotion skips athletes already carried forward.
   promotedFromParticipantId String?
+  // The registered learner this event entry belongs to (school entries
+  // only). One learner can enter several events with the same bib; their
+  // name, gender, date of birth and bib are copied onto each entry.
+  learnerId                 String?
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
 
@@ -447,13 +453,55 @@ model Participant {
   game               Game              @relation(fields: [gameId], references: [id], onDelete: Cascade)
   school             School?           @relation(fields: [schoolId], references: [id])
   tournamentTeam     TournamentTeam?   @relation(fields: [tournamentTeamId], references: [id])
+  learner            Learner?          @relation(fields: [learnerId], references: [id], onDelete: NoAction)
   heatParticipations HeatParticipant[]
 
-  @@unique([championshipId, bibNumber])
+  // A bib belongs to one learner championship-wide (enforced on Learner and
+  // in lib/learners.ts) but appears once in each event that learner enters.
+  @@unique([gameId, bibNumber])
+  @@unique([gameId, learnerId])
+  @@index([championshipId, bibNumber])
+  @@index([learnerId])
   @@index([gameId])
   @@index([schoolId])
   @@index([tournamentTeamId])
   @@map("participants")
+}
+
+// A learner registered for a championship by their school - who they are,
+// as opposed to Participant, which is one event entry. Officials check the
+// photo, UPI number and date of birth in the call room to stop one learner
+// competing under another's name.
+model Learner {
+  id                    String    @id @default(uuid())
+  championshipId        String
+  schoolId              String?
+  firstName             String
+  lastName              String
+  gender                Gender
+  dateOfBirth           DateTime?
+  // Kenya's Unique Personal Identifier (NEMIS/KEMIS) - one learner, one UPI.
+  upiNumber             String?
+  bibNumber             Int
+  // A small JPEG (resized in the browser), served only to the
+  // championship's officials through /api/learners/[id]/photo.
+  photo                 Bytes?
+  photoUpdatedAt        DateTime?
+  // Set when promoted from a lower-level championship, so re-promoting the
+  // same learner in another event reuses this record (and bib).
+  promotedFromLearnerId String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  championship Championship  @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  school       School?       @relation(fields: [schoolId], references: [id])
+  participants Participant[]
+
+  @@unique([championshipId, bibNumber])
+  @@unique([championshipId, upiNumber])
+  @@index([schoolId])
+  @@index([promotedFromLearnerId])
+  @@map("learners")
 }
 
 model Heat {

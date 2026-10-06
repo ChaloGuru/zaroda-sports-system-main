@@ -164,6 +164,36 @@ export const participantCreateSchema = z.object({
 });
 export type ParticipantCreateInput = z.infer<typeof participantCreateSchema>;
 
+const upiSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9 ]{4,20}$/, "UPI number should be 4-20 letters and digits")
+  .nullable()
+  .optional();
+
+/** A new learner, entered in their first event. */
+export const learnerEntryCreateSchema = participantCreateSchema.extend({
+  upiNumber: z.preprocess((v) => (v === "" ? null : v), upiSchema),
+});
+export type LearnerEntryCreateInput = z.infer<typeof learnerEntryCreateSchema>;
+
+/** An already-registered learner entered in another event. */
+export const learnerEntrySchema = z.object({
+  championshipId: z.string().uuid(),
+  gameId: z.string().uuid(),
+  learnerId: z.string().uuid(),
+  personalBest: z.string().max(20).nullable().optional(),
+});
+
+export const learnerUpdateSchema = z.object({
+  firstName: z.string().trim().min(1).max(100).optional(),
+  lastName: z.string().trim().min(1).max(100).optional(),
+  gender: genderSchema.optional(),
+  dateOfBirth: z.coerce.date().nullable().optional(),
+  upiNumber: upiSchema,
+  bibNumber: z.number().int().positive().optional(),
+});
+
 const timeInputRegex = /^(\d+(\.\d+)?|\d+:[0-5]?\d(\.\d+)?)$/;
 export const timeInputSchema = z
   .string()

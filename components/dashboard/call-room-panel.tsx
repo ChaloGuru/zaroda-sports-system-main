@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { LaneChip } from "@/components/ui/lane-chip";
 import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
 import { useCanManageGame } from "@/hooks/use-game-access";
+import { formatDate } from "@/lib/utils";
+import { LearnerPhoto, ageFrom, type LearnerIdentity } from "@/components/dashboard/learner-photo";
 import type { Role } from "@prisma/client";
 
 const CALL_ROOM_ROLES: Role[] = ["TOURNAMENT_ADMIN", "SCOREKEEPER", "OFFICIAL", "CHIEF_CALLROOM_MANAGER", "CHIEF_TRACK_JUDGE", "CHIEF_FIELD_JUDGE", "CHIEF_RECORDER"];
@@ -37,6 +39,7 @@ interface ParticipantRow {
   position: number | null;
   school: { name: string } | null;
   tournamentTeam: { name: string } | null;
+  learner?: LearnerIdentity | null;
 }
 
 interface HeatParticipantRow {
@@ -266,6 +269,8 @@ function HeatsSection({ gameId, candidates, canManage }: { gameId: string; candi
  */
 function ParticipantRowEditor({ participant, gameId, canManage }: { participant: ParticipantRow; gameId: string; canManage: boolean }) {
   const queryClient = useQueryClient();
+  const learner = participant.learner ?? null;
+  const otherEvents = (learner?.participants ?? []).filter((e) => e.gameId !== gameId);
 
   const patchMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => apiPatch(`/api/participants/${participant.id}`, body),
@@ -279,6 +284,15 @@ function ParticipantRowEditor({ participant, gameId, canManage }: { participant:
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
+        {/* Compare this photo with the learner standing in front of you. */}
+        {learner && (
+          <LearnerPhoto
+            learnerId={learner.id}
+            photoUpdatedAt={learner.photoUpdatedAt}
+            name={`${participant.firstName} ${participant.lastName}`}
+            className="h-24 w-24"
+          />
+        )}
         <LaneChip value={participant.bibNumber} size="lg" />
         <div>
           <p className="flex items-center gap-2 font-medium text-foreground">
@@ -286,6 +300,16 @@ function ParticipantRowEditor({ participant, gameId, canManage }: { participant:
             <GenderBadge gender={participant.gender} />
           </p>
           <p className="text-sm text-muted">{participant.school?.name ?? participant.tournamentTeam?.name ?? "-"}</p>
+          {learner && (
+            <p className="text-xs text-muted">
+              UPI {learner.upiNumber ?? "not given"}
+              {" · "}
+              {learner.dateOfBirth
+                ? `Born ${formatDate(learner.dateOfBirth)} (age ${ageFrom(learner.dateOfBirth)})`
+                : "No date of birth"}
+              {otherEvents.length > 0 && ` · Also in ${otherEvents.map((e) => e.game.name).join(", ")}`}
+            </p>
+          )}
           <Badge variant={participant.status === "DISQUALIFIED" ? "destructive" : participant.status === "CONFIRMED_IN_CALL_ROOM" ? "success" : "outline"}>
             {participant.status.replace(/_/g, " ")}
           </Badge>
@@ -338,7 +362,11 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
   });
 
   const filtered = (participantsData?.participants ?? []).filter(
-    (p) => !search || p.bibNumber.toString().includes(search) || `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()),
+    (p) =>
+      !search ||
+      p.bibNumber.toString().includes(search) ||
+      `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
+      !!p.learner?.upiNumber?.toLowerCase().includes(search.toLowerCase()),
   );
   const checkedIn = (participantsData?.participants ?? []).filter((p) => p.status === "CONFIRMED_IN_CALL_ROOM");
   const selectedGame = (gamesData?.games ?? []).find((g) => g.id === gameId);
@@ -363,7 +391,7 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
               <Input
-                placeholder="Search bib or name..."
+                placeholder="Search bib, name or UPI..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-11 w-56 pl-9"

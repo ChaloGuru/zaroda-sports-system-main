@@ -9,6 +9,7 @@ import {
   toErrorResponse,
 } from "@/lib/authorize";
 import { promoteTeamsSchema } from "@/lib/validations";
+import { highestBib } from "@/lib/learners";
 import { computeSingleGameStandings } from "@/lib/team-standings";
 
 export const dynamic = "force-dynamic";
@@ -117,12 +118,7 @@ export async function POST(request: Request) {
       const roster = await prisma.participant.findMany({ where: { tournamentTeamId: originTeam.id } });
 
       if (nextBibNumber === null) {
-        const highest = await prisma.participant.findFirst({
-          where: { championshipId: input.targetChampionshipId },
-          orderBy: { bibNumber: "desc" },
-          select: { bibNumber: true },
-        });
-        nextBibNumber = (highest?.bibNumber ?? 0) + 1;
+        nextBibNumber = (await highestBib(prisma, input.targetChampionshipId)) + 1;
       }
 
       const result = await withAudit({

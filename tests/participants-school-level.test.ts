@@ -6,6 +6,7 @@ const championshipFindUnique = vi.fn();
 const bibRangeFindUnique = vi.fn();
 const participantFindMany = vi.fn();
 const txParticipantCreate = vi.fn();
+const txLearnerCreate = vi.fn();
 
 vi.mock("@/lib/authorize", async () => {
   const actual = await vi.importActual<typeof import("@/lib/authorize")>("@/lib/authorize");
@@ -14,14 +15,15 @@ vi.mock("@/lib/authorize", async () => {
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 
-const txClient = { participant: { create: txParticipantCreate }, auditLog: { create: vi.fn() } };
+const txClient = { participant: { create: txParticipantCreate }, learner: { create: txLearnerCreate }, auditLog: { create: vi.fn() } };
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     game: { findUnique: (...a: unknown[]) => gameFindUnique(...a) },
     championshipSchool: { findUnique: (...a: unknown[]) => championshipSchoolFindUnique(...a) },
     championship: { findUnique: (...a: unknown[]) => championshipFindUnique(...a) },
     schoolBibRange: { findUnique: (...a: unknown[]) => bibRangeFindUnique(...a) },
-    participant: { findMany: (...a: unknown[]) => participantFindMany(...a) },
+    participant: { findMany: (...a: unknown[]) => participantFindMany(...a), findFirst: async () => null },
+    learner: { findUnique: async () => null, findFirst: async () => null, findMany: async () => [] },
     $transaction: (fn: (tx: typeof txClient) => Promise<unknown>) => fn(txClient),
   },
 }));
@@ -47,6 +49,7 @@ describe("POST /api/participants - Primary/JS school entries", () => {
     championshipFindUnique.mockResolvedValue({ level: "NATIONAL", county: "Kisumu" });
     bibRangeFindUnique.mockResolvedValue({ schoolId: SCHOOL, rangeStart: 100, rangeEnd: 199 });
     participantFindMany.mockResolvedValue([]);
+    txLearnerCreate.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: "l-1", ...data }));
     txParticipantCreate.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: "p-1", ...data }));
   });
 

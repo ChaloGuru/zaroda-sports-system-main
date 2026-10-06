@@ -9,7 +9,7 @@ import {
   toErrorResponse,
 } from "@/lib/authorize";
 import { promoteAthletesSchema } from "@/lib/validations";
-import { assignNextBibNumber } from "@/lib/scoring";
+import { highestBib, nextSchoolBib } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -91,40 +91,43 @@ export async function POST(request: Request) {
         assertWithinGeographicScope(targetChampionship.county, origin.school?.county);
       }
 
-      let bibNumber: number;
-      if (origin.schoolId) {
-        const range = await prisma.schoolBibRange.findUnique({
-          where: { championshipId_schoolId: { championshipId: input.targetChampionshipId, schoolId: origin.schoolId } },
-        });
-        if (range) {
-          const existing = await prisma.participant.findMany({
-            where: { championshipId: input.targetChampionshipId, schoolId: origin.schoolId },
-            select: { bibNumber: true },
-          });
-          bibNumber = assignNextBibNumber(
-            origin.schoolId,
-            { schoolId: range.schoolId, rangeStart: range.rangeStart, rangeEnd: range.rangeEnd },
-            existing.map((p) => p.bibNumber),
-          );
-        } else {
-          if (nextBibNumber === null) {
-            const highest = await prisma.participant.findFirst({
-              where: { championshipId: input.targetChampionshipId },
-              orderBy: { bibNumber: "desc" },
-              select: { bibNumber: true },
-            });
-            nextBibNumber = (highest?.bibNumber ?? 0) + 1;
-          }
-          bibNumber = nextBibNumber++;
+      // A school's learner keeps one learner record (and bib) at the next
+      // level however many events they're promoted in - found by the learner
+      // they came from, or by UPI number if the school registered them there
+      // directly. Their photo, UPI and date of birth go with them.
+      const originLearner = origin.learnerId
+        ? await prisma.learner.findUnique({ where: { id: origin.learnerId } })
+        : null;
+      let targetLearner = originLearner
+        ? await prisma.learner.findFirst({
+            where: {
+              championshipId: input.targetChampionshipId,
+              OR: [
+                { promotedFromLearnerId: originLearner.id },
+                ...(originLearner.upiNumber ? [{ upiNumber: originLearner.upiNumber }] : []),
+              ],
+            },
+          })
+        : null;
+      if (targetLearner) {
+        const entered = await prisma.participant.findFirst({ where: { gameId: targetGame.id, learnerId: targetLearner.id }, select: { id: true } });
+        if (entered) {
+          promoted.push({ athlete: athleteName, created: false, reason: "already entered in that event" });
+          continue;
         }
+      }
+
+      let bibNumber: number;
+      if (targetLearner) {
+        bibNumber = targetLearner.bibNumber;
+      } else if (origin.schoolId && (await prisma.schoolBibRange.findUnique({
+        where: { championshipId_schoolId: { championshipId: input.targetChampionshipId, schoolId: origin.schoolId } },
+        select: { id: true },
+      }))) {
+        bibNumber = await nextSchoolBib(prisma, input.targetChampionshipId, origin.schoolId, origin.school?.name ?? "This school");
       } else {
         if (nextBibNumber === null) {
-          const highest = await prisma.participant.findFirst({
-            where: { championshipId: input.targetChampionshipId },
-            orderBy: { bibNumber: "desc" },
-            select: { bibNumber: true },
-          });
-          nextBibNumber = (highest?.bibNumber ?? 0) + 1;
+          nextBibNumber = (await highestBib(prisma, input.targetChampionshipId)) + 1;
         }
         bibNumber = nextBibNumber++;
       }
@@ -143,6 +146,23 @@ export async function POST(request: Request) {
           // The athlete's school joins the next championship's school list
           // with them, so it's selectable there (bib ranges, participants).
           if (origin.schoolId) await ensureChampionshipSchool(input.targetChampionshipId, origin.schoolId, tx);
+          if (originLearner && !targetLearner) {
+            targetLearner = await tx.learner.create({
+              data: {
+                championshipId: input.targetChampionshipId,
+                schoolId: originLearner.schoolId,
+                firstName: originLearner.firstName,
+                lastName: originLearner.lastName,
+                gender: originLearner.gender,
+                dateOfBirth: originLearner.dateOfBirth,
+                upiNumber: originLearner.upiNumber,
+                bibNumber,
+                photo: originLearner.photo,
+                photoUpdatedAt: originLearner.photoUpdatedAt,
+                promotedFromLearnerId: originLearner.id,
+              },
+            });
+          }
           return tx.participant.create({
             data: {
               championshipId: input.targetChampionshipId,
@@ -152,9 +172,11 @@ export async function POST(request: Request) {
               firstName: origin.firstName,
               lastName: origin.lastName,
               gender: origin.gender,
+              dateOfBirth: origin.dateOfBirth,
               bibNumber,
               personalBest,
               promotedFromParticipantId: origin.id,
+              learnerId: targetLearner?.id ?? null,
             },
           });
         },
