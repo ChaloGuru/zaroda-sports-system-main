@@ -145,3 +145,43 @@ export function photoContentType(bytes: Uint8Array): "image/jpeg" | "image/png" 
   }
   return null;
 }
+
+/**
+ * Joins a learner registered twice into one: `keep` takes over every event
+ * `duplicate` is entered in (under `keep`'s bib) and any details only the
+ * duplicate has, then the duplicate is deleted. Refused across schools or
+ * when both are entered in the same event - remove one entry first.
+ */
+export async function mergeLearners(tx: Prisma.TransactionClient, keepId: string, duplicateId: string) {
+  if (keepId === duplicateId) throw new Error("Pick two different learners to merge");
+  const select = { ...LEARNER_FIELDS, photo: true } as const;
+  const [keep, duplicate] = await Promise.all([
+    tx.learner.findUnique({ where: { id: keepId }, select }),
+    tx.learner.findUnique({ where: { id: duplicateId }, select }),
+  ]);
+  if (!keep || !duplicate || keep.championshipId !== duplicate.championshipId) throw new Error("Learner not found in this championship");
+  if (keep.schoolId !== duplicate.schoolId) throw new Error("Only learners from the same school can be merged");
+
+  const [keepEntries, duplicateEntries] = await Promise.all([
+    tx.participant.findMany({ where: { learnerId: keep.id }, select: { gameId: true } }),
+    tx.participant.findMany({ where: { learnerId: duplicate.id }, select: { id: true, gameId: true, game: { select: { name: true } } } }),
+  ]);
+  const keepGames = new Set(keepEntries.map((e) => e.gameId));
+  const clash = duplicateEntries.find((e) => keepGames.has(e.gameId));
+  if (clash) throw new Error(`Both are entered in ${clash.game.name} - remove one of those entries first`);
+
+  // The duplicate's record goes first, freeing its birth certificate number.
+  await tx.participant.updateMany({ where: { learnerId: duplicate.id }, data: { learnerId: keep.id } });
+  await tx.learner.delete({ where: { id: duplicate.id } });
+  await tx.learner.update({
+    where: { id: keep.id },
+    data: {
+      dateOfBirth: keep.dateOfBirth ?? duplicate.dateOfBirth,
+      birthCertNumber: keep.birthCertNumber ?? duplicate.birthCertNumber,
+      ...(!keep.photo && duplicate.photo ? { photo: duplicate.photo, photoUpdatedAt: duplicate.photoUpdatedAt } : {}),
+    },
+  });
+  // Every entry - including the ones just moved - shows the kept learner.
+  const learner = await updateLearner(tx, keep, {});
+  return { learner, movedEntries: duplicateEntries.length };
+}

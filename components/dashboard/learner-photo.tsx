@@ -50,14 +50,19 @@ export function ageFrom(dateOfBirth: string, on = new Date()): number {
   return beforeBirthday ? age - 1 : age;
 }
 
-/** Shrinks a photo to a small JPEG (longest side 320px) before upload. */
+/**
+ * Crops a photo to a centred square and shrinks it to a small JPEG (at most
+ * 320px) before upload - square so it fits the call-room frame and the
+ * nominal roll without stretching.
+ */
 export async function resizePhoto(file: File, maxSide = 320): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const side = Math.min(bitmap.width, bitmap.height);
+  const out = Math.min(maxSide, side);
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  canvas.width = out;
+  canvas.height = out;
+  canvas.getContext("2d")?.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, out, out);
   bitmap.close();
   return new Promise((resolve, reject) =>
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Couldn't read that photo"))), "image/jpeg", 0.82),

@@ -39,7 +39,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const { POST } = await import("@/app/api/participants/route");
-const { ageOn, normalizeBirthCert, photoContentType, updateLearner } = await import("@/lib/learners");
+const { ageOn, mergeLearners, normalizeBirthCert, photoContentType, updateLearner } = await import("@/lib/learners");
 
 const CHAMP = "11111111-1111-1111-1111-111111111111";
 const GAME = "22222222-2222-2222-2222-222222222222";
@@ -215,5 +215,50 @@ describe("learner helpers", () => {
     expect(photoContentType(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe("image/png");
     expect(photoContentType(new TextEncoder().encode("RIFF\0\0\0\0WEBPVP8 "))).toBe("image/webp");
     expect(photoContentType(new TextEncoder().encode("<svg onload=alert(1)>"))).toBeNull();
+  });
+});
+
+describe("mergeLearners", () => {
+  const base = { championshipId: CHAMP, schoolId: SCHOOL, firstName: "Amina", lastName: "Otieno", gender: "GIRLS", photoUpdatedAt: null };
+  const keep = { ...base, id: "keep", bibNumber: 101, dateOfBirth: null, birthCertNumber: null, photo: null };
+  const duplicate = { ...base, id: "dup", bibNumber: 102, dateOfBirth: new Date("2013-05-01"), birthCertNumber: "12345", photo: Buffer.from([1]) };
+
+  function fakeTx(entries: Record<string, { id: string; gameId: string; game: { name: string } }[]>, learners = [keep, duplicate]) {
+    return {
+      learner: {
+        findUnique: vi.fn().mockImplementation(({ where }: { where: { id: string } }) => learners.find((l) => l.id === where.id) ?? null),
+        delete: vi.fn(),
+        update: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ ...keep, ...data })),
+      },
+      participant: {
+        findMany: vi.fn().mockImplementation(({ where }: { where: { learnerId: string } }) => entries[where.learnerId] ?? []),
+        updateMany: vi.fn(),
+      },
+    };
+  }
+
+  it("moves the duplicate's events to the kept learner and fills in what it lacked", async () => {
+    const tx = fakeTx({ keep: [{ id: "e1", gameId: "g1", game: { name: "100m" } }], dup: [{ id: "e2", gameId: "g2", game: { name: "200m" } }] });
+    const result = await mergeLearners(tx as never, "keep", "dup");
+    expect(result.movedEntries).toBe(1);
+    expect(tx.participant.updateMany).toHaveBeenCalledWith({ where: { learnerId: "dup" }, data: { learnerId: "keep" } });
+    expect(tx.learner.delete).toHaveBeenCalledWith({ where: { id: "dup" } });
+    expect(tx.learner.update).toHaveBeenCalledWith({
+      where: { id: "keep" },
+      data: expect.objectContaining({ dateOfBirth: duplicate.dateOfBirth, birthCertNumber: "12345", photo: duplicate.photo }),
+    });
+    // Every entry ends up with the kept learner's bib.
+    expect(tx.participant.updateMany).toHaveBeenCalledWith({ where: { learnerId: "keep" }, data: expect.objectContaining({ bibNumber: 101 }) });
+  });
+
+  it("refuses when both are entered in the same event", async () => {
+    const tx = fakeTx({ keep: [{ id: "e1", gameId: "g1", game: { name: "100m" } }], dup: [{ id: "e2", gameId: "g1", game: { name: "100m" } }] });
+    await expect(mergeLearners(tx as never, "keep", "dup")).rejects.toThrow("Both are entered in 100m - remove one of those entries first");
+    expect(tx.learner.delete).not.toHaveBeenCalled();
+  });
+
+  it("refuses learners from different schools", async () => {
+    const tx = fakeTx({}, [keep, { ...duplicate, schoolId: "other-school" }]);
+    await expect(mergeLearners(tx as never, "keep", "dup")).rejects.toThrow("Only learners from the same school can be merged");
   });
 });

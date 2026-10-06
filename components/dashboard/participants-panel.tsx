@@ -18,6 +18,7 @@ import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { useCanManageGame } from "@/hooks/use-game-access";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
 import { LearnerPhoto, PhotoPicker, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
+import { EditLearnerDialog } from "@/components/dashboard/learners-panel";
 import { cn } from "@/lib/utils";
 import type { Role } from "@prisma/client";
 
@@ -75,8 +76,6 @@ interface EditForm {
   lastName: string;
   gender: string;
   bibNumber: string;
-  dateOfBirth: string;
-  birthCertNumber: string;
 }
 
 function GenderSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
@@ -92,6 +91,7 @@ function GenderSelect({ value, onChange }: { value: string; onChange: (value: st
   );
 }
 
+/** Edits an entry with no learner behind it (open-tournament participants). */
 function EditParticipantDialog({
   participant,
   onClose,
@@ -101,40 +101,24 @@ function EditParticipantDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const learner = participant.learner ?? null;
   const [form, setForm] = React.useState<EditForm>({
     firstName: participant.firstName,
     lastName: participant.lastName,
     gender: participant.gender,
     bibNumber: participant.bibNumber.toString(),
-    dateOfBirth: learner?.dateOfBirth?.slice(0, 10) ?? "",
-    birthCertNumber: learner?.birthCertNumber ?? "",
   });
-  const [photo, setPhoto] = React.useState<File | null>(null);
   const [saving, setSaving] = React.useState(false);
-  const otherEvents = learner ? learner.participants.length - 1 : 0;
 
   async function save() {
     setSaving(true);
     try {
-      const identity = {
+      await apiPatch(`/api/participants/${participant.id}`, {
         firstName: form.firstName,
         lastName: form.lastName,
         gender: form.gender,
         bibNumber: Number(form.bibNumber),
-      };
-      if (learner) {
-        // Saved on the learner, so every event they're entered in follows.
-        await apiPatch(`/api/learners/${learner.id}`, {
-          ...identity,
-          dateOfBirth: form.dateOfBirth || null,
-          birthCertNumber: form.birthCertNumber.trim() || null,
-        });
-        if (photo) await uploadLearnerPhoto(learner.id, photo);
-      } else {
-        await apiPatch(`/api/participants/${participant.id}`, identity);
-      }
-      toast.success(learner ? "Learner updated" : "Participant updated");
+      });
+      toast.success("Participant updated");
       onSaved();
       onClose();
     } catch (error) {
@@ -148,14 +132,9 @@ function EditParticipantDialog({
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{learner ? "Edit learner" : "Edit participant"}</DialogTitle>
+          <DialogTitle>Edit participant</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {learner && otherEvents > 0 && (
-            <p className="text-sm text-muted">
-              Also entered in {otherEvents} other event{otherEvents === 1 ? "" : "s"} - changes apply to all of them.
-            </p>
-          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="edit-firstName">First name</Label>
@@ -192,41 +171,6 @@ function EditParticipantDialog({
               />
             </div>
           </div>
-          {learner && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="edit-dob">Date of birth</Label>
-                  <Input
-                    id="edit-dob"
-                    type="date"
-                    className="mt-1.5"
-                    value={form.dateOfBirth}
-                    onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-birth-cert">Birth cert. entry no.</Label>
-                  <Input
-                    id="edit-birth-cert"
-                    className="mt-1.5"
-                    value={form.birthCertNumber}
-                    onChange={(e) => setForm((f) => ({ ...f, birthCertNumber: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Photo</Label>
-                <div className="mt-1.5">
-                  <PhotoPicker
-                    file={photo}
-                    onChange={setPhoto}
-                    current={{ learnerId: learner.id, photoUpdatedAt: learner.photoUpdatedAt, name: `${participant.firstName} ${participant.lastName}` }}
-                  />
-                </div>
-              </div>
-            </>
-          )}
           <Button className="w-full" disabled={saving} onClick={save}>
             {saving ? "Saving..." : "Save changes"}
           </Button>
@@ -683,7 +627,21 @@ export function ParticipantsPanel({
         )}
       </CardContent>
 
-      {editingParticipant && (
+      {editingParticipant?.learner && (
+        <EditLearnerDialog
+          learner={{
+            ...editingParticipant.learner,
+            schoolId: null,
+            firstName: editingParticipant.firstName,
+            lastName: editingParticipant.lastName,
+            gender: editingParticipant.gender,
+            bibNumber: editingParticipant.bibNumber,
+          }}
+          onClose={() => setEditingParticipant(null)}
+          onSaved={refetchParticipants}
+        />
+      )}
+      {editingParticipant && !editingParticipant.learner && (
         <EditParticipantDialog
           participant={editingParticipant}
           onClose={() => setEditingParticipant(null)}
