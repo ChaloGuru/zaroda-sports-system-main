@@ -44,6 +44,15 @@ const nextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // KSEF moved to its own app; send old links there.
+  async redirects() {
+    return [
+      { source: "/ksef/results", destination: "https://ksef.zarodasports.live/results", permanent: true },
+      { source: "/ksef/:path*", destination: "https://ksef.zarodasports.live/", permanent: true },
+      { source: "/admin/ksef/:path*", destination: "https://ksef.zarodasports.live/", permanent: false },
+      { source: "/dashboard/ksef-judging/:path*", destination: "https://ksef.zarodasports.live/judging", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

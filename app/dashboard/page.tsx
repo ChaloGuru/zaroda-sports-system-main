@@ -28,14 +28,6 @@ export default async function DashboardOverviewPage() {
       redirect(`/dashboard/championships/${scopedChampionshipIds[0]}`);
     }
 
-    // A KSEF judge with no championship role lands on their judging list.
-    if (scopedChampionshipIds.length === 0) {
-      const ksefJudgeships = await prisma.ksefJudge.count({
-        where: { userId: ctx.userId, isActive: true, edition: { status: { not: "CLOSED" } } },
-      });
-      if (ksefJudgeships > 0) redirect("/dashboard/ksef-judging");
-    }
-
     if (scopedChampionshipIds.length > 1) {
       const assignedChampionships = await prisma.championship.findMany({
         where: { id: { in: scopedChampionshipIds } },

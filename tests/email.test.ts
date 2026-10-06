@@ -44,21 +44,3 @@ describe("sendEmail", () => {
     await expect(sendEmail({ to: "judge@x.co", subject: "s", html: "h", text: "t" })).resolves.toEqual({ sent: false, error: "The domain is not verified" });
   });
 });
-
-describe("inviteEmail", () => {
-  it("escapes names in the HTML and includes the link in both versions", async () => {
-    const { inviteEmail } = await import("@/lib/ksef-invites");
-    const mail = inviteEmail({
-      email: "judge@x.co",
-      name: "<b>Eve</b>",
-      roleLabel: "Judge",
-      editionName: "KSEF 2027",
-      url: "https://zarodasports.live/ksef/join/abc",
-    });
-    expect(mail.html).not.toContain("<b>Eve</b>");
-    expect(mail.html).toContain("&lt;b&gt;Eve&lt;/b&gt;");
-    expect(mail.html).toContain("https://zarodasports.live/ksef/join/abc");
-    expect(mail.text).toContain("https://zarodasports.live/ksef/join/abc");
-    expect(mail.subject).toContain("KSEF 2027");
-  });
-});
