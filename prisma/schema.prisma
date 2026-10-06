@@ -235,20 +235,26 @@ model Tenant {
 // ─────────────────────────────────────────────────────────────────────────
 
 model Championship {
-  id          String       @id @default(uuid())
-  tenantId    String
-  name        String
-  level       Level
-  schoolLevel SchoolLevel
-  category    GameCategory
-  county      String
-  location    String
-  startDate   DateTime
-  endDate     DateTime
-  isPublished Boolean      @default(false)
-  createdBy   String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                   String       @id @default(uuid())
+  tenantId             String
+  name                 String
+  level                Level
+  schoolLevel          SchoolLevel
+  category             GameCategory
+  county               String
+  location             String
+  startDate            DateTime
+  endDate              DateTime
+  isPublished          Boolean      @default(false)
+  // After this moment only tournament admins can add or change learners
+  // (see lib/learners.ts) - stops late swaps of who is competing.
+  registrationClosesAt DateTime?
+  // The date learners' ages are worked out on for events with a maximum
+  // age (Game.maxAge); the start date when not set.
+  ageCutoffDate        DateTime?
+  createdBy            String
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
   tenant          Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   creator         User                       @relation("ChampionshipCreatedBy", fields: [createdBy], references: [id])
@@ -391,6 +397,9 @@ model Game {
   maxQualifiers  Int          @default(5)
   raceType       String?
   scheduledDate  DateTime?
+  // Oldest age allowed on the championship's age date - older learners
+  // can't be entered. Null means no limit.
+  maxAge         Int?
   // False when a tournament admin has switched off an event their
   // championship isn't running (e.g. one of the auto-created standard
   // events) - hidden from public pages and entry screens, kept for re-enabling.

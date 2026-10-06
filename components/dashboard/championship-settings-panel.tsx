@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPatch, apiDelete } from "@/lib/api-client";
+import { formatDate } from "@/lib/utils";
 
 interface ChampionshipDetail {
   id: string;
@@ -20,6 +21,8 @@ interface ChampionshipDetail {
   location: string;
   startDate: string;
   endDate: string;
+  registrationClosesAt: string | null;
+  ageCutoffDate: string | null;
   tenant: { id: string; organizationName: string };
 }
 
@@ -32,6 +35,73 @@ const CATEGORIES = ["BALL_GAMES", "ATHLETICS", "MUSIC", "OTHER_GAMES"];
 
 function toDateInput(value: string): string {
   return value.slice(0, 10);
+}
+
+/** "2026-10-06T21:00:00.000Z" as the local value a datetime-local input shows. */
+function toDateTimeInput(value: string | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+/**
+ * When learner registration closes (after it only tournament admins can add
+ * or change learners) and the date ages are worked out on for events with a
+ * maximum age.
+ */
+function RegistrationRulesCard({ championship }: { championship: ChampionshipDetail }) {
+  const queryClient = useQueryClient();
+  const [closesAt, setClosesAt] = React.useState(toDateTimeInput(championship.registrationClosesAt));
+  const [ageDate, setAgeDate] = React.useState(championship.ageCutoffDate ? toDateInput(championship.ageCutoffDate) : "");
+
+  const save = useMutation({
+    mutationFn: () =>
+      apiPatch(`/api/championships/${championship.id}`, {
+        registrationClosesAt: closesAt ? new Date(closesAt).toISOString() : null,
+        ageCutoffDate: ageDate || null,
+      }),
+    onSuccess: () => {
+      toast.success("Registration rules saved");
+      queryClient.invalidateQueries({ queryKey: ["championship", championship.id] });
+      queryClient.invalidateQueries({ queryKey: ["learners", championship.id] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to save"),
+  });
+  const closed = championship.registrationClosesAt && new Date(championship.registrationClosesAt) <= new Date();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Registration &amp; age rules</CardTitle>
+        <CardDescription>
+          After registration closes, only tournament admins can add learners, enter them in events or change their
+          details and photos - so who competes can&apos;t be swapped late. Every change is in the audit log.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {closed && <p className="text-sm font-medium text-[#B45309]">Registration is closed.</p>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="settings-closes">Registration closes</Label>
+            <Input id="settings-closes" type="datetime-local" className="mt-1.5" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
+            <p className="mt-1 text-xs text-muted">Leave empty to keep registration open.</p>
+          </div>
+          <div>
+            <Label htmlFor="settings-age-date">Ages worked out on</Label>
+            <Input id="settings-age-date" type="date" className="mt-1.5" value={ageDate} onChange={(e) => setAgeDate(e.target.value)} />
+            <p className="mt-1 text-xs text-muted">
+              For events with a maximum age (set per event in Games). Empty means the start date,{" "}
+              {formatDate(championship.startDate)}.
+            </p>
+          </div>
+        </div>
+        <Button disabled={save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? "Saving..." : "Save rules"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
 }
 
 function TransferTenantCard({ championshipId, currentTenant }: { championshipId: string; currentTenant: { id: string; organizationName: string } }) {
@@ -205,6 +275,8 @@ export function ChampionshipSettingsPanel({ championshipId, isSuperAdmin }: { ch
           </Button>
         </CardContent>
       </Card>
+
+      {data?.championship && <RegistrationRulesCard championship={data.championship} />}
 
       {isSuperAdmin && data?.championship.tenant && (
         <TransferTenantCard championshipId={championshipId} currentTenant={data.championship.tenant} />

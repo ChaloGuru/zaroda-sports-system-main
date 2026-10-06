@@ -9,7 +9,7 @@ import {
   toErrorResponse,
 } from "@/lib/authorize";
 import { promoteAthletesSchema } from "@/lib/validations";
-import { highestBib, nextSchoolBib } from "@/lib/learners";
+import { ageDateOf, highestBib, nextSchoolBib, overAgeReason } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +84,11 @@ export async function POST(request: Request) {
           created: false,
           reason: `no matching "${origin.game.name}" event exists yet in the target championship`,
         });
+        continue;
+      }
+
+      if (overAgeReason(origin, targetGame, ageDateOf(targetChampionship))) {
+        promoted.push({ athlete: athleteName, created: false, reason: `over the age limit for ${targetGame.name}` });
         continue;
       }
 

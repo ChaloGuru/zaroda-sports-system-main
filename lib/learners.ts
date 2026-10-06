@@ -1,5 +1,7 @@
 import type { Gender, Prisma, PrismaClient } from "@prisma/client";
 import { assignNextBibNumber } from "./scoring";
+import { prisma } from "./prisma";
+import { AuthorizationError, requireChampionshipAccess } from "./authorize";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -119,6 +121,47 @@ export async function updateLearner(
 export function normalizeBirthCert(value: string | null | undefined): string | null {
   const number = (value ?? "").replace(/\s+/g, "").toUpperCase();
   return number === "" ? null : number;
+}
+
+const KENYA_DATE: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Nairobi" };
+
+/**
+ * After a championship's registration deadline only its tournament admins
+ * can add or change learners - so who is competing can't be quietly
+ * swapped late. Every change is still audited.
+ */
+export async function assertRegistrationOpen(championshipId: string): Promise<void> {
+  const championship = await prisma.championship.findUnique({ where: { id: championshipId }, select: { registrationClosesAt: true } });
+  const closesAt = championship?.registrationClosesAt;
+  if (!closesAt || closesAt > new Date()) return;
+  try {
+    await requireChampionshipAccess(championshipId, ["TOURNAMENT_ADMIN"]);
+  } catch {
+    throw new AuthorizationError(
+      `Registration closed on ${closesAt.toLocaleDateString("en-GB", KENYA_DATE)} - only a tournament admin can add or change learners now`,
+    );
+  }
+}
+
+/** The date ages are worked out on: the championship's age date, or its start date. */
+export function ageDateOf(championship: { ageCutoffDate: Date | null; startDate: Date }): Date {
+  return championship.ageCutoffDate ?? championship.startDate;
+}
+
+/**
+ * Why a learner is too old for an event with a maximum age, or null when
+ * they're within it. Learners without a date of birth pass here and are
+ * flagged on the Learners tab instead.
+ */
+export function overAgeReason(
+  learner: { firstName: string; lastName: string; dateOfBirth: Date | null },
+  game: { name: string; maxAge: number | null },
+  ageDate: Date,
+): string | null {
+  if (game.maxAge == null || !learner.dateOfBirth) return null;
+  const age = ageOn(learner.dateOfBirth, ageDate);
+  if (age <= game.maxAge) return null;
+  return `${learner.firstName} ${learner.lastName} is ${age} on ${ageDate.toLocaleDateString("en-GB", KENYA_DATE)} - ${game.name} is for learners aged ${game.maxAge} and under`;
 }
 
 /** Whole years old on `on` - for showing an age beside the date of birth. */

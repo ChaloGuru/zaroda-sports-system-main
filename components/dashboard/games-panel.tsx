@@ -27,6 +27,7 @@ interface GameRow {
   isTimed: boolean;
   sport: string | null;
   maxQualifiers: number;
+  maxAge: number | null;
   isActive: boolean;
   _count: { participants: number; tournamentTeams: number; heats: number; matchPools: number };
 }
@@ -168,6 +169,7 @@ export function GamesPanel({
       isTimed: game.isTimed,
       sport: (game.sport as GameCreateInput["sport"]) ?? null,
       maxQualifiers: game.maxQualifiers,
+      maxAge: game.maxAge,
     });
     setOpen(true);
   }
@@ -343,6 +345,20 @@ export function GamesPanel({
                   </div>
                 )}
               </div>
+              {!showsSportPicker && (
+                <div>
+                  <Label htmlFor="maxAge">Maximum age (optional)</Label>
+                  <Input
+                    id="maxAge"
+                    type="number"
+                    className="mt-1.5 w-40"
+                    {...register("maxAge", { setValueAs: (v) => (v === "" || v === null ? null : Number(v)) })}
+                  />
+                  <p className="mt-1 text-xs text-muted">
+                    Oldest age allowed, on the age date in Settings. Older learners can&apos;t be entered.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-sm text-foreground">
                   <input type="checkbox" {...register("isTimed")} /> Timed event (athletics track)

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { getAuthContext, canViewChampionshipPrivateData, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
-import { MAX_PHOTO_BYTES, photoContentType } from "@/lib/learners";
+import { MAX_PHOTO_BYTES, assertRegistrationOpen, photoContentType } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +47,7 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
     const learner = await prisma.learner.findUnique({ where: { id: params.id }, select: { id: true, championshipId: true } });
     if (!learner) return NextResponse.json({ error: "Learner not found" }, { status: 404 });
     const ctx = await requireChampionshipAccess(learner.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+    await assertRegistrationOpen(learner.championshipId);
 
     const formData = await request.formData();
     const file = formData.get("photo");

@@ -36,6 +36,7 @@ interface GameOption {
   isTimed: boolean;
   schoolLevel: string;
   gender: string;
+  maxAge: number | null;
 }
 
 interface SchoolOption {
@@ -429,6 +430,11 @@ export function ParticipantsPanel({
             <DialogHeader>
               <DialogTitle>Register participant</DialogTitle>
             </DialogHeader>
+            {selectedGame?.maxAge != null && (
+              <p className="text-sm text-muted">
+                {selectedGame.name} is for learners aged {selectedGame.maxAge} and under - older learners can&apos;t be entered.
+              </p>
+            )}
             {!isOpenTournament && (
               <div className="grid grid-cols-2 gap-1 rounded-md bg-secondary p-1 text-sm">
                 {(

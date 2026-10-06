@@ -29,10 +29,25 @@ export interface LearnerRow {
   bibNumber: number;
   photoUpdatedAt: string | null;
   school?: { name: string } | null;
-  participants: { gameId: string; game: { name: string } }[];
+  participants: { gameId: string; game: { name: string; maxAge?: number | null } }[];
+}
+
+interface LearnerRules {
+  registrationClosesAt: string | null;
+  ageDate: string;
 }
 
 const ALL = "all";
+
+/** What an official should look at for this learner before they compete. */
+function learnerFlags(learner: LearnerRow, ageDate: string | undefined): string[] {
+  const limited = learner.participants.filter((p) => p.game.maxAge != null);
+  if (limited.length === 0) return [];
+  if (!learner.dateOfBirth) return ["No date of birth - entered in an event with an age limit"];
+  if (!ageDate) return [];
+  const age = ageFrom(learner.dateOfBirth, new Date(ageDate));
+  return limited.filter((p) => age > (p.game.maxAge as number)).map((p) => `Over age for ${p.game.name} (${age}, limit ${p.game.maxAge})`);
+}
 
 /** Edits who a learner is - every event they're entered in follows. */
 export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: LearnerRow; onClose: () => void; onSaved: () => void }) {
@@ -242,9 +257,12 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
   const schools = schoolsData?.schools ?? [];
   const { data, isLoading } = useQuery({
     queryKey: ["learners", championshipId, ALL],
-    queryFn: () => apiGet<{ learners: LearnerRow[] }>(`/api/learners?championshipId=${championshipId}`),
+    queryFn: () => apiGet<{ learners: LearnerRow[]; rules: LearnerRules }>(`/api/learners?championshipId=${championshipId}`),
   });
   const all = data?.learners ?? [];
+  const rules = data?.rules;
+  const closedAt = rules?.registrationClosesAt && new Date(rules.registrationClosesAt) <= new Date() ? rules.registrationClosesAt : null;
+  const flagged = all.filter((l) => learnerFlags(l, rules?.ageDate).length > 0).length;
   const inSchool = schoolId === ALL ? all : all.filter((l) => l.schoolId === schoolId);
   const shown = inSchool.filter(
     (l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${l.birthCertNumber ?? ""}`.toLowerCase().includes(search.toLowerCase()),
@@ -350,6 +368,16 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {closedAt && (
+            <p className="rounded-md bg-secondary p-3 text-sm text-foreground">
+              Registration closed on {formatDate(closedAt)} - only tournament admins can add learners or change their details.
+            </p>
+          )}
+          {flagged > 0 && (
+            <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-foreground">
+              {flagged} learner{flagged === 1 ? " needs" : "s need"} checking against the age limits - see the flags below.
+            </p>
+          )}
           {duplicateGroups.length > 0 && (
             <div className="space-y-2 rounded-md border border-[#F0B429]/60 bg-[#F0B429]/10 p-4">
               <p className="text-sm font-medium text-foreground">
@@ -409,6 +437,9 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
                         <span>
                           {l.firstName} {l.lastName}
                           <span className="block text-xs text-muted">{l.gender === "BOYS" ? "Boy" : l.gender === "GIRLS" ? "Girl" : "Mixed"}</span>
+                          {learnerFlags(l, rules?.ageDate).map((flag) => (
+                            <span key={flag} className="block text-xs font-medium text-destructive">{flag}</span>
+                          ))}
                         </span>
                       </div>
                     </TableCell>

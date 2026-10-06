@@ -8,7 +8,7 @@ import { learnerEntryCreateSchema, learnerEntrySchema } from "@/lib/validations"
 import { requireChampionshipSchool } from "@/lib/championship-schools";
 import { schoolEntryLabel, gameSchoolLevelLabel } from "@/lib/school-levels";
 import { parseTimeToSeconds } from "@/lib/scoring";
-import { bibConflict, highestBib, nextSchoolBib, normalizeBirthCert } from "@/lib/learners";
+import { ageDateOf, assertRegistrationOpen, bibConflict, highestBib, nextSchoolBib, normalizeBirthCert, overAgeReason } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
 
     const game = await prisma.game.findUnique({
       where: { id: input.gameId },
-      select: { championshipId: true, schoolLevel: true },
+      select: { championshipId: true, schoolLevel: true, name: true, maxAge: true },
     });
     if (!game || game.championshipId !== input.championshipId) {
       return NextResponse.json({ error: "Game not found in this championship" }, { status: 404 });
@@ -135,6 +135,8 @@ export async function POST(request: Request) {
     if (input.schoolId && !input.tournamentTeamId) {
       const schoolId = input.schoolId;
       const label = schoolName ?? "this school";
+      await assertRegistrationOpen(input.championshipId);
+      await assertAgeAllowed(input.championshipId, { ...input, dateOfBirth: input.dateOfBirth ?? null }, game);
       const birthCertNumber = normalizeBirthCert(input.birthCertNumber);
       if (birthCertNumber) {
         const sameCert = await prisma.learner.findUnique({
@@ -269,11 +271,24 @@ function assertSchoolLevelMatches(schoolName: string, schoolLevel: SchoolLevel |
   }
 }
 
+/** Refuses a learner older than the event's maximum age on the championship's age date. */
+async function assertAgeAllowed(
+  championshipId: string,
+  learner: { firstName: string; lastName: string; dateOfBirth: Date | null },
+  game: { name: string; maxAge: number | null },
+) {
+  if (game.maxAge == null || !learner.dateOfBirth) return;
+  const championship = await prisma.championship.findUnique({ where: { id: championshipId }, select: { ageCutoffDate: true, startDate: true } });
+  if (!championship) return;
+  const reason = overAgeReason(learner, game, ageDateOf(championship));
+  if (reason) throw new Error(reason);
+}
+
 /** Enters an already-registered learner in another event, with the same bib. */
 async function enterExistingLearner(input: z.infer<typeof learnerEntrySchema>) {
   const ctx = await requireGameAccess(input.gameId, PARTICIPANT_ROLES);
   const [game, learner] = await Promise.all([
-    prisma.game.findUnique({ where: { id: input.gameId }, select: { championshipId: true, schoolLevel: true, name: true } }),
+    prisma.game.findUnique({ where: { id: input.gameId }, select: { championshipId: true, schoolLevel: true, name: true, maxAge: true } }),
     prisma.learner.findUnique({
       where: { id: input.learnerId },
       include: { school: { select: { name: true, schoolLevel: true } } },
@@ -289,6 +304,8 @@ async function enterExistingLearner(input: z.infer<typeof learnerEntrySchema>) {
     const label = schoolEntryLabel(learner.school.name, learner.school.schoolLevel);
     assertSchoolLevelMatches(label, learner.school.schoolLevel, game.schoolLevel);
   }
+  await assertRegistrationOpen(input.championshipId);
+  await assertAgeAllowed(input.championshipId, learner, game);
   const already = await prisma.participant.findFirst({ where: { gameId: input.gameId, learnerId: learner.id }, select: { id: true } });
   if (already) {
     return NextResponse.json({ error: `${learner.firstName} ${learner.lastName} is already entered in ${game.name}` }, { status: 409 });

@@ -87,6 +87,8 @@ export type ChampionshipCreateInput = z.infer<typeof championshipCreateSchema>;
 // handed off once the actual tenant subscribes.
 export const championshipUpdateSchema = championshipFieldsSchema.partial().extend({
   tenantId: z.string().uuid().optional(),
+  registrationClosesAt: z.coerce.date().nullable().optional(),
+  ageCutoffDate: z.coerce.date().nullable().optional(),
 });
 export type ChampionshipUpdateInput = z.infer<typeof championshipUpdateSchema>;
 
@@ -113,6 +115,7 @@ export const gameCreateSchema = z.object({
   maxQualifiers: z.number().int().min(1).max(50).default(5),
   raceType: z.string().max(100).nullable().optional(),
   scheduledDate: z.coerce.date().nullable().optional(),
+  maxAge: z.number().int().min(5).max(30).nullable().optional(),
 });
 export type GameCreateInput = z.infer<typeof gameCreateSchema>;
 

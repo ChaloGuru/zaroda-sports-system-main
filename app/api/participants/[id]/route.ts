@@ -5,7 +5,7 @@ import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, requireGameAccess, requireTeamAccess, toErrorResponse } from "@/lib/authorize";
 import { participantStatusSchema, timeInputSchema, genderSchema } from "@/lib/validations";
 import { parseTimeToSeconds } from "@/lib/scoring";
-import { bibConflict, updateLearner, type LearnerChanges } from "@/lib/learners";
+import { assertRegistrationOpen, bibConflict, updateLearner, type LearnerChanges } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +78,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (input.lastName !== undefined) identity.lastName = input.lastName;
     if (input.gender !== undefined) identity.gender = input.gender;
     if (input.bibNumber !== undefined) identity.bibNumber = input.bibNumber;
+    if (existing.learnerId && Object.keys(learnerChanges).length > 0) await assertRegistrationOpen(existing.championshipId);
     if (!existing.learnerId && input.bibNumber !== undefined && input.bibNumber !== existing.bibNumber) {
       const conflict = await bibConflict(prisma, existing.championshipId, input.bibNumber, null);
       if (conflict) throw new Error(conflict);

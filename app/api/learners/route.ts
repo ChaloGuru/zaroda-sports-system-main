@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthContext, canViewChampionshipPrivateData, toErrorResponse } from "@/lib/authorize";
+import { ageDateOf } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
     const schoolId = searchParams.get("schoolId");
     if (!championshipId) return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
 
-    const championship = await prisma.championship.findUnique({ where: { id: championshipId }, select: { id: true, tenantId: true } });
+    const championship = await prisma.championship.findUnique({ where: { id: championshipId }, select: { id: true, tenantId: true, registrationClosesAt: true, ageCutoffDate: true, startDate: true } });
     if (!championship) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
     if (!canViewChampionshipPrivateData(await getAuthContext(), championship)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -36,10 +37,13 @@ export async function GET(request: Request) {
         bibNumber: true,
         photoUpdatedAt: true,
         school: { select: { name: true } },
-        participants: { select: { gameId: true, game: { select: { name: true } } } },
+        participants: { select: { gameId: true, game: { select: { name: true, maxAge: true } } } },
       },
     });
-    return NextResponse.json({ learners });
+    return NextResponse.json({
+      learners,
+      rules: { registrationClosesAt: championship.registrationClosesAt, ageDate: ageDateOf(championship) },
+    });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

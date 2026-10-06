@@ -53,6 +53,7 @@ export async function POST(request: Request) {
             maxQualifiers: input.maxQualifiers,
             raceType: input.raceType ?? null,
             scheduledDate: input.scheduledDate ?? null,
+            maxAge: input.maxAge ?? null,
           },
         }),
       recordId: (result) => result.id,

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const gameFindUnique = vi.fn();
+const championshipFindUnique = vi.fn();
 const championshipSchoolFindUnique = vi.fn();
 const bibRangeFindUnique = vi.fn();
 const learnerFindUnique = vi.fn();
@@ -23,7 +24,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     game: { findUnique: (...a: unknown[]) => gameFindUnique(...a) },
     championshipSchool: { findUnique: (...a: unknown[]) => championshipSchoolFindUnique(...a) },
-    championship: { findUnique: async () => ({ level: "NATIONAL", county: "Kisumu" }) },
+    championship: { findUnique: (...a: unknown[]) => championshipFindUnique(...a) },
     schoolBibRange: { findUnique: (...a: unknown[]) => bibRangeFindUnique(...a) },
     learner: {
       findUnique: (...a: unknown[]) => learnerFindUnique(...a),
@@ -39,7 +40,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const { POST } = await import("@/app/api/participants/route");
-const { ageOn, mergeLearners, normalizeBirthCert, photoContentType, updateLearner } = await import("@/lib/learners");
+const { ageOn, mergeLearners, normalizeBirthCert, overAgeReason, photoContentType, updateLearner } = await import("@/lib/learners");
 
 const CHAMP = "11111111-1111-1111-1111-111111111111";
 const GAME = "22222222-2222-2222-2222-222222222222";
@@ -60,7 +61,14 @@ function newLearner(body: Record<string, unknown> = {}): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  gameFindUnique.mockResolvedValue({ championshipId: CHAMP, schoolLevel: "PRIMARY", name: "100m Girls" });
+  gameFindUnique.mockResolvedValue({ championshipId: CHAMP, schoolLevel: "PRIMARY", name: "100m Girls", maxAge: null });
+  championshipFindUnique.mockResolvedValue({
+    level: "NATIONAL",
+    county: "Kisumu",
+    startDate: new Date("2026-06-01"),
+    ageCutoffDate: new Date("2026-01-01"),
+    registrationClosesAt: null,
+  });
   championshipSchoolFindUnique.mockResolvedValue({ school: { name: "Manyonge", county: "Kisumu", schoolLevel: "PRIMARY" } });
   bibRangeFindUnique.mockResolvedValue({ schoolId: SCHOOL, rangeStart: 100, rangeEnd: 199 });
   learnerFindUnique.mockResolvedValue(null);
@@ -260,5 +268,38 @@ describe("mergeLearners", () => {
   it("refuses learners from different schools", async () => {
     const tx = fakeTx({}, [keep, { ...duplicate, schoolId: "other-school" }]);
     await expect(mergeLearners(tx as never, "keep", "dup")).rejects.toThrow("Only learners from the same school can be merged");
+  });
+});
+
+describe("age limits and the registration deadline", () => {
+  it("refuses a learner older than the event's maximum age on the age date", async () => {
+    gameFindUnique.mockResolvedValue({ championshipId: CHAMP, schoolLevel: "PRIMARY", name: "100m Girls", maxAge: 12 });
+    const res = await POST(newLearner({ dateOfBirth: "2012-06-30" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Amina Otieno is 13 on 1 Jan 2026 - 100m Girls is for learners aged 12 and under");
+    expect(txLearnerCreate).not.toHaveBeenCalled();
+  });
+
+  it("allows a learner within the limit, and one with no date of birth", async () => {
+    gameFindUnique.mockResolvedValue({ championshipId: CHAMP, schoolLevel: "PRIMARY", name: "100m Girls", maxAge: 12 });
+    expect((await POST(newLearner({ dateOfBirth: "2013-01-02" }))).status).toBe(201);
+    expect((await POST(newLearner({ firstName: "Bella" }))).status).toBe(201);
+  });
+
+  it("refuses new learners from non-admins after registration closes", async () => {
+    championshipFindUnique.mockResolvedValue({ level: "NATIONAL", county: "Kisumu", registrationClosesAt: new Date("2026-01-01") });
+    const res = await POST(newLearner());
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("Registration closed on 1 Jan 2026 - only a tournament admin can add or change learners now");
+    expect(txLearnerCreate).not.toHaveBeenCalled();
+  });
+
+  it("works out ages on the age date", () => {
+    const game = { name: "100m", maxAge: 13 };
+    const ageDate = new Date("2026-01-01");
+    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: new Date("2012-01-01") }, game, ageDate)).toMatch(/is 14 on/);
+    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: new Date("2012-01-02") }, game, ageDate)).toBeNull();
+    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: null }, game, ageDate)).toBeNull();
+    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: new Date("2000-01-01") }, { name: "100m", maxAge: null }, ageDate)).toBeNull();
   });
 });

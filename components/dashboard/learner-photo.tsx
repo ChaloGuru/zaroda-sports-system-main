@@ -45,8 +45,9 @@ export function LearnerPhoto({
 /** Age in whole years from an ISO date of birth. */
 export function ageFrom(dateOfBirth: string, on = new Date()): number {
   const dob = new Date(dateOfBirth);
-  const age = on.getFullYear() - dob.getUTCFullYear();
-  const beforeBirthday = on.getMonth() < dob.getUTCMonth() || (on.getMonth() === dob.getUTCMonth() && on.getDate() < dob.getUTCDate());
+  const age = on.getUTCFullYear() - dob.getUTCFullYear();
+  const beforeBirthday =
+    on.getUTCMonth() < dob.getUTCMonth() || (on.getUTCMonth() === dob.getUTCMonth() && on.getUTCDate() < dob.getUTCDate());
   return beforeBirthday ? age - 1 : age;
 }
 
