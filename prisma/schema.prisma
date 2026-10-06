@@ -470,7 +470,7 @@ model Participant {
 
 // A learner registered for a championship by their school - who they are,
 // as opposed to Participant, which is one event entry. Officials check the
-// photo, UPI number and date of birth in the call room to stop one learner
+// photo, birth certificate number and date of birth in the call room to stop one learner
 // competing under another's name.
 model Learner {
   id                    String    @id @default(uuid())
@@ -480,8 +480,8 @@ model Learner {
   lastName              String
   gender                Gender
   dateOfBirth           DateTime?
-  // Kenya's Unique Personal Identifier (NEMIS/KEMIS) - one learner, one UPI.
-  upiNumber             String?
+  // The entry number on the learner's birth certificate - one per learner.
+  birthCertNumber       String?
   bibNumber             Int
   // A small JPEG (resized in the browser), served only to the
   // championship's officials through /api/learners/[id]/photo.
@@ -498,7 +498,7 @@ model Learner {
   participants Participant[]
 
   @@unique([championshipId, bibNumber])
-  @@unique([championshipId, upiNumber])
+  @@unique([championshipId, birthCertNumber])
   @@index([schoolId])
   @@index([promotedFromLearnerId])
   @@map("learners")

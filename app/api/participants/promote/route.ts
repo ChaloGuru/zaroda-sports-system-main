@@ -93,8 +93,9 @@ export async function POST(request: Request) {
 
       // A school's learner keeps one learner record (and bib) at the next
       // level however many events they're promoted in - found by the learner
-      // they came from, or by UPI number if the school registered them there
-      // directly. Their photo, UPI and date of birth go with them.
+      // they came from, or by birth certificate entry number if the school
+      // registered them there directly. Their photo, birth certificate number
+      // and date of birth go with them.
       const originLearner = origin.learnerId
         ? await prisma.learner.findUnique({ where: { id: origin.learnerId } })
         : null;
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
               championshipId: input.targetChampionshipId,
               OR: [
                 { promotedFromLearnerId: originLearner.id },
-                ...(originLearner.upiNumber ? [{ upiNumber: originLearner.upiNumber }] : []),
+                ...(originLearner.birthCertNumber ? [{ birthCertNumber: originLearner.birthCertNumber }] : []),
               ],
             },
           })
@@ -155,7 +156,7 @@ export async function POST(request: Request) {
                 lastName: originLearner.lastName,
                 gender: originLearner.gender,
                 dateOfBirth: originLearner.dateOfBirth,
-                upiNumber: originLearner.upiNumber,
+                birthCertNumber: originLearner.birthCertNumber,
                 bibNumber,
                 photo: originLearner.photo,
                 photoUpdatedAt: originLearner.photoUpdatedAt,

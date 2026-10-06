@@ -302,7 +302,7 @@ function ParticipantRowEditor({ participant, gameId, canManage }: { participant:
           <p className="text-sm text-muted">{participant.school?.name ?? participant.tournamentTeam?.name ?? "-"}</p>
           {learner && (
             <p className="text-xs text-muted">
-              UPI {learner.upiNumber ?? "not given"}
+              Birth cert. {learner.birthCertNumber ?? "not given"}
               {" · "}
               {learner.dateOfBirth
                 ? `Born ${formatDate(learner.dateOfBirth)} (age ${ageFrom(learner.dateOfBirth)})`
@@ -366,7 +366,7 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
       !search ||
       p.bibNumber.toString().includes(search) ||
       `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
-      !!p.learner?.upiNumber?.toLowerCase().includes(search.toLowerCase()),
+      !!p.learner?.birthCertNumber?.toLowerCase().includes(search.toLowerCase()),
   );
   const checkedIn = (participantsData?.participants ?? []).filter((p) => p.status === "CONFIRMED_IN_CALL_ROOM");
   const selectedGame = (gamesData?.games ?? []).find((g) => g.id === gameId);
@@ -391,7 +391,7 @@ export function CallRoomPanel({ championshipId }: { championshipId: string }) {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
               <Input
-                placeholder="Search bib, name or UPI..."
+                placeholder="Search bib, name or birth cert. no..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-11 w-56 pl-9"

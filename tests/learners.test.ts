@@ -39,7 +39,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const { POST } = await import("@/app/api/participants/route");
-const { ageOn, normalizeUpi, photoContentType, updateLearner } = await import("@/lib/learners");
+const { ageOn, normalizeBirthCert, photoContentType, updateLearner } = await import("@/lib/learners");
 
 const CHAMP = "11111111-1111-1111-1111-111111111111";
 const GAME = "22222222-2222-2222-2222-222222222222";
@@ -75,17 +75,17 @@ beforeEach(() => {
 describe("registering a new learner", () => {
   it("creates the learner and their first entry with the same bib", async () => {
     learnerFindMany.mockResolvedValue([{ bibNumber: 100 }, { bibNumber: 101 }]);
-    const res = await POST(newLearner({ upiNumber: "ab 12cd3" }));
+    const res = await POST(newLearner({ birthCertNumber: "ab 12cd3" }));
     expect(res.status).toBe(201);
-    expect(txLearnerCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ bibNumber: 102, upiNumber: "AB12CD3", schoolId: SCHOOL }) });
+    expect(txLearnerCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ bibNumber: 102, birthCertNumber: "AB12CD3", schoolId: SCHOOL }) });
     expect(txParticipantCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ learnerId: "l-new", bibNumber: 102 }) });
   });
 
-  it("refuses a UPI number already registered to another learner", async () => {
+  it("refuses a birth certificate entry no. already registered to another learner", async () => {
     learnerFindUnique.mockResolvedValue({ firstName: "Mary", lastName: "Akinyi" });
-    const res = await POST(newLearner({ upiNumber: "AB12CD3" }));
+    const res = await POST(newLearner({ birthCertNumber: "AB12CD3" }));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/UPI AB12CD3 is already registered to Mary Akinyi/);
+    expect((await res.json()).error).toMatch(/Birth certificate entry no. AB12CD3 is already registered to Mary Akinyi/);
     expect(txLearnerCreate).not.toHaveBeenCalled();
   });
 
@@ -158,11 +158,11 @@ describe("entering an existing learner in another event", () => {
 });
 
 describe("updateLearner", () => {
-  function fakeTx(conflicts: { learner?: unknown; upi?: unknown } = {}) {
+  function fakeTx(conflicts: { learner?: unknown; cert?: unknown } = {}) {
     return {
       learner: {
         findFirst: vi.fn().mockResolvedValue(conflicts.learner ?? null),
-        findUnique: vi.fn().mockResolvedValue(conflicts.upi ?? null),
+        findUnique: vi.fn().mockResolvedValue(conflicts.cert ?? null),
         update: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
           firstName: "Amina",
           lastName: "Otieno",
@@ -175,7 +175,7 @@ describe("updateLearner", () => {
       participant: { findFirst: vi.fn().mockResolvedValue(null), updateMany: vi.fn() },
     };
   }
-  const current = { id: LEARNER, championshipId: CHAMP, bibNumber: 120, upiNumber: null };
+  const current = { id: LEARNER, championshipId: CHAMP, bibNumber: 120, birthCertNumber: null };
 
   it("copies a new name and bib onto every one of the learner's entries", async () => {
     const tx = fakeTx();
@@ -192,9 +192,9 @@ describe("updateLearner", () => {
     expect(tx.learner.update).not.toHaveBeenCalled();
   });
 
-  it("refuses a UPI number held by another learner", async () => {
-    const tx = fakeTx({ upi: { firstName: "Mary", lastName: "Akinyi" } });
-    await expect(updateLearner(tx as never, current, { upiNumber: "zz99" })).rejects.toThrow("UPI ZZ99 is already registered to Mary Akinyi");
+  it("refuses a birth certificate entry no. held by another learner", async () => {
+    const tx = fakeTx({ cert: { firstName: "Mary", lastName: "Akinyi" } });
+    await expect(updateLearner(tx as never, current, { birthCertNumber: "zz99" })).rejects.toThrow("Birth certificate entry no. ZZ99 is already registered to Mary Akinyi");
   });
 });
 
@@ -204,10 +204,10 @@ describe("learner helpers", () => {
     expect(ageOn(new Date("2012-10-06"), new Date("2026-10-06"))).toBe(14);
   });
 
-  it("normalises UPI numbers", () => {
-    expect(normalizeUpi(" ab 12 cd ")).toBe("AB12CD");
-    expect(normalizeUpi("")).toBeNull();
-    expect(normalizeUpi(null)).toBeNull();
+  it("normalises birth certificate entry numbers", () => {
+    expect(normalizeBirthCert(" ab 12 cd ")).toBe("AB12CD");
+    expect(normalizeBirthCert("")).toBeNull();
+    expect(normalizeBirthCert(null)).toBeNull();
   });
 
   it("recognises photos by their file signature", () => {

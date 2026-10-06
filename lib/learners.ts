@@ -12,7 +12,7 @@ export const LEARNER_FIELDS = {
   lastName: true,
   gender: true,
   dateOfBirth: true,
-  upiNumber: true,
+  birthCertNumber: true,
   bibNumber: true,
   photoUpdatedAt: true,
 } satisfies Prisma.LearnerSelect;
@@ -65,18 +65,18 @@ export interface LearnerChanges {
   lastName?: string;
   gender?: Gender;
   dateOfBirth?: Date | null;
-  upiNumber?: string | null;
+  birthCertNumber?: string | null;
   bibNumber?: number;
 }
 
 /**
  * Applies identity changes to a learner and copies the shared fields onto
  * every one of their event entries, so all events show the same name and
- * bib. Checks the new bib and UPI number aren't someone else's first.
+ * bib. Checks the new bib and birth certificate number aren't someone else's first.
  */
 export async function updateLearner(
   tx: Prisma.TransactionClient,
-  learner: { id: string; championshipId: string; bibNumber: number; upiNumber: string | null },
+  learner: { id: string; championshipId: string; bibNumber: number; birthCertNumber: string | null },
   changes: LearnerChanges,
 ) {
   const data: Prisma.LearnerUpdateInput = {};
@@ -84,16 +84,16 @@ export async function updateLearner(
   if (changes.lastName !== undefined) data.lastName = changes.lastName.trim();
   if (changes.gender !== undefined) data.gender = changes.gender;
   if (changes.dateOfBirth !== undefined) data.dateOfBirth = changes.dateOfBirth;
-  if (changes.upiNumber !== undefined) {
-    const upiNumber = normalizeUpi(changes.upiNumber);
-    if (upiNumber && upiNumber !== learner.upiNumber) {
+  if (changes.birthCertNumber !== undefined) {
+    const birthCertNumber = normalizeBirthCert(changes.birthCertNumber);
+    if (birthCertNumber && birthCertNumber !== learner.birthCertNumber) {
       const other = await tx.learner.findUnique({
-        where: { championshipId_upiNumber: { championshipId: learner.championshipId, upiNumber } },
+        where: { championshipId_birthCertNumber: { championshipId: learner.championshipId, birthCertNumber } },
         select: { firstName: true, lastName: true },
       });
-      if (other) throw new Error(`UPI ${upiNumber} is already registered to ${other.firstName} ${other.lastName}`);
+      if (other) throw new Error(`Birth certificate entry no. ${birthCertNumber} is already registered to ${other.firstName} ${other.lastName}`);
     }
-    data.upiNumber = upiNumber;
+    data.birthCertNumber = birthCertNumber;
   }
   if (changes.bibNumber !== undefined && changes.bibNumber !== learner.bibNumber) {
     const conflict = await bibConflict(tx, learner.championshipId, changes.bibNumber, learner.id);
@@ -115,10 +115,10 @@ export async function updateLearner(
   return updated;
 }
 
-/** Kenyan UPI numbers are short and alphanumeric; store them uppercase without spaces. */
-export function normalizeUpi(value: string | null | undefined): string | null {
-  const upi = (value ?? "").replace(/\s+/g, "").toUpperCase();
-  return upi === "" ? null : upi;
+/** Birth certificate entry numbers are stored uppercase without spaces, so typing differences don't hide a duplicate. */
+export function normalizeBirthCert(value: string | null | undefined): string | null {
+  const number = (value ?? "").replace(/\s+/g, "").toUpperCase();
+  return number === "" ? null : number;
 }
 
 /** Whole years old on `on` - for showing an age beside the date of birth. */

@@ -32,7 +32,7 @@ export async function GET(request: Request) {
         lastName: true,
         gender: true,
         dateOfBirth: true,
-        upiNumber: true,
+        birthCertNumber: true,
         bibNumber: true,
         photoUpdatedAt: true,
         school: { select: { name: true } },

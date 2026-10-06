@@ -65,7 +65,7 @@ interface LearnerOption {
   lastName: string;
   gender: string;
   bibNumber: number;
-  upiNumber: string | null;
+  birthCertNumber: string | null;
   photoUpdatedAt: string | null;
   participants: { gameId: string; game: { name: string } }[];
 }
@@ -76,7 +76,7 @@ interface EditForm {
   gender: string;
   bibNumber: string;
   dateOfBirth: string;
-  upiNumber: string;
+  birthCertNumber: string;
 }
 
 function GenderSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
@@ -108,7 +108,7 @@ function EditParticipantDialog({
     gender: participant.gender,
     bibNumber: participant.bibNumber.toString(),
     dateOfBirth: learner?.dateOfBirth?.slice(0, 10) ?? "",
-    upiNumber: learner?.upiNumber ?? "",
+    birthCertNumber: learner?.birthCertNumber ?? "",
   });
   const [photo, setPhoto] = React.useState<File | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -128,7 +128,7 @@ function EditParticipantDialog({
         await apiPatch(`/api/learners/${learner.id}`, {
           ...identity,
           dateOfBirth: form.dateOfBirth || null,
-          upiNumber: form.upiNumber.trim() || null,
+          birthCertNumber: form.birthCertNumber.trim() || null,
         });
         if (photo) await uploadLearnerPhoto(learner.id, photo);
       } else {
@@ -206,12 +206,12 @@ function EditParticipantDialog({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-upi">UPI number</Label>
+                  <Label htmlFor="edit-birth-cert">Birth cert. entry no.</Label>
                   <Input
-                    id="edit-upi"
+                    id="edit-birth-cert"
                     className="mt-1.5"
-                    value={form.upiNumber}
-                    onChange={(e) => setForm((f) => ({ ...f, upiNumber: e.target.value }))}
+                    value={form.birthCertNumber}
+                    onChange={(e) => setForm((f) => ({ ...f, birthCertNumber: e.target.value }))}
                   />
                 </div>
               </div>
@@ -265,7 +265,7 @@ function ExistingLearnerForm({
   const learners = (data?.learners ?? [])
     .filter((l) => !l.participants.some((p) => p.gameId === game.id))
     .filter((l) => game.gender === "MIXED" || l.gender === game.gender)
-    .filter((l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${l.upiNumber ?? ""}`.toLowerCase().includes(search.toLowerCase()));
+    .filter((l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${l.birthCertNumber ?? ""}`.toLowerCase().includes(search.toLowerCase()));
 
   const enter = useMutation({
     mutationFn: () => apiPost("/api/participants", { championshipId, gameId: game.id, learnerId, personalBest: personalBest || null }),
@@ -300,7 +300,7 @@ function ExistingLearnerForm({
         <div className="space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <Input placeholder="Search name, bib or UPI..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Search name, bib or birth cert. no..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <div className="max-h-64 space-y-1 overflow-y-auto">
             {isLoading && <p className="text-sm text-muted">Loading learners...</p>}
@@ -580,9 +580,9 @@ export function ParticipantsPanel({
                       />
                     </div>
                     <div>
-                      <Label htmlFor="upiNumber">UPI number</Label>
-                      <Input id="upiNumber" className="mt-1.5" {...register("upiNumber")} />
-                      {errors.upiNumber && <p className="mt-1 text-sm text-red-400">{errors.upiNumber.message}</p>}
+                      <Label htmlFor="birthCertNumber">Birth cert. entry no.</Label>
+                      <Input id="birthCertNumber" className="mt-1.5" {...register("birthCertNumber")} />
+                      {errors.birthCertNumber && <p className="mt-1 text-sm text-red-400">{errors.birthCertNumber.message}</p>}
                     </div>
                   </div>
                 )}

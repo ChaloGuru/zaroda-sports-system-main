@@ -164,16 +164,16 @@ export const participantCreateSchema = z.object({
 });
 export type ParticipantCreateInput = z.infer<typeof participantCreateSchema>;
 
-const upiSchema = z
+const birthCertSchema = z
   .string()
   .trim()
-  .regex(/^[A-Za-z0-9 ]{4,20}$/, "UPI number should be 4-20 letters and digits")
+  .regex(/^[A-Za-z0-9 /-]{4,20}$/, "Birth certificate entry no. should be 4-20 letters and digits")
   .nullable()
   .optional();
 
 /** A new learner, entered in their first event. */
 export const learnerEntryCreateSchema = participantCreateSchema.extend({
-  upiNumber: z.preprocess((v) => (v === "" ? null : v), upiSchema),
+  birthCertNumber: z.preprocess((v) => (v === "" ? null : v), birthCertSchema),
 });
 export type LearnerEntryCreateInput = z.infer<typeof learnerEntryCreateSchema>;
 
@@ -190,7 +190,7 @@ export const learnerUpdateSchema = z.object({
   lastName: z.string().trim().min(1).max(100).optional(),
   gender: genderSchema.optional(),
   dateOfBirth: z.coerce.date().nullable().optional(),
-  upiNumber: upiSchema,
+  birthCertNumber: birthCertSchema,
   bibNumber: z.number().int().positive().optional(),
 });
 

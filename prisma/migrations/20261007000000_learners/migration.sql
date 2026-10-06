@@ -1,4 +1,4 @@
--- Learners: who a school's athlete is (photo, UPI number, date of birth, one
+-- Learners: who a school's athlete is (photo, birth certificate entry number, date of birth, one
 -- bib), separate from their event entries, so one learner can enter several
 -- events and officials can check identity in the call room.
 
@@ -11,7 +11,7 @@ CREATE TABLE "learners" (
     "lastName" TEXT NOT NULL,
     "gender" "Gender" NOT NULL,
     "dateOfBirth" TIMESTAMP(3),
-    "upiNumber" TEXT,
+    "birthCertNumber" TEXT,
     "bibNumber" INTEGER NOT NULL,
     "photo" BYTEA,
     "photoUpdatedAt" TIMESTAMP(3),
@@ -54,7 +54,7 @@ CREATE INDEX "learners_promotedFromLearnerId_idx" ON "learners"("promotedFromLea
 CREATE UNIQUE INDEX "learners_championshipId_bibNumber_key" ON "learners"("championshipId", "bibNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "learners_championshipId_upiNumber_key" ON "learners"("championshipId", "upiNumber");
+CREATE UNIQUE INDEX "learners_championshipId_birthCertNumber_key" ON "learners"("championshipId", "birthCertNumber");
 
 -- CreateIndex
 CREATE INDEX "participants_championshipId_bibNumber_idx" ON "participants"("championshipId", "bibNumber");

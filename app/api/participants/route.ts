@@ -8,7 +8,7 @@ import { learnerEntryCreateSchema, learnerEntrySchema } from "@/lib/validations"
 import { requireChampionshipSchool } from "@/lib/championship-schools";
 import { schoolEntryLabel, gameSchoolLevelLabel } from "@/lib/school-levels";
 import { parseTimeToSeconds } from "@/lib/scoring";
-import { bibConflict, highestBib, nextSchoolBib, normalizeUpi } from "@/lib/learners";
+import { bibConflict, highestBib, nextSchoolBib, normalizeBirthCert } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
               learner: {
                 select: {
                   id: true,
-                  upiNumber: true,
+                  birthCertNumber: true,
                   dateOfBirth: true,
                   photoUpdatedAt: true,
                   participants: { select: { gameId: true, game: { select: { name: true } } } },
@@ -135,15 +135,15 @@ export async function POST(request: Request) {
     if (input.schoolId && !input.tournamentTeamId) {
       const schoolId = input.schoolId;
       const label = schoolName ?? "this school";
-      const upiNumber = normalizeUpi(input.upiNumber);
-      if (upiNumber) {
-        const sameUpi = await prisma.learner.findUnique({
-          where: { championshipId_upiNumber: { championshipId: input.championshipId, upiNumber } },
+      const birthCertNumber = normalizeBirthCert(input.birthCertNumber);
+      if (birthCertNumber) {
+        const sameCert = await prisma.learner.findUnique({
+          where: { championshipId_birthCertNumber: { championshipId: input.championshipId, birthCertNumber } },
           select: { firstName: true, lastName: true },
         });
-        if (sameUpi) {
+        if (sameCert) {
           throw new Error(
-            `UPI ${upiNumber} is already registered to ${sameUpi.firstName} ${sameUpi.lastName} - add them to this event as an existing learner.`,
+            `Birth certificate entry no. ${birthCertNumber} is already registered to ${sameCert.firstName} ${sameCert.lastName} - add them to this event as an existing learner.`,
           );
         }
       }
@@ -188,7 +188,7 @@ export async function POST(request: Request) {
               lastName: input.lastName.trim(),
               gender: input.gender,
               dateOfBirth: input.dateOfBirth ?? null,
-              upiNumber,
+              birthCertNumber,
               bibNumber,
             },
           });
@@ -209,7 +209,7 @@ export async function POST(request: Request) {
           });
         },
         recordId: (result) => result.id,
-        newData: { ...input, upiNumber, bibNumber },
+        newData: { ...input, birthCertNumber, bibNumber },
       });
       return NextResponse.json({ participant }, { status: 201 });
     }

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 /** A learner's identity details as officials' participant lists return them. */
 export interface LearnerIdentity {
   id: string;
-  upiNumber: string | null;
+  birthCertNumber: string | null;
   dateOfBirth: string | null;
   photoUpdatedAt: string | null;
   participants: { gameId: string; game: { name: string } }[];
