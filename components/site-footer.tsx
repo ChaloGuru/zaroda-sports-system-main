@@ -18,6 +18,7 @@ export function SiteFooter() {
           <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
           <Link href="/circulars" className="hover:text-foreground">Circulars</Link>
           <Link href="/contacts" className="hover:text-foreground">Contact</Link>
+          <a href="https://ksef.zarodasports.live/" className="hover:text-foreground">Zaroda KSEF</a>
         </div>
       </div>
     </footer>

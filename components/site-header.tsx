@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 const ZARODA_SCHOOL_URL = "https://zarodasolutions.app/";
 const ZARODABOOKS_URL = "https://zarodabooks.com/";
+const ZARODA_KSEF_URL = "https://ksef.zarodasports.live/";
 
 const NAV_LINKS = [
   { href: "/category/athletics", label: "Athletics" },
@@ -23,6 +24,7 @@ const NAV_LINKS = [
   { href: "/circulars", label: "Circulars" },
   { href: "/pricing", label: "Pricing" },
   { href: "/guide", label: "User Guide" },
+  { href: ZARODA_KSEF_URL, label: "Zaroda KSEF", external: true },
   { href: ZARODA_SCHOOL_URL, label: "Zaroda School", external: true },
   { href: ZARODABOOKS_URL, label: "ZARODABOOKS", external: true },
 ];
