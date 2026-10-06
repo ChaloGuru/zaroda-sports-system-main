@@ -20,6 +20,7 @@ async function loadChampionship(id: string) {
     include: {
       tenant: { select: { id: true, organizationName: true, accountType: true } },
       games: { where: { isActive: true }, orderBy: { name: "asc" } },
+      ageLimits: { select: { schoolLevel: true, maxAge: true } },
     },
   });
 }
@@ -82,12 +83,20 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       input.name = withLevelInName(input.name, existing.level);
     }
 
+    const { ageLimits, ...data } = input;
     const updated = await withAudit({
       actorId: ctx.userId,
       operation: "UPDATE",
       tableName: "championships",
       oldData: existing,
-      mutate: (tx) => tx.championship.update({ where: { id: params.id }, data: input }),
+      mutate: async (tx) => {
+        for (const { schoolLevel, maxAge } of ageLimits ?? []) {
+          const key = { championshipId_schoolLevel: { championshipId: params.id, schoolLevel } };
+          if (maxAge == null) await tx.championshipAgeLimit.deleteMany({ where: { championshipId: params.id, schoolLevel } });
+          else await tx.championshipAgeLimit.upsert({ where: key, create: { championshipId: params.id, schoolLevel, maxAge }, update: { maxAge } });
+        }
+        return tx.championship.update({ where: { id: params.id }, data });
+      },
       recordId: () => params.id,
       newData: input,
     });

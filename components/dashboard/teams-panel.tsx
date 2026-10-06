@@ -36,6 +36,7 @@ interface TeamRow {
   contactEmail: string | null;
   contactPhone: string | null;
   county: string | null;
+  schoolId: string | null;
 }
 
 function emptyDefaults(championshipId: string, restrictToOrganizationName?: string | null): TournamentTeamInput {
@@ -432,6 +433,7 @@ export function TeamsPanel({
                   teamName={team.name}
                   gameId={team.gameId}
                   gender={team.gender}
+                  schoolId={team.schoolId}
                 />
               )}
               <Button size="icon" variant="ghost" onClick={() => openEdit(team)}>

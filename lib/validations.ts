@@ -89,6 +89,11 @@ export const championshipUpdateSchema = championshipFieldsSchema.partial().exten
   tenantId: z.string().uuid().optional(),
   registrationClosesAt: z.coerce.date().nullable().optional(),
   ageCutoffDate: z.coerce.date().nullable().optional(),
+  // The oldest age allowed per school level; null removes that level's limit.
+  ageLimits: z
+    .array(z.object({ schoolLevel: gameSchoolLevelSchema, maxAge: z.number().int().min(5).max(30).nullable() }))
+    .max(4)
+    .optional(),
 });
 export type ChampionshipUpdateInput = z.infer<typeof championshipUpdateSchema>;
 
@@ -115,7 +120,6 @@ export const gameCreateSchema = z.object({
   maxQualifiers: z.number().int().min(1).max(50).default(5),
   raceType: z.string().max(100).nullable().optional(),
   scheduledDate: z.coerce.date().nullable().optional(),
-  maxAge: z.number().int().min(5).max(30).nullable().optional(),
 });
 export type GameCreateInput = z.infer<typeof gameCreateSchema>;
 
@@ -186,6 +190,10 @@ export const learnerEntrySchema = z.object({
   gameId: z.string().uuid(),
   learnerId: z.string().uuid(),
   personalBest: z.string().max(20).nullable().optional(),
+  // A school team's roster: the learner joins the team with a shirt number.
+  tournamentTeamId: z.string().uuid().nullable().optional(),
+  jerseyNumber: z.number().int().positive().nullable().optional(),
+  playingPosition: z.string().max(50).nullable().optional(),
 });
 
 export const learnerUpdateSchema = z.object({

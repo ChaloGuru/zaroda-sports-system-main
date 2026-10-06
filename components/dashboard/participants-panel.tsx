@@ -20,6 +20,7 @@ import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
 import { LearnerPhoto, PhotoPicker, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
 import { EditLearnerDialog } from "@/components/dashboard/learners-panel";
 import { cn } from "@/lib/utils";
+import { gameSchoolLevelLabel } from "@/lib/school-levels";
 import type { Role } from "@prisma/client";
 
 // Only the school-ladder registration path (no tournamentTeamId) goes
@@ -36,7 +37,6 @@ interface GameOption {
   isTimed: boolean;
   schoolLevel: string;
   gender: string;
-  maxAge: number | null;
 }
 
 interface SchoolOption {
@@ -395,6 +395,14 @@ export function ParticipantsPanel({
   }
 
   const selectedGame = (gamesData?.games ?? []).find((g) => g.id === gameId);
+  const { data: championshipData } = useQuery({
+    queryKey: ["championship", championshipId],
+    queryFn: () =>
+      apiGet<{ championship: { ageLimits: { schoolLevel: string; maxAge: number }[] } }>(`/api/championships/${championshipId}`),
+    enabled: !isOpenTournament,
+  });
+  const ageLimitFor = (schoolLevel: string) =>
+    championshipData?.championship.ageLimits.find((l) => l.schoolLevel === schoolLevel)?.maxAge ?? null;
   // Open-tournament registration is team-scoped (requireTeamAccess), not
   // sport-scoped, so it's exempt from this game-scope gate.
   const gameScopeOk = useCanManageGame(championshipId, PARTICIPANT_ROLES, selectedGame);
@@ -430,9 +438,10 @@ export function ParticipantsPanel({
             <DialogHeader>
               <DialogTitle>Register participant</DialogTitle>
             </DialogHeader>
-            {selectedGame?.maxAge != null && (
+            {selectedGame && ageLimitFor(selectedGame.schoolLevel) != null && (
               <p className="text-sm text-muted">
-                {selectedGame.name} is for learners aged {selectedGame.maxAge} and under - older learners can&apos;t be entered.
+                {gameSchoolLevelLabel(selectedGame.schoolLevel)} events are for learners aged {ageLimitFor(selectedGame.schoolLevel)} and
+                under - older learners can&apos;t be entered.
               </p>
             )}
             {!isOpenTournament && (

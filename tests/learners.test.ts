@@ -11,10 +11,16 @@ const participantFindFirst = vi.fn();
 const participantFindMany = vi.fn();
 const txLearnerCreate = vi.fn();
 const txParticipantCreate = vi.fn();
+const teamFindUnique = vi.fn();
 
 vi.mock("@/lib/authorize", async () => {
   const actual = await vi.importActual<typeof import("@/lib/authorize")>("@/lib/authorize");
-  return { ...actual, requireGameAccess: vi.fn().mockResolvedValue({ userId: "scorer-1" }) };
+  return {
+    ...actual,
+    requireGameAccess: vi.fn().mockResolvedValue({ userId: "scorer-1" }),
+    requireTeamAccess: vi.fn().mockResolvedValue({ userId: "scorer-1" }),
+    requireChampionshipAccess: vi.fn().mockResolvedValue({ userId: "scorer-1" }),
+  };
 });
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
@@ -26,6 +32,8 @@ vi.mock("@/lib/prisma", () => ({
     championshipSchool: { findUnique: (...a: unknown[]) => championshipSchoolFindUnique(...a) },
     championship: { findUnique: (...a: unknown[]) => championshipFindUnique(...a) },
     schoolBibRange: { findUnique: (...a: unknown[]) => bibRangeFindUnique(...a) },
+    tournamentTeam: { findUnique: (...a: unknown[]) => teamFindUnique(...a) },
+    school: { findUnique: async () => ({ name: "Manyonge", schoolLevel: "PRIMARY" }) },
     learner: {
       findUnique: (...a: unknown[]) => learnerFindUnique(...a),
       findFirst: (...a: unknown[]) => learnerFindFirst(...a),
@@ -61,13 +69,14 @@ function newLearner(body: Record<string, unknown> = {}): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  gameFindUnique.mockResolvedValue({ championshipId: CHAMP, schoolLevel: "PRIMARY", name: "100m Girls", maxAge: null });
+  gameFindUnique.mockResolvedValue({ championshipId: CHAMP, schoolLevel: "PRIMARY", name: "100m Girls" });
   championshipFindUnique.mockResolvedValue({
     level: "NATIONAL",
     county: "Kisumu",
     startDate: new Date("2026-06-01"),
     ageCutoffDate: new Date("2026-01-01"),
     registrationClosesAt: null,
+    ageLimits: [],
   });
   championshipSchoolFindUnique.mockResolvedValue({ school: { name: "Manyonge", county: "Kisumu", schoolLevel: "PRIMARY" } });
   bibRangeFindUnique.mockResolvedValue({ schoolId: SCHOOL, rangeStart: 100, rangeEnd: 199 });
@@ -272,21 +281,46 @@ describe("mergeLearners", () => {
 });
 
 describe("age limits and the registration deadline", () => {
-  it("refuses a learner older than the event's maximum age on the age date", async () => {
-    gameFindUnique.mockResolvedValue({ championshipId: CHAMP, schoolLevel: "PRIMARY", name: "100m Girls", maxAge: 12 });
+  function withPrimaryLimit(maxAge: number) {
+    championshipFindUnique.mockResolvedValue({
+      level: "NATIONAL",
+      county: "Kisumu",
+      startDate: new Date("2026-06-01"),
+      ageCutoffDate: new Date("2026-01-01"),
+      registrationClosesAt: null,
+      ageLimits: [{ schoolLevel: "PRIMARY", maxAge }],
+    });
+  }
+
+  it("refuses a learner older than their school level's age limit on the age date", async () => {
+    withPrimaryLimit(12);
     const res = await POST(newLearner({ dateOfBirth: "2012-06-30" }));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("Amina Otieno is 13 on 1 Jan 2026 - 100m Girls is for learners aged 12 and under");
+    expect((await res.json()).error).toBe("Amina Otieno is 13 on 1 Jan 2026 - Primary events are for learners aged 12 and under");
     expect(txLearnerCreate).not.toHaveBeenCalled();
   });
 
   it("allows a learner within the limit, and one with no date of birth", async () => {
-    gameFindUnique.mockResolvedValue({ championshipId: CHAMP, schoolLevel: "PRIMARY", name: "100m Girls", maxAge: 12 });
+    withPrimaryLimit(12);
     expect((await POST(newLearner({ dateOfBirth: "2013-01-02" }))).status).toBe(201);
     expect((await POST(newLearner({ firstName: "Bella" }))).status).toBe(201);
   });
 
+  it("ignores another level's limit", async () => {
+    championshipFindUnique.mockResolvedValue({
+      level: "NATIONAL",
+      county: "Kisumu",
+      startDate: new Date("2026-06-01"),
+      ageCutoffDate: null,
+      registrationClosesAt: null,
+      ageLimits: [{ schoolLevel: "JS", maxAge: 10 }],
+    });
+    expect((await POST(newLearner({ dateOfBirth: "2012-06-30" }))).status).toBe(201);
+  });
+
   it("refuses new learners from non-admins after registration closes", async () => {
+    const { requireChampionshipAccess } = await import("@/lib/authorize");
+    vi.mocked(requireChampionshipAccess).mockRejectedValueOnce(new Error("not an admin"));
     championshipFindUnique.mockResolvedValue({ level: "NATIONAL", county: "Kisumu", registrationClosesAt: new Date("2026-01-01") });
     const res = await POST(newLearner());
     expect(res.status).toBe(403);
@@ -295,11 +329,70 @@ describe("age limits and the registration deadline", () => {
   });
 
   it("works out ages on the age date", () => {
-    const game = { name: "100m", maxAge: 13 };
+    const limit = { schoolLevel: "JS", maxAge: 13 };
     const ageDate = new Date("2026-01-01");
-    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: new Date("2012-01-01") }, game, ageDate)).toMatch(/is 14 on/);
-    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: new Date("2012-01-02") }, game, ageDate)).toBeNull();
-    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: null }, game, ageDate)).toBeNull();
-    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: new Date("2000-01-01") }, { name: "100m", maxAge: null }, ageDate)).toBeNull();
+    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: new Date("2012-01-01") }, limit, ageDate)).toMatch(/is 14 on 1 Jan 2026 - JS events are for learners aged 13 and under/);
+    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: new Date("2012-01-02") }, limit, ageDate)).toBeNull();
+    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: null }, limit, ageDate)).toBeNull();
+    expect(overAgeReason({ firstName: "A", lastName: "B", dateOfBirth: new Date("2000-01-01") }, { schoolLevel: "JS", maxAge: null }, ageDate)).toBeNull();
+  });
+});
+
+describe("school team rosters", () => {
+  const TEAM = "55555555-5555-5555-5555-555555555555";
+
+  it("registers a new player as a learner of the team's school, keeping the shirt number", async () => {
+    teamFindUnique.mockResolvedValue({ name: "Manyonge Football", championshipId: CHAMP, schoolId: SCHOOL });
+    bibRangeFindUnique.mockResolvedValue(null); // ball-game schools often have no bib range
+    const res = await POST(post({ tournamentTeamId: TEAM, firstName: "Brian", lastName: "Ouma", gender: "BOYS", jerseyNumber: 9 }));
+    expect(res.status).toBe(201);
+    expect(txLearnerCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ schoolId: SCHOOL, bibNumber: 1 }) });
+    expect(txParticipantCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ tournamentTeamId: TEAM, learnerId: "l-new", jerseyNumber: 9, schoolId: null }),
+    });
+  });
+
+  it("adds a registered learner to their school's team", async () => {
+    teamFindUnique.mockResolvedValue({ name: "Manyonge Football", championshipId: CHAMP, schoolId: SCHOOL });
+    learnerFindUnique.mockResolvedValue({
+      id: LEARNER, championshipId: CHAMP, schoolId: SCHOOL, firstName: "Amina", lastName: "Otieno", gender: "GIRLS",
+      dateOfBirth: null, bibNumber: 120, school: { name: "Manyonge", schoolLevel: "PRIMARY" },
+    });
+    const res = await POST(post({ learnerId: LEARNER, tournamentTeamId: TEAM, jerseyNumber: 4 }));
+    expect(res.status).toBe(201);
+    expect(txParticipantCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ learnerId: LEARNER, bibNumber: 120, tournamentTeamId: TEAM, jerseyNumber: 4 }),
+    });
+  });
+
+  it("refuses a learner from another school", async () => {
+    teamFindUnique.mockResolvedValue({ name: "Kisumu Boys Football", championshipId: CHAMP, schoolId: "other-school" });
+    learnerFindUnique.mockResolvedValue({
+      id: LEARNER, championshipId: CHAMP, schoolId: SCHOOL, firstName: "Amina", lastName: "Otieno", gender: "GIRLS",
+      dateOfBirth: null, bibNumber: 120, school: { name: "Manyonge", schoolLevel: "PRIMARY" },
+    });
+    const res = await POST(post({ learnerId: LEARNER, tournamentTeamId: TEAM }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Amina Otieno isn't registered for Kisumu Boys Football's school");
+    expect(txParticipantCreate).not.toHaveBeenCalled();
+  });
+
+  it("keeps open-tournament players as plain names", async () => {
+    teamFindUnique.mockResolvedValue({ name: "Kisumu Stars", championshipId: CHAMP, schoolId: null });
+    const res = await POST(post({ tournamentTeamId: TEAM, firstName: "Otieno", lastName: "Odhiambo", gender: "BOYS" }));
+    expect(res.status).toBe(201);
+    expect(txLearnerCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("photo uploads", () => {
+  it("refuses an oversized upload before reading it", async () => {
+    const { PUT } = await import("@/app/api/learners/[id]/photo/route");
+    learnerFindUnique.mockResolvedValue({ id: LEARNER, championshipId: CHAMP });
+    const res = await PUT(
+      new Request("http://localhost/api/learners/x/photo", { method: "PUT", headers: { "content-length": String(5 * 1024 * 1024) }, body: "x" }),
+      { params: Promise.resolve({ id: LEARNER }) },
+    );
+    expect(res.status).toBe(413);
   });
 });

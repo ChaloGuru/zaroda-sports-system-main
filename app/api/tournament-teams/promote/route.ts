@@ -9,7 +9,7 @@ import {
   toErrorResponse,
 } from "@/lib/authorize";
 import { promoteTeamsSchema } from "@/lib/validations";
-import { highestBib } from "@/lib/learners";
+import { createPromotedLearner, findPromotedLearner, highestBib, loadAgeRules, overAgeReason } from "@/lib/learners";
 import { computeSingleGameStandings } from "@/lib/team-standings";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +77,7 @@ export async function POST(request: Request) {
     };
 
     let nextBibNumber: number | null = null;
+    let ageRules: Awaited<ReturnType<typeof loadAgeRules>> | undefined;
 
     const promoted: Array<{ team: string; created: boolean; rosterCopied: number }> = [];
 
@@ -115,7 +116,17 @@ export async function POST(request: Request) {
         assertWithinGeographicScope(targetChampionship.county, originTeam.county);
       }
 
-      const roster = await prisma.participant.findMany({ where: { tournamentTeamId: originTeam.id } });
+      // Players over the next level's age limit are left off its roster.
+      ageRules ??= await loadAgeRules(prisma, input.targetChampionshipId);
+      const fullRoster = await prisma.participant.findMany({ where: { tournamentTeamId: originTeam.id }, include: { learner: true } });
+      const roster = fullRoster.filter(
+        (player) =>
+          !(
+            ageRules &&
+            overAgeReason(player, { schoolLevel: targetGame.schoolLevel, maxAge: ageRules.maxAgeFor(targetGame.schoolLevel) }, ageRules.ageDate)
+          ),
+      );
+      const overAge = fullRoster.length - roster.length;
 
       if (nextBibNumber === null) {
         nextBibNumber = (await highestBib(prisma, input.targetChampionshipId)) + 1;
@@ -146,15 +157,26 @@ export async function POST(request: Request) {
           });
 
           for (const player of roster) {
+            // A school player stays the same learner (photo, birth certificate
+            // number, one bib) at the next level.
+            let learner = player.learner ? await findPromotedLearner(tx, player.learner, input.targetChampionshipId) : null;
+            if (learner && (await tx.participant.findFirst({ where: { gameId: targetGame.id, learnerId: learner.id }, select: { id: true } }))) {
+              continue;
+            }
+            if (player.learner && !learner) {
+              learner = await createPromotedLearner(tx, player.learner, input.targetChampionshipId, (nextBibNumber as number)++);
+            }
             await tx.participant.create({
               data: {
                 championshipId: input.targetChampionshipId,
                 gameId: targetGame.id,
                 tournamentTeamId: newTeam.id,
+                learnerId: learner?.id ?? null,
                 firstName: player.firstName,
                 lastName: player.lastName,
                 gender: player.gender,
-                bibNumber: (nextBibNumber as number)++,
+                dateOfBirth: player.dateOfBirth,
+                bibNumber: learner ? learner.bibNumber : (nextBibNumber as number)++,
                 jerseyNumber: player.jerseyNumber,
                 playingPosition: player.playingPosition,
               },
@@ -164,10 +186,14 @@ export async function POST(request: Request) {
           return newTeam;
         },
         recordId: (team) => team.id,
-        newData: { promotedFromTeamId: originTeam.id, targetChampionshipId: input.targetChampionshipId, rosterCopied: roster.length },
+        newData: { promotedFromTeamId: originTeam.id, targetChampionshipId: input.targetChampionshipId, rosterCopied: roster.length, overAge },
       });
 
-      promoted.push({ team: result.name, created: true, rosterCopied: roster.length });
+      promoted.push({
+        team: overAge > 0 ? `${result.name} (${overAge} player${overAge === 1 ? "" : "s"} over the age limit left off)` : result.name,
+        created: true,
+        rosterCopied: roster.length,
+      });
     }
 
     return NextResponse.json({ promoted });

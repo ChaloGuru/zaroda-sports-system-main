@@ -249,8 +249,8 @@ model Championship {
   // After this moment only tournament admins can add or change learners
   // (see lib/learners.ts) - stops late swaps of who is competing.
   registrationClosesAt DateTime?
-  // The date learners' ages are worked out on for events with a maximum
-  // age (Game.maxAge); the start date when not set.
+  // The date learners' ages are worked out on for the age limits
+  // (ChampionshipAgeLimit); the start date when not set.
   ageCutoffDate        DateTime?
   createdBy            String
   createdAt            DateTime     @default(now())
@@ -261,6 +261,7 @@ model Championship {
   userRoles       UserRole[]
   games           Game[]
   learners        Learner[]
+  ageLimits       ChampionshipAgeLimit[]
   participants    Participant[]
   tournamentTeams TournamentTeam[]
   bibRanges       SchoolBibRange[]
@@ -397,9 +398,6 @@ model Game {
   maxQualifiers  Int          @default(5)
   raceType       String?
   scheduledDate  DateTime?
-  // Oldest age allowed on the championship's age date - older learners
-  // can't be entered. Null means no limit.
-  maxAge         Int?
   // False when a tournament admin has switched off an event their
   // championship isn't running (e.g. one of the auto-created standard
   // events) - hidden from public pages and entry screens, kept for re-enabling.
@@ -475,6 +473,21 @@ model Participant {
   @@index([schoolId])
   @@index([tournamentTeamId])
   @@map("participants")
+}
+
+// The oldest age allowed for a school level's events in a championship
+// (e.g. Junior School: 14), worked out on Championship.ageCutoffDate. Older
+// learners can't be entered in that level's events.
+model ChampionshipAgeLimit {
+  id             String      @id @default(uuid())
+  championshipId String
+  schoolLevel    SchoolLevel
+  maxAge         Int
+
+  championship Championship @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+
+  @@unique([championshipId, schoolLevel])
+  @@map("championship_age_limits")
 }
 
 // A learner registered for a championship by their school - who they are,

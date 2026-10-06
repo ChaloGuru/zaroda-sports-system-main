@@ -49,6 +49,12 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
     const ctx = await requireChampionshipAccess(learner.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
     await assertRegistrationOpen(learner.championshipId);
 
+    // Photos arrive resized to well under the limit; refuse anything bigger
+    // before reading it into memory.
+    const declared = Number(request.headers.get("content-length") ?? 0);
+    if (declared > MAX_PHOTO_BYTES + 16 * 1024) {
+      return NextResponse.json({ error: "Photo must be smaller than 300 KB" }, { status: 413 });
+    }
     const formData = await request.formData();
     const file = formData.get("photo");
     if (!(file instanceof File)) return NextResponse.json({ error: "No photo was uploaded" }, { status: 400 });

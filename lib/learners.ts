@@ -1,6 +1,7 @@
 import type { Gender, Prisma, PrismaClient } from "@prisma/client";
 import { assignNextBibNumber } from "./scoring";
 import { prisma } from "./prisma";
+import { gameSchoolLevelLabel } from "./school-levels";
 import { AuthorizationError, requireChampionshipAccess } from "./authorize";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -149,19 +150,48 @@ export function ageDateOf(championship: { ageCutoffDate: Date | null; startDate:
 }
 
 /**
- * Why a learner is too old for an event with a maximum age, or null when
- * they're within it. Learners without a date of birth pass here and are
- * flagged on the Learners tab instead.
+ * Why a learner is too old for a school level's events, or null when
+ * they're within its limit (or it has none). Learners without a date of
+ * birth pass here and are flagged on the Learners tab instead.
  */
 export function overAgeReason(
   learner: { firstName: string; lastName: string; dateOfBirth: Date | null },
-  game: { name: string; maxAge: number | null },
+  limit: { schoolLevel: string; maxAge: number | null },
   ageDate: Date,
 ): string | null {
-  if (game.maxAge == null || !learner.dateOfBirth) return null;
+  if (limit.maxAge == null || !learner.dateOfBirth) return null;
   const age = ageOn(learner.dateOfBirth, ageDate);
-  if (age <= game.maxAge) return null;
-  return `${learner.firstName} ${learner.lastName} is ${age} on ${ageDate.toLocaleDateString("en-GB", KENYA_DATE)} - ${game.name} is for learners aged ${game.maxAge} and under`;
+  if (age <= limit.maxAge) return null;
+  return `${learner.firstName} ${learner.lastName} is ${age} on ${ageDate.toLocaleDateString("en-GB", KENYA_DATE)} - ${gameSchoolLevelLabel(limit.schoolLevel)} events are for learners aged ${limit.maxAge} and under`;
+}
+
+/** A championship's age date and its limits by school level. */
+export async function loadAgeRules(db: Db, championshipId: string) {
+  const championship = await db.championship.findUnique({
+    where: { id: championshipId },
+    select: { ageCutoffDate: true, startDate: true, ageLimits: { select: { schoolLevel: true, maxAge: true } } },
+  });
+  if (!championship) return null;
+  const limits = new Map(championship.ageLimits.map((l) => [l.schoolLevel as string, l.maxAge]));
+  return {
+    ageDate: ageDateOf(championship),
+    maxAgeFor: (schoolLevel: string) => limits.get(schoolLevel) ?? null,
+  };
+}
+
+/** Refuses a learner older than the age limit for the school level of the events they're entering. */
+export async function assertWithinAgeLimit(
+  championshipId: string,
+  learner: { firstName: string; lastName: string; dateOfBirth: Date | null },
+  schoolLevels: string[],
+): Promise<void> {
+  if (!learner.dateOfBirth || schoolLevels.length === 0) return;
+  const rules = await loadAgeRules(prisma, championshipId);
+  if (!rules) return;
+  for (const schoolLevel of new Set(schoolLevels)) {
+    const reason = overAgeReason(learner, { schoolLevel, maxAge: rules.maxAgeFor(schoolLevel) }, rules.ageDate);
+    if (reason) throw new Error(reason);
+  }
 }
 
 /** Whole years old on `on` - for showing an age beside the date of birth. */
@@ -227,4 +257,40 @@ export async function mergeLearners(tx: Prisma.TransactionClient, keepId: string
   // Every entry - including the ones just moved - shows the kept learner.
   const learner = await updateLearner(tx, keep, {});
   return { learner, movedEntries: duplicateEntries.length };
+}
+
+type PromotableLearner = Prisma.LearnerGetPayload<Record<string, never>>;
+
+/**
+ * A promoted learner's record at the next level, if there is one already -
+ * the one promoted from them, or one their school registered there with the
+ * same birth certificate number. They keep that record (and its bib)
+ * however many events or teams they're promoted in.
+ */
+export function findPromotedLearner(db: Db, origin: PromotableLearner, targetChampionshipId: string) {
+  return db.learner.findFirst({
+    where: {
+      championshipId: targetChampionshipId,
+      OR: [{ promotedFromLearnerId: origin.id }, ...(origin.birthCertNumber ? [{ birthCertNumber: origin.birthCertNumber }] : [])],
+    },
+  });
+}
+
+/** Registers a promoted learner at the next level, with their photo, date of birth and birth certificate number. */
+export function createPromotedLearner(tx: Prisma.TransactionClient, origin: PromotableLearner, targetChampionshipId: string, bibNumber: number) {
+  return tx.learner.create({
+    data: {
+      championshipId: targetChampionshipId,
+      schoolId: origin.schoolId,
+      firstName: origin.firstName,
+      lastName: origin.lastName,
+      gender: origin.gender,
+      dateOfBirth: origin.dateOfBirth,
+      birthCertNumber: origin.birthCertNumber,
+      bibNumber,
+      photo: origin.photo,
+      photoUpdatedAt: origin.photoUpdatedAt,
+      promotedFromLearnerId: origin.id,
+    },
+  });
 }

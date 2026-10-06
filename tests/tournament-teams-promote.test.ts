@@ -95,7 +95,7 @@ describe("POST /api/tournament-teams/promote", () => {
     participantFindFirst.mockResolvedValue(null); // no existing bib numbers
     learnerFindFirst.mockResolvedValue(null);
     gameFindFirst.mockResolvedValue({ id: TARGET_GAME_ID });
-    championshipFindUnique.mockResolvedValue({ id: TARGET_CHAMP_ID, level: "ZONE", county: "Kisumu" });
+    championshipFindUnique.mockResolvedValue({ id: TARGET_CHAMP_ID, level: "ZONE", county: "Kisumu", startDate: new Date("2026-06-01"), ageCutoffDate: null, ageLimits: [] });
     computeSingleGameStandingsMock.mockResolvedValue([{ teamId: TEAM_ID, teamName: "Kisangura", points: 9 }]);
   });
 
@@ -193,7 +193,7 @@ describe("POST /api/tournament-teams/promote", () => {
   it("rejects a team from a different county than a geographically-restricted target", async () => {
     gameFindUnique.mockResolvedValue(originGame("JS"));
     tournamentTeamFindUnique.mockResolvedValue({ id: TEAM_ID, name: "Kisangura", county: "Nairobi" });
-    championshipFindUnique.mockResolvedValue({ id: TARGET_CHAMP_ID, level: "ZONE", county: "Kisumu" });
+    championshipFindUnique.mockResolvedValue({ id: TARGET_CHAMP_ID, level: "ZONE", county: "Kisumu", startDate: new Date("2026-06-01"), ageCutoffDate: null, ageLimits: [] });
 
     const response = await POST(req({ gameId: GAME_ID, targetChampionshipId: TARGET_CHAMP_ID, topN: 1 }));
 

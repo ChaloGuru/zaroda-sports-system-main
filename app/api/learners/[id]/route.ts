@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { learnerUpdateSchema } from "@/lib/validations";
-import { LEARNER_FIELDS, ageDateOf, assertRegistrationOpen, overAgeReason, updateLearner } from "@/lib/learners";
+import { LEARNER_FIELDS, assertRegistrationOpen, assertWithinAgeLimit, updateLearner } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -21,15 +21,12 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     // A corrected date of birth must still fit every event they're entered in.
     if (input.dateOfBirth) {
-      const [championship, entries] = await Promise.all([
-        prisma.championship.findUniqueOrThrow({ where: { id: existing.championshipId }, select: { ageCutoffDate: true, startDate: true } }),
-        prisma.participant.findMany({ where: { learnerId: existing.id }, select: { game: { select: { name: true, maxAge: true } } } }),
-      ]);
-      const learner = { ...existing, ...input, dateOfBirth: input.dateOfBirth };
-      for (const { game } of entries) {
-        const reason = overAgeReason(learner, game, ageDateOf(championship));
-        if (reason) throw new Error(`${reason} - remove them from that event first`);
-      }
+      const entries = await prisma.participant.findMany({ where: { learnerId: existing.id }, select: { game: { select: { schoolLevel: true } } } });
+      await assertWithinAgeLimit(
+        existing.championshipId,
+        { ...existing, ...input, dateOfBirth: input.dateOfBirth },
+        entries.map((e) => e.game.schoolLevel),
+      );
     }
 
     const learner = await withAudit({

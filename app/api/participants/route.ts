@@ -8,7 +8,7 @@ import { learnerEntryCreateSchema, learnerEntrySchema } from "@/lib/validations"
 import { requireChampionshipSchool } from "@/lib/championship-schools";
 import { schoolEntryLabel, gameSchoolLevelLabel } from "@/lib/school-levels";
 import { parseTimeToSeconds } from "@/lib/scoring";
-import { ageDateOf, assertRegistrationOpen, bibConflict, highestBib, nextSchoolBib, normalizeBirthCert, overAgeReason } from "@/lib/learners";
+import { assertRegistrationOpen, assertWithinAgeLimit, bibConflict, highestBib, nextSchoolBib, normalizeBirthCert } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -93,10 +93,11 @@ export async function POST(request: Request) {
     const input = learnerEntryCreateSchema.parse(body);
 
     let ctx;
+    let team: { name: string; championshipId: string; schoolId: string | null } | null = null;
     if (input.tournamentTeamId) {
-      const team = await prisma.tournamentTeam.findUnique({
+      team = await prisma.tournamentTeam.findUnique({
         where: { id: input.tournamentTeamId },
-        select: { name: true, championshipId: true },
+        select: { name: true, championshipId: true, schoolId: true },
       });
       if (!team || team.championshipId !== input.championshipId) {
         return NextResponse.json({ error: "Team not found in this championship" }, { status: 404 });
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
 
     const game = await prisma.game.findUnique({
       where: { id: input.gameId },
-      select: { championshipId: true, schoolLevel: true, name: true, maxAge: true },
+      select: { championshipId: true, schoolLevel: true, name: true },
     });
     if (!game || game.championshipId !== input.championshipId) {
       return NextResponse.json({ error: "Game not found in this championship" }, { status: 404 });
@@ -128,15 +129,23 @@ export async function POST(request: Request) {
       }
     }
 
+    // A school team's players are that school's learners.
+    if (team?.schoolId) {
+      const school = await prisma.school.findUnique({ where: { id: team.schoolId }, select: { name: true, schoolLevel: true } });
+      schoolName = school ? schoolEntryLabel(school.name, school.schoolLevel) : null;
+    }
+
     const personalBest = input.personalBest ? parseTimeToSeconds(input.personalBest) : null;
 
-    // A school's athlete is registered as a learner (who they are, with one
-    // bib) plus this first event entry; further events reuse the learner.
-    if (input.schoolId && !input.tournamentTeamId) {
-      const schoolId = input.schoolId;
+    // A school's athlete or team player is registered as a learner (who they
+    // are, with one bib) plus this first entry; further events reuse the
+    // learner. Open-tournament entries have no school and no learner.
+    const learnerSchoolId = team ? team.schoolId : (input.schoolId ?? null);
+    if (learnerSchoolId) {
+      const schoolId = learnerSchoolId;
       const label = schoolName ?? "this school";
       await assertRegistrationOpen(input.championshipId);
-      await assertAgeAllowed(input.championshipId, { ...input, dateOfBirth: input.dateOfBirth ?? null }, game);
+      await assertWithinAgeLimit(input.championshipId, { ...input, dateOfBirth: input.dateOfBirth ?? null }, [game.schoolLevel]);
       const birthCertNumber = normalizeBirthCert(input.birthCertNumber);
       if (birthCertNumber) {
         const sameCert = await prisma.learner.findUnique({
@@ -172,6 +181,9 @@ export async function POST(request: Request) {
       if (bib) {
         const conflict = await bibConflict(prisma, input.championshipId, bib, null);
         if (conflict) throw new Error(conflict);
+      } else if (team && !(await hasBibRange(input.championshipId, schoolId))) {
+        // Ball-game schools often have no bib range - the bib is internal there.
+        bib = (await highestBib(prisma, input.championshipId)) + 1;
       } else {
         bib = await nextSchoolBib(prisma, input.championshipId, schoolId, label);
       }
@@ -198,7 +210,9 @@ export async function POST(request: Request) {
             data: {
               championshipId: input.championshipId,
               gameId: input.gameId,
-              schoolId,
+              // Roster rows stay team entries (no school of their own), as before.
+              schoolId: team ? null : schoolId,
+              tournamentTeamId: input.tournamentTeamId ?? null,
               learnerId: learner.id,
               firstName: learner.firstName,
               lastName: learner.lastName,
@@ -207,6 +221,8 @@ export async function POST(request: Request) {
               bibNumber,
               personalBest,
               notes: input.notes ?? null,
+              jerseyNumber: input.jerseyNumber ?? null,
+              playingPosition: input.playingPosition ?? null,
             },
           });
         },
@@ -262,6 +278,11 @@ export async function POST(request: Request) {
   }
 }
 
+async function hasBibRange(championshipId: string, schoolId: string): Promise<boolean> {
+  const range = await prisma.schoolBibRange.findUnique({ where: { championshipId_schoolId: { championshipId, schoolId } }, select: { id: true } });
+  return !!range;
+}
+
 /** Primary/JS championships split each school into a Primary and a JS entry - an athlete enters under the one matching the event's level. */
 function assertSchoolLevelMatches(schoolName: string, schoolLevel: SchoolLevel | null, gameLevel: SchoolLevel) {
   if (schoolLevel && schoolLevel !== gameLevel) {
@@ -271,24 +292,21 @@ function assertSchoolLevelMatches(schoolName: string, schoolLevel: SchoolLevel |
   }
 }
 
-/** Refuses a learner older than the event's maximum age on the championship's age date. */
-async function assertAgeAllowed(
-  championshipId: string,
-  learner: { firstName: string; lastName: string; dateOfBirth: Date | null },
-  game: { name: string; maxAge: number | null },
-) {
-  if (game.maxAge == null || !learner.dateOfBirth) return;
-  const championship = await prisma.championship.findUnique({ where: { id: championshipId }, select: { ageCutoffDate: true, startDate: true } });
-  if (!championship) return;
-  const reason = overAgeReason(learner, game, ageDateOf(championship));
-  if (reason) throw new Error(reason);
-}
-
-/** Enters an already-registered learner in another event, with the same bib. */
+/** Enters an already-registered learner in another event (or their school's team), with the same bib. */
 async function enterExistingLearner(input: z.infer<typeof learnerEntrySchema>) {
-  const ctx = await requireGameAccess(input.gameId, PARTICIPANT_ROLES);
+  let team: { name: string; championshipId: string; schoolId: string | null } | null = null;
+  if (input.tournamentTeamId) {
+    team = await prisma.tournamentTeam.findUnique({
+      where: { id: input.tournamentTeamId },
+      select: { name: true, championshipId: true, schoolId: true },
+    });
+    if (!team || team.championshipId !== input.championshipId) {
+      return NextResponse.json({ error: "Team not found in this championship" }, { status: 404 });
+    }
+  }
+  const ctx = team ? await requireTeamAccess(input.championshipId, team.name) : await requireGameAccess(input.gameId, PARTICIPANT_ROLES);
   const [game, learner] = await Promise.all([
-    prisma.game.findUnique({ where: { id: input.gameId }, select: { championshipId: true, schoolLevel: true, name: true, maxAge: true } }),
+    prisma.game.findUnique({ where: { id: input.gameId }, select: { championshipId: true, schoolLevel: true, name: true } }),
     prisma.learner.findUnique({
       where: { id: input.learnerId },
       include: { school: { select: { name: true, schoolLevel: true } } },
@@ -300,12 +318,15 @@ async function enterExistingLearner(input: z.infer<typeof learnerEntrySchema>) {
   if (!learner || learner.championshipId !== input.championshipId) {
     return NextResponse.json({ error: "Learner not found in this championship" }, { status: 404 });
   }
+  if (team && learner.schoolId !== team.schoolId) {
+    return NextResponse.json({ error: `${learner.firstName} ${learner.lastName} isn't registered for ${team.name}'s school` }, { status: 400 });
+  }
   if (learner.school) {
     const label = schoolEntryLabel(learner.school.name, learner.school.schoolLevel);
     assertSchoolLevelMatches(label, learner.school.schoolLevel, game.schoolLevel);
   }
   await assertRegistrationOpen(input.championshipId);
-  await assertAgeAllowed(input.championshipId, learner, game);
+  await assertWithinAgeLimit(input.championshipId, learner, [game.schoolLevel]);
   const already = await prisma.participant.findFirst({ where: { gameId: input.gameId, learnerId: learner.id }, select: { id: true } });
   if (already) {
     return NextResponse.json({ error: `${learner.firstName} ${learner.lastName} is already entered in ${game.name}` }, { status: 409 });
@@ -320,7 +341,10 @@ async function enterExistingLearner(input: z.infer<typeof learnerEntrySchema>) {
         data: {
           championshipId: input.championshipId,
           gameId: input.gameId,
-          schoolId: learner.schoolId,
+          schoolId: team ? null : learner.schoolId,
+          tournamentTeamId: input.tournamentTeamId ?? null,
+          jerseyNumber: input.jerseyNumber ?? null,
+          playingPosition: input.playingPosition ?? null,
           learnerId: learner.id,
           firstName: learner.firstName,
           lastName: learner.lastName,

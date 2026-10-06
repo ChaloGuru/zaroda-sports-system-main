@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPatch, apiDelete } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
+import { gameSchoolLevelLabel } from "@/lib/school-levels";
 
 interface ChampionshipDetail {
   id: string;
@@ -21,8 +22,10 @@ interface ChampionshipDetail {
   location: string;
   startDate: string;
   endDate: string;
+  schoolLevel: string;
   registrationClosesAt: string | null;
   ageCutoffDate: string | null;
+  ageLimits: { schoolLevel: string; maxAge: number }[];
   tenant: { id: string; organizationName: string };
 }
 
@@ -54,12 +57,18 @@ function RegistrationRulesCard({ championship }: { championship: ChampionshipDet
   const queryClient = useQueryClient();
   const [closesAt, setClosesAt] = React.useState(toDateTimeInput(championship.registrationClosesAt));
   const [ageDate, setAgeDate] = React.useState(championship.ageCutoffDate ? toDateInput(championship.ageCutoffDate) : "");
+  // A Primary/JS championship runs Primary and JS events, each with its own limit.
+  const levels = championship.schoolLevel === "PRIMARY_JS" ? ["PRIMARY", "JS"] : [championship.schoolLevel];
+  const [limits, setLimits] = React.useState<Record<string, string>>(() =>
+    Object.fromEntries(levels.map((level) => [level, String(championship.ageLimits.find((l) => l.schoolLevel === level)?.maxAge ?? "")])),
+  );
 
   const save = useMutation({
     mutationFn: () =>
       apiPatch(`/api/championships/${championship.id}`, {
         registrationClosesAt: closesAt ? new Date(closesAt).toISOString() : null,
         ageCutoffDate: ageDate || null,
+        ageLimits: levels.map((schoolLevel) => ({ schoolLevel, maxAge: limits[schoolLevel] ? Number(limits[schoolLevel]) : null })),
       }),
     onSuccess: () => {
       toast.success("Registration rules saved");
@@ -76,7 +85,8 @@ function RegistrationRulesCard({ championship }: { championship: ChampionshipDet
         <CardTitle>Registration &amp; age rules</CardTitle>
         <CardDescription>
           After registration closes, only tournament admins can add learners, enter them in events or change their
-          details and photos - so who competes can&apos;t be swapped late. Every change is in the audit log.
+          details and photos - so who competes can&apos;t be swapped late. Learners older than their school level&apos;s
+          age limit can&apos;t be entered. Every change is in the audit log.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -90,11 +100,25 @@ function RegistrationRulesCard({ championship }: { championship: ChampionshipDet
           <div>
             <Label htmlFor="settings-age-date">Ages worked out on</Label>
             <Input id="settings-age-date" type="date" className="mt-1.5" value={ageDate} onChange={(e) => setAgeDate(e.target.value)} />
-            <p className="mt-1 text-xs text-muted">
-              For events with a maximum age (set per event in Games). Empty means the start date,{" "}
-              {formatDate(championship.startDate)}.
-            </p>
+            <p className="mt-1 text-xs text-muted">Empty means the start date, {formatDate(championship.startDate)}.</p>
           </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {levels.map((level) => (
+            <div key={level}>
+              <Label htmlFor={`settings-age-${level}`}>{gameSchoolLevelLabel(level)} - maximum age</Label>
+              <Input
+                id={`settings-age-${level}`}
+                type="number"
+                min={5}
+                max={30}
+                className="mt-1.5"
+                value={limits[level] ?? ""}
+                onChange={(e) => setLimits((l) => ({ ...l, [level]: e.target.value }))}
+              />
+              <p className="mt-1 text-xs text-muted">Oldest age allowed on the date above. Empty means no limit.</p>
+            </div>
+          ))}
         </div>
         <Button disabled={save.isPending} onClick={() => save.mutate()}>
           {save.isPending ? "Saving..." : "Save rules"}

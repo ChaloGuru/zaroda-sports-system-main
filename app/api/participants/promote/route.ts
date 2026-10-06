@@ -9,7 +9,7 @@ import {
   toErrorResponse,
 } from "@/lib/authorize";
 import { promoteAthletesSchema } from "@/lib/validations";
-import { ageDateOf, highestBib, nextSchoolBib, overAgeReason } from "@/lib/learners";
+import { createPromotedLearner, findPromotedLearner, highestBib, loadAgeRules, nextSchoolBib, overAgeReason } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +32,7 @@ export async function POST(request: Request) {
 
     const promoted: Array<{ athlete: string; created: boolean; reason?: string }> = [];
     let nextBibNumber: number | null = null;
+    let ageRules: Awaited<ReturnType<typeof loadAgeRules>> | undefined;
 
     for (const participantId of input.participantIds) {
       const origin = await prisma.participant.findUnique({
@@ -87,8 +88,11 @@ export async function POST(request: Request) {
         continue;
       }
 
-      if (overAgeReason(origin, targetGame, ageDateOf(targetChampionship))) {
-        promoted.push({ athlete: athleteName, created: false, reason: `over the age limit for ${targetGame.name}` });
+      ageRules ??= await loadAgeRules(prisma, input.targetChampionshipId);
+      const tooOld =
+        ageRules && overAgeReason(origin, { schoolLevel: targetGame.schoolLevel, maxAge: ageRules.maxAgeFor(targetGame.schoolLevel) }, ageRules.ageDate);
+      if (tooOld) {
+        promoted.push({ athlete: athleteName, created: false, reason: "over the age limit at that level" });
         continue;
       }
 
@@ -104,17 +108,7 @@ export async function POST(request: Request) {
       const originLearner = origin.learnerId
         ? await prisma.learner.findUnique({ where: { id: origin.learnerId } })
         : null;
-      let targetLearner = originLearner
-        ? await prisma.learner.findFirst({
-            where: {
-              championshipId: input.targetChampionshipId,
-              OR: [
-                { promotedFromLearnerId: originLearner.id },
-                ...(originLearner.birthCertNumber ? [{ birthCertNumber: originLearner.birthCertNumber }] : []),
-              ],
-            },
-          })
-        : null;
+      let targetLearner = originLearner ? await findPromotedLearner(prisma, originLearner, input.targetChampionshipId) : null;
       if (targetLearner) {
         const entered = await prisma.participant.findFirst({ where: { gameId: targetGame.id, learnerId: targetLearner.id }, select: { id: true } });
         if (entered) {
@@ -153,21 +147,7 @@ export async function POST(request: Request) {
           // with them, so it's selectable there (bib ranges, participants).
           if (origin.schoolId) await ensureChampionshipSchool(input.targetChampionshipId, origin.schoolId, tx);
           if (originLearner && !targetLearner) {
-            targetLearner = await tx.learner.create({
-              data: {
-                championshipId: input.targetChampionshipId,
-                schoolId: originLearner.schoolId,
-                firstName: originLearner.firstName,
-                lastName: originLearner.lastName,
-                gender: originLearner.gender,
-                dateOfBirth: originLearner.dateOfBirth,
-                birthCertNumber: originLearner.birthCertNumber,
-                bibNumber,
-                photo: originLearner.photo,
-                photoUpdatedAt: originLearner.photoUpdatedAt,
-                promotedFromLearnerId: originLearner.id,
-              },
-            });
+            targetLearner = await createPromotedLearner(tx, originLearner, input.targetChampionshipId, bibNumber);
           }
           return tx.participant.create({
             data: {

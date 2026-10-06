@@ -14,8 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
+import { gameSchoolLevelLabel } from "@/lib/school-levels";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
-import { LearnerPhoto, PhotoPicker, ageFrom, uploadLearnerPhoto } from "@/components/dashboard/learner-photo";
+import { LearnerPhoto, PhotoPicker, ageFrom, learnerPhotoDataUrl, uploadLearnerPhoto } from "@/components/dashboard/learner-photo";
 import type { NominalRollSchool } from "@/lib/export-nominal-roll-pdf";
 
 export interface LearnerRow {
@@ -29,24 +30,28 @@ export interface LearnerRow {
   bibNumber: number;
   photoUpdatedAt: string | null;
   school?: { name: string } | null;
-  participants: { gameId: string; game: { name: string; maxAge?: number | null } }[];
+  participants: { gameId: string; game: { name: string; schoolLevel?: string } }[];
 }
 
 interface LearnerRules {
   registrationClosesAt: string | null;
   ageDate: string;
+  ageLimits: { schoolLevel: string; maxAge: number }[];
 }
 
 const ALL = "all";
 
 /** What an official should look at for this learner before they compete. */
-function learnerFlags(learner: LearnerRow, ageDate: string | undefined): string[] {
-  const limited = learner.participants.filter((p) => p.game.maxAge != null);
-  if (limited.length === 0) return [];
-  if (!learner.dateOfBirth) return ["No date of birth - entered in an event with an age limit"];
-  if (!ageDate) return [];
-  const age = ageFrom(learner.dateOfBirth, new Date(ageDate));
-  return limited.filter((p) => age > (p.game.maxAge as number)).map((p) => `Over age for ${p.game.name} (${age}, limit ${p.game.maxAge})`);
+function learnerFlags(learner: LearnerRow, rules: LearnerRules | undefined): string[] {
+  if (!rules) return [];
+  const limits = new Map(rules.ageLimits.map((l) => [l.schoolLevel, l.maxAge]));
+  const levels = Array.from(new Set(learner.participants.map((p) => p.game.schoolLevel ?? ""))).filter((level) => limits.has(level));
+  if (levels.length === 0) return [];
+  if (!learner.dateOfBirth) return ["No date of birth - their events have an age limit"];
+  const age = ageFrom(learner.dateOfBirth, new Date(rules.ageDate));
+  return levels
+    .filter((level) => age > (limits.get(level) as number))
+    .map((level) => `Over age for ${gameSchoolLevelLabel(level)} (${age}, limit ${limits.get(level)})`);
 }
 
 /** Edits who a learner is - every event they're entered in follows. */
@@ -221,23 +226,6 @@ function findDuplicateGroups(learners: LearnerRow[]): LearnerGroup[] {
   return Array.from(groups.values()).filter((g): g is LearnerGroup => g.length > 1);
 }
 
-async function photoDataUrl(learner: LearnerRow): Promise<string | null> {
-  if (!learner.photoUpdatedAt) return null;
-  try {
-    const res = await fetch(`/api/learners/${learner.id}/photo?v=${encodeURIComponent(learner.photoUpdatedAt)}`);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
-
 /**
  * A championship's registered learners by school - who each is (photo, date
  * of birth, birth certificate number), the events they're in, merging a
@@ -262,7 +250,7 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
   const all = data?.learners ?? [];
   const rules = data?.rules;
   const closedAt = rules?.registrationClosesAt && new Date(rules.registrationClosesAt) <= new Date() ? rules.registrationClosesAt : null;
-  const flagged = all.filter((l) => learnerFlags(l, rules?.ageDate).length > 0).length;
+  const flagged = all.filter((l) => learnerFlags(l, rules).length > 0).length;
   const inSchool = schoolId === ALL ? all : all.filter((l) => l.schoolId === schoolId);
   const shown = inSchool.filter(
     (l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${l.birthCertNumber ?? ""}`.toLowerCase().includes(search.toLowerCase()),
@@ -298,7 +286,7 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
               dateOfBirth: l.dateOfBirth,
               birthCertNumber: l.birthCertNumber,
               events: l.participants.map((p) => p.game.name),
-              photo: await photoDataUrl(l),
+              photo: await learnerPhotoDataUrl(l.id, l.photoUpdatedAt),
             })),
           ),
         });
@@ -437,7 +425,7 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
                         <span>
                           {l.firstName} {l.lastName}
                           <span className="block text-xs text-muted">{l.gender === "BOYS" ? "Boy" : l.gender === "GIRLS" ? "Girl" : "Mixed"}</span>
-                          {learnerFlags(l, rules?.ageDate).map((flag) => (
+                          {learnerFlags(l, rules).map((flag) => (
                             <span key={flag} className="block text-xs font-medium text-destructive">{flag}</span>
                           ))}
                         </span>
