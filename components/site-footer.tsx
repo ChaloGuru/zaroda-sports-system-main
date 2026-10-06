@@ -1,26 +1,21 @@
 import Link from "next/link";
 
+// Matches the Zaroda KSEF footer: a navy ribbon kept at the bottom while the
+// page scrolls. Small screens drop the tagline and links to stay on one line.
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border bg-surface-raised">
-      <div className="container flex flex-wrap items-center justify-center gap-x-3 gap-y-2 py-4 text-center text-xs font-semibold text-muted md:justify-between">
-        <p>&copy; {new Date().getFullYear()} Zaroda Solutions. All rights reserved.</p>
-        <p className="text-muted">Innovative. Reliable. Forward.</p>
-        <a
-          href="https://wa.me/254781230805"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-foreground hover:underline"
-        >
-          0781230805
-        </a>
-        <div className="flex gap-4">
-          <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
-          <Link href="/circulars" className="hover:text-foreground">Circulars</Link>
-          <Link href="/contacts" className="hover:text-foreground">Contact</Link>
-          <a href="https://ksef.zarodasports.live/" className="hover:text-foreground">Zaroda KSEF</a>
-        </div>
-      </div>
+    <footer className="no-print sticky bottom-0 z-40 bg-[#0a1633] px-2 py-[0.45rem] text-center text-[0.66rem] text-white/80 shadow-[0_-2px_10px_rgba(5,12,35,0.25)] min-[381px]:text-[0.72rem] min-[701px]:px-4 min-[701px]:py-[0.6rem] min-[701px]:text-[0.8rem] [&_a]:text-[#c99a2e]">
+      <span className="hidden min-[701px]:inline">Powered by </span>
+      <strong className="text-white">ZARODA SOLUTIONS</strong>
+      <span className="hidden min-[701px]:inline"> - Innovative. Reliable. Forward.</span> · WhatsApp{" "}
+      <a href="https://wa.me/254781230805" target="_blank" rel="noopener noreferrer">
+        0781230805
+      </a>{" "}
+      · Call <a href="tel:+254724282065">0724282065</a>
+      <span className="hidden min-[701px]:inline">
+        {" "}
+        · <Link href="/guide">User guide</Link> · <Link href="/contacts">Contact</Link>
+      </span>
     </footer>
   );
 }
