@@ -24,7 +24,7 @@ const CALLBACK_BASE = (process.env.TUMA_CALLBACK_BASE_URL || "https://www.zaroda
  */
 export async function POST(request: Request) {
   try {
-    const limit = rateLimit(`payments:subscribe:${getClientIp(request)}`, 10, 60_000);
+    const limit = await rateLimit(`payments:subscribe:${getClientIp(request)}`, 10, 60_000);
     if (!limit.allowed) return NextResponse.json({ error: "Too many requests. Please try again shortly." }, { status: 429 });
 
     const input = subscriptionPaySchema.parse(await request.json());

@@ -32,7 +32,29 @@ export async function POST(request: Request) {
     if (input.isBroadcast && !isSuperAdmin(ctx)) {
       throw new AuthorizationError("Only a super admin can send a broadcast message");
     }
-    if (!input.isBroadcast && !input.recipientId) {
+
+    // A reply joins a conversation the sender is part of: a message sent to
+    // or by them, or a broadcast.
+    const parent = input.parentId
+      ? await prisma.adminMessage.findUnique({
+          where: { id: input.parentId },
+          select: { senderId: true, recipientId: true, isBroadcast: true },
+        })
+      : null;
+    if (input.parentId && (!parent || !(parent.isBroadcast || parent.senderId === ctx.userId || parent.recipientId === ctx.userId))) {
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+
+    // Only a super admin starts conversations or picks who to write to;
+    // anyone else can only reply, and the reply goes to whoever wrote to them.
+    let recipientId = input.recipientId ?? null;
+    if (!input.isBroadcast && !isSuperAdmin(ctx)) {
+      if (!parent || parent.senderId === ctx.userId) {
+        throw new AuthorizationError("You can only reply to messages sent to you");
+      }
+      recipientId = parent.senderId;
+    }
+    if (!input.isBroadcast && !recipientId) {
       throw new Error("recipientId is required for a direct message");
     }
 
@@ -44,7 +66,7 @@ export async function POST(request: Request) {
         tx.adminMessage.create({
           data: {
             senderId: ctx.userId,
-            recipientId: input.recipientId ?? null,
+            recipientId,
             parentId: input.parentId ?? null,
             subject: input.subject,
             body: input.body,

@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const ip = getClientIp(request);
-    const limit = rateLimit(`contact:${ip}`, 5, 60_000);
+    const limit = await rateLimit(`contact:${ip}`, 5, 60_000);
     if (!limit.allowed) {
       return NextResponse.json({ error: "Too many submissions. Please try again in a minute." }, { status: 429 });
     }

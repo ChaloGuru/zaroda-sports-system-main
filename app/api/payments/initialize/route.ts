@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const ip = getClientIp(request);
-    const limit = rateLimit(`payments:init:${ip}`, 10, 60_000);
+    const limit = await rateLimit(`payments:init:${ip}`, 10, 60_000);
     if (!limit.allowed) {
       return NextResponse.json({ error: "Too many requests. Please try again shortly." }, { status: 429 });
     }

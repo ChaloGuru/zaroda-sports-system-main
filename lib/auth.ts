@@ -150,7 +150,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
 
         const ip = clientIpFromHeaders(req?.headers);
-        if (!rateLimit(`login:${ip}`, IP_LOGIN_LIMIT, IP_LOGIN_WINDOW_MS).allowed) {
+        if (!(await rateLimit(`login:${ip}`, IP_LOGIN_LIMIT, IP_LOGIN_WINDOW_MS)).allowed) {
           throw new Error("Too many sign-in attempts. Please wait a few minutes and try again.");
         }
 

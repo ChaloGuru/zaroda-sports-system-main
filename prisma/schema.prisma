@@ -878,3 +878,16 @@ model Testimonial {
   @@index([tenantId])
   @@map("testimonials")
 }
+
+// Request counts for rate limiting public endpoints (sign-in, sign-up,
+// contact form, payments, account setup) - one row per key per fixed time
+// window, shared by every server instance. See lib/rate-limit.ts.
+model RateLimitHit {
+  key         String
+  windowStart DateTime
+  count       Int      @default(1)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+  @@map("rate_limit_hits")
+}

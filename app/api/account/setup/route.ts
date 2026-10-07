@@ -22,14 +22,14 @@ const setupSchema = z
     path: ["confirmPassword"],
   });
 
-function limited(request: Request) {
-  return !rateLimit(`account-setup:${getClientIp(request)}`, 20, 10 * 60_000).allowed;
+async function limited(request: Request) {
+  return !(await rateLimit(`account-setup:${getClientIp(request)}`, 20, 10 * 60_000)).allowed;
 }
 
 /** Public: who an account setup link is for. */
 export async function GET(request: Request) {
   try {
-    if (limited(request)) return NextResponse.json({ error: "Too many attempts - try again in a few minutes" }, { status: 429 });
+    if (await limited(request)) return NextResponse.json({ error: "Too many attempts - try again in a few minutes" }, { status: 429 });
     const token = new URL(request.url).searchParams.get("token") ?? "";
     const user = await findSetupUser(token);
     if (!user) return NextResponse.json({ error: INVALID_LINK }, { status: 410 });
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 /** Public: set the password for an account added through Roles. Works once per link. */
 export async function POST(request: Request) {
   try {
-    if (limited(request)) return NextResponse.json({ error: "Too many attempts - try again in a few minutes" }, { status: 429 });
+    if (await limited(request)) return NextResponse.json({ error: "Too many attempts - try again in a few minutes" }, { status: 429 });
     const input = setupSchema.parse(await request.json());
     const user = await findSetupUser(input.token);
     if (!user) throw new AuthorizationError(INVALID_LINK, 410);
