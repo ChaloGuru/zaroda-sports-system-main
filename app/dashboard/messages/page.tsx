@@ -3,6 +3,7 @@ import { Inbox, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SanitizedHtml } from "@/components/sanitized-html";
+import { MessageReply } from "@/components/dashboard/message-reply";
 import { getAuthContext } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
@@ -25,7 +26,7 @@ export default async function DashboardMessagesPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Messages &amp; Circulars</h1>
-        <p className="text-muted">Platform announcements and direct messages.</p>
+        <p className="text-muted">Messages from Zaroda - reply to any of them here.</p>
       </div>
 
       <Card>
@@ -34,16 +35,23 @@ export default async function DashboardMessagesPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           {messages.length === 0 && <p className="text-muted">No messages yet.</p>}
-          {messages.map((m) => (
-            <div key={m.id} className="rounded-md border border-border p-4">
-              <div className="flex items-center justify-between">
-                <p className="font-medium text-foreground">{m.subject}</p>
-                {m.isBroadcast && <Badge variant="warning">Broadcast</Badge>}
+          {messages.map((m) => {
+            const mine = m.senderId === ctx.userId;
+            return (
+              <div key={m.id} className={`rounded-md border p-4 ${mine ? "ml-6 border-border bg-surface-raised" : "border-border"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-foreground">{m.subject}</p>
+                  {m.isBroadcast && <Badge variant="warning">Broadcast</Badge>}
+                </div>
+                <p className="mt-1 text-sm text-muted">
+                  {mine ? "You" : `From ${m.sender.name}`} - {formatDate(m.createdAt)}
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{m.body}</p>
+                {/* Replies go back to Zaroda, the sender. */}
+                {!mine && <MessageReply messageId={m.id} subject={m.subject} />}
               </div>
-              <p className="mt-1 text-sm text-muted">From {m.sender.name} - {formatDate(m.createdAt)}</p>
-              <p className="mt-2 text-sm text-foreground">{m.body}</p>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 

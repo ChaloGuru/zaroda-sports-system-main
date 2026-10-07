@@ -47,3 +47,37 @@ export async function sendEmail(message: { to: string; subject: string; html: st
 export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
+
+export interface BatchEmail {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}
+
+/**
+ * Sends many emails in as few requests as possible (Resend takes up to 100
+ * per batch). Returns a result per email, in order.
+ */
+export async function sendEmailBatch(messages: BatchEmail[]): Promise<EmailResult[]> {
+  if (messages.length === 0) return [];
+  if (!isEmailConfigured()) return messages.map(() => ({ sent: false, error: "Email isn't set up yet (RESEND_API_KEY / EMAIL_FROM)" }));
+  client ??= new Resend(process.env.RESEND_API_KEY);
+  const results: EmailResult[] = [];
+  for (let i = 0; i < messages.length; i += 100) {
+    const chunk = messages.slice(i, i + 100);
+    try {
+      const { error } = await client.batch.send(chunk.map((m) => ({ from: process.env.EMAIL_FROM!, ...m })));
+      if (error) {
+        console.error("Resend rejected an email batch:", error.name, error.message);
+        results.push(...chunk.map(() => ({ sent: false, error: error.message })));
+      } else {
+        results.push(...chunk.map(() => ({ sent: true })));
+      }
+    } catch (error) {
+      console.error("Email batch failed:", error);
+      results.push(...chunk.map(() => ({ sent: false, error: "The email service couldn't be reached" })));
+    }
+  }
+  return results;
+}

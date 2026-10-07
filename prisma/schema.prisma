@@ -780,17 +780,54 @@ model AdminMessage {
   body        String
   isBroadcast Boolean   @default(false)
   readAt      DateTime?
+  // Groups the per-tenant copies of one message the system owner sent to
+  // many tenants at once (see /api/admin/outreach).
+  batchId     String?
   createdAt   DateTime  @default(now())
 
-  sender    User           @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
-  recipient User?          @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  parent    AdminMessage?  @relation("MessageThread", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  replies   AdminMessage[] @relation("MessageThread")
+  sender     User              @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  deliveries MessageDelivery[]
+  recipient  User?             @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  parent     AdminMessage?     @relation("MessageThread", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies    AdminMessage[]    @relation("MessageThread")
 
   @@index([senderId])
   @@index([recipientId])
   @@index([parentId])
+  @@index([batchId])
   @@map("admin_messages")
+}
+
+enum DeliveryChannel {
+  EMAIL
+  SMS
+}
+
+enum DeliveryStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+// Whether a message to a tenant also went out by email or SMS - the
+// delivery log on the admin Messaging page.
+model MessageDelivery {
+  id         String          @id @default(uuid())
+  messageId  String
+  channel    DeliveryChannel
+  // The email address or phone number it was sent to.
+  recipient  String
+  status     DeliveryStatus
+  // Why it failed or was skipped (e.g. no valid phone number).
+  error      String?
+  // The provider's id for the message, for tracing with Resend or Africa's Talking.
+  providerId String?
+  createdAt  DateTime        @default(now())
+
+  message AdminMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("message_deliveries")
 }
 
 model Notification {
