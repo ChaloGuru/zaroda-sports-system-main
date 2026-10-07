@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { LEARNER_FIELDS, mergeLearners } from "@/lib/learners";
+import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
       oldData: { mergedLearner: duplicate },
       newData: input,
     });
+    await refreshIdentityAlertsSafely(prisma, input.keepLearnerId);
     return NextResponse.json({ learner: result.learner, movedEntries: result.movedEntries });
   } catch (error) {
     const { body, status } = toErrorResponse(error);

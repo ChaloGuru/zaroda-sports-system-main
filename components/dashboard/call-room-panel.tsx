@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Search, CheckCircle2, Ban, Undo2, Shuffle, ArrowUpRight } from "lucide-react";
+import { Search, CheckCircle2, Ban, Undo2, Shuffle, ArrowUpRight, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
 import { useCanManageGame } from "@/hooks/use-game-access";
 import { formatDate } from "@/lib/utils";
 import { LearnerPhoto, ageFrom, idNumbersLine, idSearchText, type LearnerIdentity } from "@/components/dashboard/learner-photo";
+import { ChallengeDialog, DocumentLink, DocumentsSeenButton } from "@/components/dashboard/identity-checks";
 import type { Role } from "@prisma/client";
 
 const CALL_ROOM_ROLES: Role[] = ["TOURNAMENT_ADMIN", "SCOREKEEPER", "OFFICIAL", "CHIEF_CALLROOM_MANAGER", "CHIEF_TRACK_JUDGE", "CHIEF_FIELD_JUDGE", "CHIEF_RECORDER"];
@@ -271,6 +272,15 @@ function ParticipantRowEditor({ participant, gameId, canManage }: { participant:
   const queryClient = useQueryClient();
   const learner = participant.learner ?? null;
   const otherEvents = (learner?.participants ?? []).filter((e) => e.gameId !== gameId);
+  const challenge = (learner?.challenges ?? []).find((c) => c.status === "OPEN" || c.status === "UPHELD") ?? null;
+  const alertCount = (learner?._count?.alertsAsA ?? 0) + (learner?._count?.alertsAsB ?? 0);
+  const [challenging, setChallenging] = React.useState(false);
+  const name = `${participant.firstName} ${participant.lastName}`;
+
+  function refreshLearner() {
+    queryClient.invalidateQueries({ queryKey: ["call-room-participants", gameId] });
+    queryClient.invalidateQueries({ queryKey: ["learners"] });
+  }
 
   const patchMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => apiPatch(`/api/participants/${participant.id}`, body),
@@ -313,6 +323,25 @@ function ParticipantRowEditor({ participant, gameId, canManage }: { participant:
           <Badge variant={participant.status === "DISQUALIFIED" ? "destructive" : participant.status === "CONFIRMED_IN_CALL_ROOM" ? "success" : "outline"}>
             {participant.status.replace(/_/g, " ")}
           </Badge>
+          {learner && (
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <DocumentLink learner={learner} />
+              <DocumentsSeenButton learner={learner} onChanged={refreshLearner} className="h-7 px-2 text-xs" />
+            </div>
+          )}
+          {challenge && (
+            <p className="mt-2 rounded-md bg-destructive/10 p-2 text-xs font-medium text-destructive">
+              {challenge.status === "OPEN"
+                ? `Challenged by ${challenge.raisedBy}: ${challenge.reason} - hold them back until a tournament admin resolves it (Learners tab).`
+                : "Disqualified after a challenge to their age or identity."}
+            </p>
+          )}
+          {!challenge && alertCount > 0 && (
+            <p className="mt-2 rounded-md bg-[#F0B429]/15 p-2 text-xs font-medium text-[#8A6412]">
+              {alertCount} identity alert{alertCount === 1 ? "" : "s"} - this record doesn&apos;t match another one. Check the
+              originals, or see the Learners tab.
+            </p>
+          )}
         </div>
       </div>
 
@@ -332,16 +361,24 @@ function ParticipantRowEditor({ participant, gameId, canManage }: { participant:
             size="default"
             variant="outline"
             className="h-11"
-            disabled={!canManage}
+            disabled={!canManage || !!challenge}
             onClick={() => patchMutation.mutate({ status: "CONFIRMED_IN_CALL_ROOM" })}
           >
             <CheckCircle2 className="h-4 w-4" /> Check in - push to track
+          </Button>
+        )}
+        {learner && !challenge && (
+          <Button size="default" variant="outline" className="h-11 text-destructive" disabled={!canManage} onClick={() => setChallenging(true)}>
+            <ShieldAlert className="h-4 w-4" /> Challenge
           </Button>
         )}
         <Button size="default" variant="destructive" className="h-11" disabled={!canManage} onClick={() => patchMutation.mutate({ status: "DISQUALIFIED" })}>
           <Ban className="h-4 w-4" /> DQ
         </Button>
       </div>
+      {challenging && learner && (
+        <ChallengeDialog learner={{ id: learner.id, name }} onClose={() => setChallenging(false)} onDone={refreshLearner} />
+      )}
     </div>
   );
 }

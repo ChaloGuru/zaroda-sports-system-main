@@ -1,11 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Camera, ImageUp, SwitchCamera, UserRound } from "lucide-react";
+import { Camera, FileText, ImageUp, SwitchCamera, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { checkLearnerPhoto } from "@/lib/photo-check";
+import { faceDescriptorOf } from "@/lib/face-descriptor";
+import { ID_DOCUMENT_KINDS, MAX_DOCUMENT_BYTES, type IdDocumentKind } from "@/lib/learner-documents";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /** A learner's identity details as officials' participant lists return them. */
 export interface LearnerIdentity {
@@ -15,7 +18,14 @@ export interface LearnerIdentity {
   kemisUpi?: string | null;
   dateOfBirth: string | null;
   photoUpdatedAt: string | null;
+  idDocumentKind?: string | null;
+  idDocumentUpdatedAt?: string | null;
+  documentsVerifiedAt?: string | null;
+  documentsVerifiedBy?: string | null;
   participants: { gameId: string; game: { name: string } }[];
+  /** Open or upheld challenges only. */
+  challenges?: { id: string; reason: string; status: "OPEN" | "UPHELD" | "CLEARED"; raisedBy: string; createdAt: string }[];
+  _count?: { alertsAsA: number; alertsAsB: number };
 }
 
 type LearnerIdNumbers = { birthCertNumber: string | null; knecAssessmentNumber?: string | null; kemisUpi?: string | null };
@@ -141,17 +151,135 @@ export async function resizePhoto(file: File, maxSide = 320, crop?: { x: number;
   throw new Error("That photo is too large even after shrinking - try another one.");
 }
 
-/** Checks, crops around the face, resizes and uploads a learner's photo. */
+/**
+ * Checks, crops around the face, resizes and uploads a learner's photo,
+ * with the face's descriptor for matching it against other records.
+ */
 export async function uploadLearnerPhoto(learnerId: string, file: File): Promise<void> {
   const check = await checkLearnerPhoto(file);
   if (check.ok === false) throw new Error(check.problems.join(" "));
   const form = new FormData();
   form.append("photo", await resizePhoto(file, 320, check.ok === true ? check.crop : undefined), "photo.jpg");
+  const descriptor = await faceDescriptorOf(file);
+  if (descriptor) form.append("faceDescriptor", JSON.stringify(descriptor));
   const res = await fetch(`/api/learners/${learnerId}/photo`, { method: "PUT", body: form });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error ?? "Photo upload failed");
   }
+}
+
+/** Shrinks a photo of a document to at most 1600px - still readable - and under the upload limit. */
+async function resizeDocument(file: File): Promise<Blob> {
+  const problem = photoFileProblem(file);
+  if (problem) throw new Error(problem.replace("photo", "document photo"));
+  const bitmap = await createImageBitmap(file).catch(() => {
+    throw new Error("Couldn't read that document photo - try another one.");
+  });
+  for (const maxSide of [1600, 1200]) {
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.8, 0.65, 0.5]) {
+      const blob = await canvasToJpeg(canvas, quality);
+      if (blob.size <= MAX_DOCUMENT_BYTES) {
+        bitmap.close();
+        return blob;
+      }
+    }
+  }
+  bitmap.close();
+  throw new Error("That document photo is too large even after shrinking - try another one.");
+}
+
+/** Uploads a photo of the learner's birth certificate or KNEC record. */
+export async function uploadLearnerDocument(learnerId: string, file: File, kind: IdDocumentKind): Promise<void> {
+  const form = new FormData();
+  form.append("document", await resizeDocument(file), "document.jpg");
+  form.append("kind", kind);
+  const res = await fetch(`/api/learners/${learnerId}/document`, { method: "PUT", body: form });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? "Document upload failed");
+  }
+}
+
+/** The learner's uploaded document, opened full size in a new tab. */
+export function learnerDocumentUrl(learnerId: string, updatedAt: string): string {
+  return `/api/learners/${learnerId}/document?v=${encodeURIComponent(updatedAt)}`;
+}
+
+export interface DocumentChoice {
+  file: File | null;
+  kind: IdDocumentKind;
+}
+
+/**
+ * A photo of the learner's birth certificate or KNEC registration record -
+ * photographed with the device or chosen from a file. Optional; officials
+ * compare it with the learner and the original.
+ */
+export function DocumentPicker({
+  value,
+  onChange,
+  current,
+}: {
+  value: DocumentChoice;
+  onChange: (value: DocumentChoice) => void;
+  current?: { learnerId: string; idDocumentUpdatedAt: string | null | undefined };
+}) {
+  const cameraInput = React.useRef<HTMLInputElement>(null);
+  const fileInput = React.useRef<HTMLInputElement>(null);
+  const [problem, setProblem] = React.useState<string | null>(null);
+
+  function fromInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const chosen = e.target.files?.[0] ?? null;
+    e.target.value = "";
+    const reason = chosen && photoFileProblem(chosen);
+    setProblem(reason || null);
+    onChange({ ...value, file: reason ? null : chosen });
+  }
+
+  return (
+    <div className="space-y-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={value.kind} onValueChange={(kind) => onChange({ ...value, kind: kind as IdDocumentKind })}>
+          <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {ID_DOCUMENT_KINDS.map((k) => (
+              <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button type="button" size="sm" variant="secondary" onClick={() => cameraInput.current?.click()}>
+          <Camera className="h-4 w-4" /> Photograph it
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => fileInput.current?.click()}>
+          <ImageUp className="h-4 w-4" /> Choose file
+        </Button>
+      </div>
+      <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={fromInput} />
+      <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={fromInput} />
+      {problem ? (
+        <p className="text-xs font-medium text-destructive">{problem}</p>
+      ) : value.file ? (
+        <p className="flex items-center gap-1 text-xs text-foreground">
+          <FileText className="h-3.5 w-3.5" /> {value.file.name} - uploaded when you save
+        </p>
+      ) : current?.idDocumentUpdatedAt ? (
+        <p className="text-xs text-muted">
+          <a className="text-primary underline" href={learnerDocumentUrl(current.learnerId, current.idDocumentUpdatedAt)} target="_blank" rel="noreferrer">
+            View the uploaded document
+          </a>{" "}
+          - choose another to replace it.
+        </p>
+      ) : (
+        <p className="text-xs text-muted">Optional - lay the document flat in good light so every line can be read.</p>
+      )}
+    </div>
+  );
 }
 
 /**

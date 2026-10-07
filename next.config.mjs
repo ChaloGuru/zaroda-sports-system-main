@@ -44,6 +44,12 @@ const nextConfig = {
       bodySizeLimit: "5mb",
     },
   },
+  // face-api.js (learner face matching) checks for Node with a dynamic
+  // require that never runs in the browser - webpack warns about it.
+  webpack(config) {
+    config.ignoreWarnings = [...(config.ignoreWarnings ?? []), { module: /@vladmandic[\\/]face-api/ }];
+    return config;
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

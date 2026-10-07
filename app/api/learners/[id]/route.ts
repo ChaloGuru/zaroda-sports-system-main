@@ -4,6 +4,7 @@ import { withAudit } from "@/lib/audit";
 import { toErrorResponse } from "@/lib/authorize";
 import { learnerUpdateSchema } from "@/lib/validations";
 import { LEARNER_FIELDS, assertRegistrationOpen, assertWithinAgeLimit, requireLearnerEditor, updateLearner } from "@/lib/learners";
+import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       recordId: () => existing.id,
       newData: input,
     });
+    await refreshIdentityAlertsSafely(prisma, existing.id);
     return NextResponse.json({ learner });
   } catch (error) {
     const { body, status } = toErrorResponse(error);

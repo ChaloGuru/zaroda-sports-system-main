@@ -30,7 +30,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const { purgeExpiredLearnerPhotos, PHOTO_RETENTION_DAYS } = await import("@/lib/learner-photos");
+const { purgeExpiredLearnerPhotos, PHOTO_RETENTION_DAYS, FACE_RETENTION_DAYS } = await import("@/lib/learner-photos");
 const { GET: purgeCron } = await import("@/app/api/cron/purge-learner-photos/route");
 const circularRoute = await import("@/app/api/circulars/[id]/route");
 const champCircularRoute = await import("@/app/api/championship-circulars/[id]/route");
@@ -42,15 +42,19 @@ const PDF = "https://abc123.public.blob.vercel-storage.com/circulars/17300000000
 beforeEach(() => vi.clearAllMocks());
 
 describe("learner photo retention", () => {
-  it("deletes photos only for championships that ended more than six months ago", async () => {
-    learnerUpdateMany.mockResolvedValue({ count: 42 });
+  it("deletes photos and documents after six months, face descriptors after three years", async () => {
+    learnerUpdateMany.mockResolvedValueOnce({ count: 42 }).mockResolvedValueOnce({ count: 5 }).mockResolvedValueOnce({ count: 7 });
     const now = new Date("2027-06-01T00:00:00Z");
-    expect(await purgeExpiredLearnerPhotos(now)).toBe(42);
-    const { where, data } = learnerUpdateMany.mock.calls[0]![0];
-    expect(data).toEqual({ photo: null, photoUpdatedAt: null });
-    expect(where.photoUpdatedAt).toEqual({ not: null });
-    const cutoff: Date = where.championship.endDate.lt;
-    expect(Math.round((now.getTime() - cutoff.getTime()) / 86_400_000)).toBe(PHOTO_RETENTION_DAYS);
+    expect(await purgeExpiredLearnerPhotos(now)).toEqual({ photos: 42, documents: 5, faces: 7 });
+    const days = (cutoff: Date) => Math.round((now.getTime() - cutoff.getTime()) / 86_400_000);
+    const [photos, documents, faces] = learnerUpdateMany.mock.calls.map((c) => c[0]);
+    expect(photos.data).toEqual({ photo: null, photoUpdatedAt: null });
+    expect(photos.where.photoUpdatedAt).toEqual({ not: null });
+    expect(days(photos.where.championship.endDate.lt)).toBe(PHOTO_RETENTION_DAYS);
+    expect(documents.data).toEqual({ idDocument: null, idDocumentKind: null, idDocumentUpdatedAt: null });
+    expect(days(documents.where.championship.endDate.lt)).toBe(PHOTO_RETENTION_DAYS);
+    expect(faces.data).toEqual({ faceDescriptor: null });
+    expect(days(faces.where.championship.endDate.lt)).toBe(FACE_RETENTION_DAYS);
   });
 
   it("runs only for Vercel's scheduler, with the cron secret", async () => {
@@ -59,7 +63,7 @@ describe("learner photo retention", () => {
     expect((await purgeCron(new Request("http://localhost/api/cron/purge-learner-photos"))).status).toBe(401);
     expect(learnerUpdateMany).not.toHaveBeenCalled();
     const res = await purgeCron(new Request("http://localhost/api/cron/purge-learner-photos", { headers: { authorization: "Bearer s3cret" } }));
-    expect(await res.json()).toEqual({ deleted: 3 });
+    expect(await res.json()).toEqual({ deleted: { photos: 3, documents: 3, faces: 3 } });
     expect(auditCreate).toHaveBeenCalled();
   });
 

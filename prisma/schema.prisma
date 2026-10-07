@@ -517,12 +517,28 @@ model Learner {
   // Set when promoted from a lower-level championship, so re-promoting the
   // same learner in another event reuses this record (and bib).
   promotedFromLearnerId String?
+  // Face matching (lib/identity-checks.ts): 128 numbers describing the face
+  // in the photo, worked out in the browser when the photo is taken. Never
+  // sent back out; deleted three years after the championship (photos go
+  // after six months), so a face can be matched across seasons.
+  faceDescriptor        Bytes?
+  // A photo of the learner's birth certificate or KNEC record, for
+  // officials checking identity. Deleted with the learner's photo.
+  idDocument            Bytes?
+  idDocumentKind        String?
+  idDocumentUpdatedAt   DateTime?
+  // When an official confirmed seeing the learner's original documents.
+  documentsVerifiedAt   DateTime?
+  documentsVerifiedBy   String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  championship Championship  @relation(fields: [championshipId], references: [id], onDelete: Cascade)
-  school       School?       @relation(fields: [schoolId], references: [id])
+  championship Championship           @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  school       School?                @relation(fields: [schoolId], references: [id])
   participants Participant[]
+  challenges   LearnerChallenge[]
+  alertsAsA    LearnerIdentityAlert[] @relation("IdentityAlertA")
+  alertsAsB    LearnerIdentityAlert[] @relation("IdentityAlertB")
 
   @@unique([championshipId, bibNumber])
   @@unique([championshipId, birthCertNumber])
@@ -530,7 +546,62 @@ model Learner {
   @@unique([championshipId, kemisUpi])
   @@index([schoolId])
   @@index([promotedFromLearnerId])
+  // Checking an ID number across every championship and season.
+  @@index([birthCertNumber])
+  @@index([knecAssessmentNumber])
+  @@index([kemisUpi])
   @@map("learners")
+}
+
+enum LearnerChallengeStatus {
+  OPEN
+  CLEARED
+  UPHELD
+}
+
+// An official's challenge to a learner's age or identity. While it's open
+// the learner can't be checked in; a tournament admin looks at the original
+// documents and clears it, or upholds it (every entry is disqualified).
+model LearnerChallenge {
+  id         String                 @id @default(uuid())
+  learnerId  String
+  reason     String
+  status     LearnerChallengeStatus @default(OPEN)
+  raisedBy   String
+  resolution String?
+  resolvedBy String?
+  resolvedAt DateTime?
+  createdAt  DateTime               @default(now())
+
+  learner Learner @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  @@index([learnerId])
+  @@map("learner_challenges")
+}
+
+// Two learner records that don't add up (lib/identity-checks.ts): they
+// share an ID number but not the other details or the face, or they have
+// the same face under different identities. Usually across championships
+// and seasons. The pair is stored once, smaller id first.
+model LearnerIdentityAlert {
+  id         String    @id @default(uuid())
+  learnerAId String
+  learnerBId String
+  // ID_MISMATCH, DIFFERENT_FACE or SAME_FACE
+  kind       String
+  // What differs, e.g. ["dateOfBirth", "name"], and the face distance.
+  details    Json
+  reviewedAt DateTime?
+  reviewedBy String?
+  reviewNote String?
+  createdAt  DateTime  @default(now())
+
+  learnerA Learner @relation("IdentityAlertA", fields: [learnerAId], references: [id], onDelete: Cascade)
+  learnerB Learner @relation("IdentityAlertB", fields: [learnerBId], references: [id], onDelete: Cascade)
+
+  @@unique([learnerAId, learnerBId, kind])
+  @@index([learnerBId])
+  @@map("learner_identity_alerts")
 }
 
 model Heat {

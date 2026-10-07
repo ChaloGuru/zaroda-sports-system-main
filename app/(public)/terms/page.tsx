@@ -59,7 +59,7 @@ const SECTIONS: LegalSection[] = [
         <ul>
           <li>have a lawful basis to share it - for learners under 18, normally the consent of a parent or guardian;</li>
           <li>enter only accurate details, and only what the championship needs;</li>
-          <li>use clear face photos of the learner themselves, for identity checks only;</li>
+          <li>use clear face photos of the learner themselves, and photos of their own documents, for identity checks only - including face matching, for which you have the parent&rsquo;s or guardian&rsquo;s consent;</li>
           <li>correct or remove a learner&rsquo;s data when a parent, guardian or the learner asks and the law requires it;</li>
           <li>sign and keep the school nominal roll honestly - registering a learner under someone else&rsquo;s identity, or a learner over the age limit, is not allowed.</li>
         </ul>

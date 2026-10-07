@@ -58,7 +58,16 @@ const SECTIONS: LegalSection[] = [
         <p>
           <strong>Learners and players</strong>, as entered by their school or organiser: name, gender, school, bib and
           shirt number, the events and teams they are entered in, their results, and - to confirm identity and age -
-          their <strong>date of birth, birth certificate entry number and photo</strong>.
+          their <strong>date of birth, ID numbers (birth certificate entry number, and optionally KNEC assessment number
+          and KEMIS UPI), photo</strong> and, if the school uploads one, a <strong>photo of their birth certificate or KNEC
+          record</strong>.
+        </p>
+        <p>
+          <strong>Face matching:</strong> when a learner&rsquo;s photo is taken, the browser works out a
+          <strong> face descriptor</strong> - 128 numbers describing the face, not a picture - and sends it with the photo.
+          It is used only to spot one child registered under two identities, or two children under one birth
+          certificate. It is biometric data, so it is never shown to anyone or shared, and it is used only with the
+          consent the school confirms on the signed nominal roll.
         </p>
         <p>
           <strong>Payments:</strong> for subscriptions paid by M-Pesa through TUMA, the M-Pesa phone number, amount,
@@ -81,7 +90,12 @@ const SECTIONS: LegalSection[] = [
     body: (
       <ul>
         <li>To run championships: registration, entering learners in events, call-room checks, results, rankings, medal tables and promotion to higher levels.</li>
-        <li>To stop learner impersonation and over-age entries, using photos, dates of birth and birth certificate numbers.</li>
+        <li>
+          To stop learner impersonation and over-age entries, using photos, dates of birth, ID numbers, uploaded documents
+          and face matching. A learner&rsquo;s ID numbers are compared with other championships&rsquo; records (other
+          organisers see only that a record doesn&rsquo;t match, never the learner&rsquo;s details), and anything that
+          doesn&rsquo;t add up is shown to officials to check - the system never disqualifies a learner by itself.
+        </li>
         <li>To publish results the organiser has chosen to make public.</li>
         <li>To create and secure accounts, send account set-up links, and protect the service against misuse.</li>
         <li>To take and confirm payments, and issue receipts.</li>
@@ -117,7 +131,11 @@ const SECTIONS: LegalSection[] = [
           <li>
             <strong>Photos, dates of birth and birth certificate numbers are never public.</strong> Only the
             championship&rsquo;s officials, and a team manager for their own school&rsquo;s learners, can see them.
-            Photos are stored inside our database, not at public web addresses.
+            Photos and documents are stored inside our database, not at public web addresses.
+          </li>
+          <li>
+            An official who doubts a learner&rsquo;s age or identity can challenge them. The learner&rsquo;s school sees the
+            challenge, and a tournament admin decides it after seeing the original documents; every step is recorded.
           </li>
           <li>Call-room officials cannot change a learner&rsquo;s photo, so a photo can&rsquo;t be swapped for whoever turns up.</li>
           <li>After registration closes, only the championship&rsquo;s tournament admins can change learners&rsquo; details, and every change is recorded.</li>
@@ -159,7 +177,8 @@ const SECTIONS: LegalSection[] = [
     title: "How long we keep data",
     body: (
       <ul>
-        <li><strong>Learners&rsquo; photos</strong> are deleted automatically about six months after the championship ends - long enough for appeals and the rest of that season&rsquo;s levels. A learner who competes again next season has a new photo taken then.</li>
+        <li><strong>Learners&rsquo; photos and uploaded documents</strong> are deleted automatically about six months after the championship ends - long enough for appeals and the rest of that season&rsquo;s levels. A learner who competes again next season has a new photo taken then.</li>
+        <li><strong>Face descriptors</strong> are deleted automatically three years after the championship ends, so next season&rsquo;s photo can be matched against this season&rsquo;s.</li>
         <li><strong>Other championship data</strong> (learners&rsquo; names, dates of birth, birth certificate numbers, entries and results) is kept until the organiser deletes the championship or asks us to delete it. Past results stay available so rankings and promotions keep working.</li>
         <li><strong>Accounts</strong> are kept until you ask us to close them. Officials&rsquo; access to a championship&rsquo;s private data ends when their role expires after the championship.</li>
         <li><strong>Payment records</strong> are kept as long as the law requires for tax and accounting.</li>

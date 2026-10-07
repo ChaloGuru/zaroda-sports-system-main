@@ -9,6 +9,7 @@ import {
   toErrorResponse,
 } from "@/lib/authorize";
 import { promoteTeamsSchema } from "@/lib/validations";
+import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 import { createPromotedLearner, findPromotedLearner, highestBib, loadAgeRules, overAgeReason } from "@/lib/learners";
 import { computeSingleGameStandings } from "@/lib/team-standings";
 
@@ -80,6 +81,8 @@ export async function POST(request: Request) {
     };
 
     let nextBibNumber: number | null = null;
+    // Learners registered here by promotion, checked against other records afterwards.
+    const newLearnerIds: string[] = [];
     let ageRules: Awaited<ReturnType<typeof loadAgeRules>> | undefined;
 
     const promoted: Array<{ team: string; created: boolean; rosterCopied: number }> = [];
@@ -168,6 +171,7 @@ export async function POST(request: Request) {
             }
             if (player.learner && !learner) {
               learner = await createPromotedLearner(tx, player.learner, input.targetChampionshipId, (nextBibNumber as number)++);
+              newLearnerIds.push(learner.id);
             }
             await tx.participant.create({
               data: {
@@ -199,6 +203,7 @@ export async function POST(request: Request) {
       });
     }
 
+    await refreshIdentityAlertsSafely(prisma, newLearnerIds);
     return NextResponse.json({ promoted });
   } catch (error) {
     const { body, status } = toErrorResponse(error);

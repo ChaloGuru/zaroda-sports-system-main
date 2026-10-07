@@ -9,6 +9,7 @@ import {
   toErrorResponse,
 } from "@/lib/authorize";
 import { promoteAthletesSchema } from "@/lib/validations";
+import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 import { createPromotedLearner, findPromotedLearner, highestBib, loadAgeRules, nextSchoolBib, overAgeReason } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
 
     const promoted: Array<{ athlete: string; created: boolean; reason?: string }> = [];
     let nextBibNumber: number | null = null;
+    // Learners registered here by promotion, checked against other records afterwards.
+    const newLearnerIds: string[] = [];
     let ageRules: Awaited<ReturnType<typeof loadAgeRules>> | undefined;
 
     for (const participantId of input.participantIds) {
@@ -148,6 +151,7 @@ export async function POST(request: Request) {
           if (origin.schoolId) await ensureChampionshipSchool(input.targetChampionshipId, origin.schoolId, tx);
           if (originLearner && !targetLearner) {
             targetLearner = await createPromotedLearner(tx, originLearner, input.targetChampionshipId, bibNumber);
+            newLearnerIds.push(targetLearner.id);
           }
           return tx.participant.create({
             data: {
@@ -173,6 +177,7 @@ export async function POST(request: Request) {
       promoted.push({ athlete: `${created.firstName} ${created.lastName}`, created: true });
     }
 
+    await refreshIdentityAlertsSafely(prisma, newLearnerIds);
     return NextResponse.json({ promoted });
   } catch (error) {
     const { body, status } = toErrorResponse(error);

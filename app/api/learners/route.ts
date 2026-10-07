@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthContext, canViewChampionshipPrivateData, managedTeamSchoolIds, toErrorResponse } from "@/lib/authorize";
 import { ageDateOf } from "@/lib/learners";
+import { identityAlertViews } from "@/lib/identity-checks";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,8 @@ export async function GET(request: Request) {
     if (!championship) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
     // Officials see every learner; a school team's manager sees their school's.
     const ctx = await getAuthContext();
-    if (!(await canViewChampionshipPrivateData(ctx, championship))) {
+    const isOfficial = await canViewChampionshipPrivateData(ctx, championship);
+    if (!isOfficial) {
       const managed = ctx ? await managedTeamSchoolIds(ctx, championship.id) : [];
       if (!schoolId || !managed.includes(schoolId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -50,12 +52,31 @@ export async function GET(request: Request) {
         kemisUpi: true,
         bibNumber: true,
         photoUpdatedAt: true,
+        idDocumentKind: true,
+        idDocumentUpdatedAt: true,
+        documentsVerifiedAt: true,
+        documentsVerifiedBy: true,
         school: { select: { name: true } },
         participants: { select: { gameId: true, game: { select: { name: true, schoolLevel: true } } } },
+        challenges: {
+          orderBy: { createdAt: "desc" },
+          select: { id: true, reason: true, status: true, raisedBy: true, resolution: true, resolvedBy: true, resolvedAt: true, createdAt: true },
+        },
       },
     });
+    // Whether each photo could be face-matched - the descriptor itself never leaves the server.
+    const faceMatched = new Set(
+      (
+        await prisma.learner.findMany({
+          where: { championshipId, ...(schoolId ? { schoolId } : {}), faceDescriptor: { not: null } },
+          select: { id: true },
+        })
+      ).map((l) => l.id),
+    );
+    // Identity alerts are for officials - a school sees the challenges, not the leads.
+    const alerts = isOfficial ? await identityAlertViews(prisma, championship) : null;
     return NextResponse.json({
-      learners,
+      learners: learners.map((l) => ({ ...l, faceMatched: faceMatched.has(l.id), identityAlerts: alerts?.get(l.id) ?? [] })),
       rules: {
         registrationClosesAt: championship.registrationClosesAt,
         ageDate: ageDateOf(championship),

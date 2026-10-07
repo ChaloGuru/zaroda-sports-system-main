@@ -9,6 +9,7 @@ import { requireChampionshipSchool } from "@/lib/championship-schools";
 import { schoolEntryLabel, gameSchoolLevelLabel } from "@/lib/school-levels";
 import { parseTimeToSeconds } from "@/lib/scoring";
 import { assertRegistrationOpen, assertWithinAgeLimit, bibConflict, highestBib, idNumberConflict, nextSchoolBib, normalizeIds } from "@/lib/learners";
+import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,16 @@ export async function GET(request: Request) {
                   kemisUpi: true,
                   dateOfBirth: true,
                   photoUpdatedAt: true,
+                  idDocumentKind: true,
+                  idDocumentUpdatedAt: true,
+                  documentsVerifiedAt: true,
+                  documentsVerifiedBy: true,
                   participants: { select: { gameId: true, game: { select: { name: true } } } },
+                  challenges: {
+                    where: { status: { in: ["OPEN", "UPHELD"] } },
+                    select: { id: true, reason: true, status: true, raisedBy: true, createdAt: true },
+                  },
+                  _count: { select: { alertsAsA: { where: { reviewedAt: null } }, alertsAsB: { where: { reviewedAt: null } } } },
                 },
               },
             }
@@ -231,6 +241,7 @@ export async function POST(request: Request) {
         recordId: (result) => result.id,
         newData: { ...input, ...ids, bibNumber },
       });
+      if (participant.learnerId) await refreshIdentityAlertsSafely(prisma, participant.learnerId);
       return NextResponse.json({ participant }, { status: 201 });
     }
 
@@ -329,6 +340,13 @@ async function enterExistingLearner(input: z.infer<typeof learnerEntrySchema>) {
   }
   await assertRegistrationOpen(input.championshipId);
   await assertWithinAgeLimit(input.championshipId, learner, [game.schoolLevel]);
+  const upheld = await prisma.learnerChallenge.findFirst({ where: { learnerId: learner.id, status: "UPHELD" }, select: { id: true } });
+  if (upheld) {
+    return NextResponse.json(
+      { error: `${learner.firstName} ${learner.lastName} was disqualified after a challenge to their age or identity` },
+      { status: 409 },
+    );
+  }
   const already = await prisma.participant.findFirst({ where: { gameId: input.gameId, learnerId: learner.id }, select: { id: true } });
   if (already) {
     return NextResponse.json({ error: `${learner.firstName} ${learner.lastName} is already entered in ${game.name}` }, { status: 409 });

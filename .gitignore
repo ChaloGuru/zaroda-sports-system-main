@@ -7,3 +7,5 @@ coverage
 
 # MediaPipe runtime, copied from node_modules at build time (scripts/copy-mediapipe.mjs)
 /public/mediapipe/
+# face-api.js models, copied the same way
+/public/face-api/

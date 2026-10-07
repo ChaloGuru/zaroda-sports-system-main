@@ -77,7 +77,7 @@ export async function buildNominalRollDoc(championshipName: string, schools: Nom
     doc.setFontSize(9);
     doc.setTextColor(20);
     const statement = doc.splitTextToSize(
-      `I certify that the learners listed above are bona fide learners of ${school.schoolName}, that the details and photographs given are correct, and that each learner is eligible to compete.`,
+      `I certify that the learners listed above are bona fide learners of ${school.schoolName}, that the details, photographs and documents given are their own and correct, and that each learner is eligible to compete. Their parents or guardians have consented to their photographs being used for identity checks, including face matching.`,
       doc.internal.pageSize.getWidth() - 28,
     ) as string[];
     doc.text(statement, 14, y);

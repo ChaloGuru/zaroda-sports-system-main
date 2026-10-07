@@ -20,6 +20,10 @@ export const LEARNER_FIELDS = {
   kemisUpi: true,
   bibNumber: true,
   photoUpdatedAt: true,
+  idDocumentKind: true,
+  idDocumentUpdatedAt: true,
+  documentsVerifiedAt: true,
+  documentsVerifiedBy: true,
 } satisfies Prisma.LearnerSelect;
 
 /**
@@ -287,7 +291,7 @@ export function photoContentType(bytes: Uint8Array): "image/jpeg" | "image/png" 
  */
 export async function mergeLearners(tx: Prisma.TransactionClient, keepId: string, duplicateId: string) {
   if (keepId === duplicateId) throw new Error("Pick two different learners to merge");
-  const select = { ...LEARNER_FIELDS, photo: true } as const;
+  const select = { ...LEARNER_FIELDS, photo: true, faceDescriptor: true, idDocument: true } as const;
   const [keep, duplicate] = await Promise.all([
     tx.learner.findUnique({ where: { id: keepId }, select }),
     tx.learner.findUnique({ where: { id: duplicateId }, select }),
@@ -305,6 +309,7 @@ export async function mergeLearners(tx: Prisma.TransactionClient, keepId: string
 
   // The duplicate's record goes first, freeing its birth certificate number.
   await tx.participant.updateMany({ where: { learnerId: duplicate.id }, data: { learnerId: keep.id } });
+  await tx.learnerChallenge.updateMany({ where: { learnerId: duplicate.id }, data: { learnerId: keep.id } });
   await tx.learner.delete({ where: { id: duplicate.id } });
   await tx.learner.update({
     where: { id: keep.id },
@@ -313,7 +318,14 @@ export async function mergeLearners(tx: Prisma.TransactionClient, keepId: string
       birthCertNumber: keep.birthCertNumber ?? duplicate.birthCertNumber,
       knecAssessmentNumber: keep.knecAssessmentNumber ?? duplicate.knecAssessmentNumber,
       kemisUpi: keep.kemisUpi ?? duplicate.kemisUpi,
-      ...(!keep.photo && duplicate.photo ? { photo: duplicate.photo, photoUpdatedAt: duplicate.photoUpdatedAt } : {}),
+      ...(!keep.photo && duplicate.photo
+        ? { photo: duplicate.photo, photoUpdatedAt: duplicate.photoUpdatedAt, faceDescriptor: duplicate.faceDescriptor }
+        : {}),
+      ...(!keep.idDocument && duplicate.idDocument
+        ? { idDocument: duplicate.idDocument, idDocumentKind: duplicate.idDocumentKind, idDocumentUpdatedAt: duplicate.idDocumentUpdatedAt }
+        : {}),
+      documentsVerifiedAt: keep.documentsVerifiedAt ?? duplicate.documentsVerifiedAt,
+      documentsVerifiedBy: keep.documentsVerifiedAt ? keep.documentsVerifiedBy : duplicate.documentsVerifiedBy,
     },
   });
   // Every entry - including the ones just moved - shows the kept learner.
@@ -341,7 +353,7 @@ export function findPromotedLearner(db: Db, origin: PromotableLearner, targetCha
   });
 }
 
-/** Registers a promoted learner at the next level, with their photo, date of birth and birth certificate number. */
+/** Registers a promoted learner at the next level, with their photo, date of birth, ID numbers and documents. */
 export function createPromotedLearner(tx: Prisma.TransactionClient, origin: PromotableLearner, targetChampionshipId: string, bibNumber: number) {
   return tx.learner.create({
     data: {
@@ -357,6 +369,10 @@ export function createPromotedLearner(tx: Prisma.TransactionClient, origin: Prom
       bibNumber,
       photo: origin.photo,
       photoUpdatedAt: origin.photoUpdatedAt,
+      faceDescriptor: origin.faceDescriptor,
+      idDocument: origin.idDocument,
+      idDocumentKind: origin.idDocumentKind,
+      idDocumentUpdatedAt: origin.idDocumentUpdatedAt,
       promotedFromLearnerId: origin.id,
     },
   });

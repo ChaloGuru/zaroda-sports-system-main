@@ -6,6 +6,7 @@ import { requireChampionshipAccess, requireGameAccess, requireTeamAccess, toErro
 import { participantStatusSchema, timeInputSchema, genderSchema } from "@/lib/validations";
 import { parseTimeToSeconds } from "@/lib/scoring";
 import { assertRegistrationOpen, bibConflict, updateLearner, type LearnerChanges } from "@/lib/learners";
+import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,26 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       }
     }
 
+    // A challenged learner waits for a tournament admin's decision before
+    // they can be checked in; an upheld challenge disqualified them.
+    if (input.status === "CONFIRMED_IN_CALL_ROOM" && existing.learnerId) {
+      const challenge = await prisma.learnerChallenge.findFirst({
+        where: { learnerId: existing.learnerId, status: { in: ["OPEN", "UPHELD"] } },
+        select: { status: true },
+      });
+      if (challenge) {
+        return NextResponse.json(
+          {
+            error:
+              challenge.status === "OPEN"
+                ? "This learner's age or identity has been challenged - a tournament admin must clear it before they can be checked in"
+                : "This learner was disqualified after a challenge to their age or identity",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const data: Record<string, unknown> = {};
     // A learner's name, gender and bib are theirs, not this entry's - change
     // them on the learner so every event they're entered in follows.
@@ -112,6 +133,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       newData: { ...data, ...learnerChanges },
     });
 
+    if (existing.learnerId && Object.keys(learnerChanges).length > 0) await refreshIdentityAlertsSafely(prisma, existing.learnerId);
     return NextResponse.json({ participant: updated });
   } catch (error) {
     if (error instanceof Error && error.message.includes("Unique constraint")) {

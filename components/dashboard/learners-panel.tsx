@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileDown, Merge, Pencil, Printer, Search } from "lucide-react";
+import { FileDown, Merge, Pencil, Printer, Search, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,28 @@ import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
 import { gameSchoolLevelLabel } from "@/lib/school-levels";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
-import { LearnerPhoto, PhotoPicker, ageFrom, idNumbersLine, idSearchText, learnerPhotoDataUrl, uploadLearnerPhoto } from "@/components/dashboard/learner-photo";
+import {
+  DocumentPicker,
+  LearnerPhoto,
+  PhotoPicker,
+  ageFrom,
+  idNumbersLine,
+  idSearchText,
+  learnerPhotoDataUrl,
+  uploadLearnerDocument,
+  uploadLearnerPhoto,
+  type DocumentChoice,
+} from "@/components/dashboard/learner-photo";
+import {
+  ChallengeDialog,
+  DocumentLink,
+  DocumentsSeenButton,
+  IdentityAlertCard,
+  ResolveChallengeDialog,
+  type ChallengeRow,
+  type IdentityAlertRow,
+} from "@/components/dashboard/identity-checks";
+import type { IdDocumentKind } from "@/lib/learner-documents";
 import type { NominalRollSchool } from "@/lib/export-nominal-roll-pdf";
 
 export interface LearnerRow {
@@ -31,8 +52,17 @@ export interface LearnerRow {
   kemisUpi?: string | null;
   bibNumber: number;
   photoUpdatedAt: string | null;
+  idDocumentKind?: string | null;
+  idDocumentUpdatedAt?: string | null;
+  documentsVerifiedAt?: string | null;
+  documentsVerifiedBy?: string | null;
+  /** The photo's face could be matched against other records. */
+  faceMatched?: boolean;
   school?: { name: string } | null;
   participants: { gameId: string; game: { name: string; schoolLevel?: string } }[];
+  challenges?: ChallengeRow[];
+  /** Officials only. */
+  identityAlerts?: IdentityAlertRow[];
 }
 
 interface LearnerRules {
@@ -56,6 +86,24 @@ function learnerFlags(learner: LearnerRow, rules: LearnerRules | undefined): str
     .map((level) => `Over age for ${gameSchoolLevelLabel(level)} (${age}, limit ${limits.get(level)})`);
 }
 
+/** Challenge and face-matching status under a learner's name. */
+function IdentityBadges({ learner }: { learner: LearnerRow }) {
+  const challenge = (learner.challenges ?? []).find((c) => c.status !== "CLEARED");
+  const openAlerts = (learner.identityAlerts ?? []).filter((a) => !a.reviewedAt).length;
+  return (
+    <span className="mt-1 flex flex-wrap gap-1">
+      {challenge?.status === "OPEN" && <Badge variant="destructive">Challenged</Badge>}
+      {challenge?.status === "UPHELD" && <Badge variant="destructive">Disqualified</Badge>}
+      {openAlerts > 0 && <Badge variant="warning">{openAlerts} identity alert{openAlerts === 1 ? "" : "s"}</Badge>}
+      {learner.photoUpdatedAt && learner.faceMatched === false && (
+        <Badge variant="secondary" title="The face couldn't be read for matching - retake the photo, or try another device">
+          Face not matched
+        </Badge>
+      )}
+    </span>
+  );
+}
+
 /** Edits who a learner is - every event they're entered in follows. */
 export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: LearnerRow; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = React.useState({
@@ -69,6 +117,10 @@ export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: Lear
     kemisUpi: learner.kemisUpi ?? "",
   });
   const [photo, setPhoto] = React.useState<File | null>(null);
+  const [idDocument, setIdDocument] = React.useState<DocumentChoice>({
+    file: null,
+    kind: (learner.idDocumentKind as IdDocumentKind | null) ?? "BIRTH_CERTIFICATE",
+  });
   const [saving, setSaving] = React.useState(false);
   const events = learner.participants.length;
 
@@ -86,6 +138,7 @@ export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: Lear
         kemisUpi: form.kemisUpi.trim() || null,
       });
       if (photo) await uploadLearnerPhoto(learner.id, photo);
+      if (idDocument.file) await uploadLearnerDocument(learner.id, idDocument.file, idDocument.kind);
       toast.success("Learner updated");
       onSaved();
       onClose();
@@ -163,6 +216,16 @@ export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: Lear
                 file={photo}
                 onChange={setPhoto}
                 current={{ learnerId: learner.id, photoUpdatedAt: learner.photoUpdatedAt, name: `${learner.firstName} ${learner.lastName}` }}
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Birth certificate or KNEC record</Label>
+            <div className="mt-1.5">
+              <DocumentPicker
+                value={idDocument}
+                onChange={setIdDocument}
+                current={{ learnerId: learner.id, idDocumentUpdatedAt: learner.idDocumentUpdatedAt }}
               />
             </div>
           </div>
@@ -256,6 +319,9 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
   const [editing, setEditing] = React.useState<LearnerRow | null>(null);
   const [merging, setMerging] = React.useState<[LearnerRow, LearnerRow] | null>(null);
   const [exporting, setExporting] = React.useState<"download" | "print" | null>(null);
+  const [challenging, setChallenging] = React.useState<{ learner: LearnerRow; reason?: string } | null>(null);
+  const [resolving, setResolving] = React.useState<{ learner: LearnerRow; challenge: ChallengeRow } | null>(null);
+  const [showReviewed, setShowReviewed] = React.useState(false);
 
   const { data: schoolsData } = useChampionshipSchools(championshipId);
   const schools = schoolsData?.schools ?? [];
@@ -272,6 +338,10 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
     (l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${idSearchText(l)}`.toLowerCase().includes(search.toLowerCase()),
   );
   const duplicateGroups = findDuplicateGroups(inSchool);
+  const openChallenges = inSchool.flatMap((l) => (l.challenges ?? []).filter((c) => c.status === "OPEN").map((challenge) => ({ learner: l, challenge })));
+  const alerts = inSchool.flatMap((l) => (l.identityAlerts ?? []).map((alert) => ({ learner: l, alert })));
+  const shownAlerts = alerts.filter(({ alert }) => showReviewed || !alert.reviewedAt);
+  const reviewedAlerts = alerts.filter(({ alert }) => !!alert.reviewedAt).length;
   const schoolName = (id: string | null) => schools.find((s) => s.schoolId === id)?.label ?? all.find((l) => l.schoolId === id)?.school?.name ?? "No school";
 
   function refresh() {
@@ -340,8 +410,9 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
             <CardTitle>Learners</CardTitle>
             <CardDescription>
               Each learner is registered once, with one bib for all their events. Print a school&apos;s nominal roll for
-              the head teacher to sign and stamp, and keep it with the call room. Photos are deleted automatically six
-              months after the championship ends.
+              the head teacher to sign and stamp, and keep it with the call room. Each learner is checked against
+              other championships&apos; records - anything that doesn&apos;t add up shows here as an identity alert.
+              Photos and documents are deleted automatically six months after the championship ends.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -407,6 +478,58 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
             </div>
           )}
 
+          {openChallenges.length > 0 && (
+            <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-4">
+              <p className="text-sm font-medium text-foreground">
+                Open challenges - these learners can&apos;t be checked in until a tournament admin has seen the original
+                documents and decided.
+              </p>
+              {openChallenges.map(({ learner: l, challenge }) => (
+                <div key={challenge.id} className="flex flex-wrap items-center gap-3 text-sm">
+                  <LearnerPhoto learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} className="h-12 w-12" />
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium text-foreground">
+                      {l.firstName} {l.lastName} (bib {l.bibNumber}, {schoolName(l.schoolId)})
+                    </span>
+                    <span className="block text-xs text-muted">
+                      {challenge.reason} - {challenge.raisedBy}, {formatDate(challenge.createdAt)}
+                    </span>
+                  </span>
+                  <DocumentLink learner={l} />
+                  <Button size="sm" onClick={() => setResolving({ learner: l, challenge })}>
+                    Resolve
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {alerts.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-foreground">
+                  Identity alerts - records that don&apos;t add up across championships and seasons. Compare them, then
+                  challenge the learner or mark the alert as reviewed.
+                </p>
+                {reviewedAlerts > 0 && (
+                  <label className="flex items-center gap-2 text-xs text-muted">
+                    <input type="checkbox" checked={showReviewed} onChange={(e) => setShowReviewed(e.target.checked)} />
+                    Show {reviewedAlerts} reviewed
+                  </label>
+                )}
+              </div>
+              {shownAlerts.map(({ learner: l, alert }) => (
+                <IdentityAlertCard
+                  key={`${alert.id}-${l.id}`}
+                  alert={alert}
+                  learner={l}
+                  onChallenge={(reason) => setChallenging({ learner: l, reason })}
+                  onChanged={refresh}
+                />
+              ))}
+            </div>
+          )}
+
           {selected.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-muted">{selected.length} selected</span>
@@ -447,13 +570,14 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
                           {learnerFlags(l, rules).map((flag) => (
                             <span key={flag} className="block text-xs font-medium text-destructive">{flag}</span>
                           ))}
+                          <IdentityBadges learner={l} />
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>{l.bibNumber}</TableCell>
                     {schoolId === ALL && <TableCell>{schoolName(l.schoolId)}</TableCell>}
                     <TableCell>{l.dateOfBirth ? `${formatDate(l.dateOfBirth)} (${ageFrom(l.dateOfBirth)})` : <span className="text-muted">-</span>}</TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="space-y-1 text-sm">
                       {l.birthCertNumber || l.knecAssessmentNumber || l.kemisUpi ? (
                         <>
                           {l.birthCertNumber && <span className="block">Birth cert. {l.birthCertNumber}</span>}
@@ -463,11 +587,23 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
                       ) : (
                         <span className="text-muted">-</span>
                       )}
+                      <DocumentLink learner={l} />
+                      <DocumentsSeenButton learner={l} onChanged={refresh} className="h-7 px-2 text-xs" />
                     </TableCell>
                     <TableCell className="text-sm">{l.participants.map((p) => p.game.name).join(", ") || <span className="text-muted">None</span>}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="whitespace-nowrap text-right">
                       <Button size="icon" variant="ghost" onClick={() => setEditing(l)} aria-label="Edit learner">
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() => setChallenging({ learner: l })}
+                        aria-label="Challenge age or identity"
+                        title="Challenge age or identity"
+                      >
+                        <ShieldAlert className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -487,6 +623,22 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
 
       {editing && <EditLearnerDialog learner={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
       {merging && <MergeDialog learners={merging} onClose={() => setMerging(null)} onMerged={refresh} />}
+      {challenging && (
+        <ChallengeDialog
+          learner={{ id: challenging.learner.id, name: `${challenging.learner.firstName} ${challenging.learner.lastName}` }}
+          suggestedReason={challenging.reason}
+          onClose={() => setChallenging(null)}
+          onDone={refresh}
+        />
+      )}
+      {resolving && (
+        <ResolveChallengeDialog
+          challenge={resolving.challenge}
+          learnerName={`${resolving.learner.firstName} ${resolving.learner.lastName}`}
+          onClose={() => setResolving(null)}
+          onDone={refresh}
+        />
+      )}
     </div>
   );
 }

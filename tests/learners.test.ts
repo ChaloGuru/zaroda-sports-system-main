@@ -12,6 +12,7 @@ const participantFindMany = vi.fn();
 const txLearnerCreate = vi.fn();
 const txParticipantCreate = vi.fn();
 const teamFindUnique = vi.fn();
+const challengeFindFirst = vi.fn().mockResolvedValue(null);
 
 vi.mock("@/lib/authorize", async () => {
   const actual = await vi.importActual<typeof import("@/lib/authorize")>("@/lib/authorize");
@@ -43,6 +44,7 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: (...a: unknown[]) => participantFindFirst(...a),
       findMany: (...a: unknown[]) => participantFindMany(...a),
     },
+    learnerChallenge: { findFirst: (...a: unknown[]) => challengeFindFirst(...a) },
     $transaction: (fn: (tx: typeof txClient) => Promise<unknown>) => fn(txClient),
   },
 }));
@@ -276,6 +278,7 @@ describe("mergeLearners", () => {
         findMany: vi.fn().mockImplementation(({ where }: { where: { learnerId: string } }) => entries[where.learnerId] ?? []),
         updateMany: vi.fn(),
       },
+      learnerChallenge: { updateMany: vi.fn() },
     };
   }
 
@@ -285,6 +288,8 @@ describe("mergeLearners", () => {
     expect(result.movedEntries).toBe(1);
     expect(tx.participant.updateMany).toHaveBeenCalledWith({ where: { learnerId: "dup" }, data: { learnerId: "keep" } });
     expect(tx.learner.delete).toHaveBeenCalledWith({ where: { id: "dup" } });
+    // Any challenge to the duplicate stays with the learner.
+    expect(tx.learnerChallenge.updateMany).toHaveBeenCalledWith({ where: { learnerId: "dup" }, data: { learnerId: "keep" } });
     expect(tx.learner.update).toHaveBeenCalledWith({
       where: { id: "keep" },
       data: expect.objectContaining({ dateOfBirth: duplicate.dateOfBirth, birthCertNumber: "12345", photo: duplicate.photo }),

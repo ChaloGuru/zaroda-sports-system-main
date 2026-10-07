@@ -18,7 +18,16 @@ import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { useCanManageGame } from "@/hooks/use-game-access";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
 import { SchoolCombobox } from "@/components/dashboard/school-combobox";
-import { LearnerPhoto, PhotoPicker, idSearchText, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
+import {
+  DocumentPicker,
+  LearnerPhoto,
+  PhotoPicker,
+  idSearchText,
+  uploadLearnerDocument,
+  uploadLearnerPhoto,
+  type DocumentChoice,
+  type LearnerIdentity,
+} from "@/components/dashboard/learner-photo";
 import { EditLearnerDialog } from "@/components/dashboard/learners-panel";
 import { cn } from "@/lib/utils";
 import { gameSchoolLevelLabel } from "@/lib/school-levels";
@@ -303,6 +312,7 @@ export function ParticipantsPanel({
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<"existing" | "new">("existing");
   const [photo, setPhoto] = React.useState<File | null>(null);
+  const [idDocument, setIdDocument] = React.useState<DocumentChoice>({ file: null, kind: "BIRTH_CERTIFICATE" });
   const [editingParticipant, setEditingParticipant] = React.useState<ParticipantRow | null>(null);
 
   const { data: gamesData } = useQuery({
@@ -359,6 +369,7 @@ export function ParticipantsPanel({
   function closeRegister() {
     setOpen(false);
     setPhoto(null);
+    setIdDocument({ file: null, kind: "BIRTH_CERTIFICATE" });
     reset({ championshipId, gameId, gender: "BOYS" });
   }
 
@@ -370,6 +381,13 @@ export function ParticipantsPanel({
           await uploadLearnerPhoto(participant.learnerId, photo);
         } catch (error) {
           toast.error(`Registered, but the photo didn't upload: ${error instanceof Error ? error.message : "try again from Edit"}`);
+        }
+      }
+      if (idDocument.file && participant.learnerId) {
+        try {
+          await uploadLearnerDocument(participant.learnerId, idDocument.file, idDocument.kind);
+        } catch (error) {
+          toast.error(`Registered, but the document didn't upload: ${error instanceof Error ? error.message : "try again from Edit"}`);
         }
       }
     },
@@ -591,6 +609,14 @@ export function ParticipantsPanel({
                     <Label>Photo</Label>
                     <div className="mt-1.5">
                       <PhotoPicker file={photo} onChange={setPhoto} />
+                    </div>
+                  </div>
+                )}
+                {!isOpenTournament && (
+                  <div>
+                    <Label>Birth certificate or KNEC record</Label>
+                    <div className="mt-1.5">
+                      <DocumentPicker value={idDocument} onChange={setIdDocument} />
                     </div>
                   </div>
                 )}

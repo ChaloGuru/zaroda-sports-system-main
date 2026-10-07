@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { promoteSelectedPlayersSchema } from "@/lib/validations";
+import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 import { createPromotedLearner, findPromotedLearner, highestBib, loadAgeRules, overAgeReason } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +63,8 @@ export async function POST(request: Request) {
     );
     const overAge = picked.length - players.length;
     let nextBib = (await highestBib(prisma, input.targetChampionshipId)) + 1;
+    // Learners registered here by promotion, checked against other records afterwards.
+    const newLearnerIds: string[] = [];
 
     const result = await withAudit({
       actorId: ctx.userId,
@@ -84,7 +87,10 @@ export async function POST(request: Request) {
             alreadyIn++;
             continue;
           }
-          if (player.learner && !learner) learner = await createPromotedLearner(tx, player.learner, input.targetChampionshipId, nextBib++);
+          if (player.learner && !learner) {
+            learner = await createPromotedLearner(tx, player.learner, input.targetChampionshipId, nextBib++);
+            newLearnerIds.push(learner.id);
+          }
           await tx.participant.create({
             data: {
               championshipId: input.targetChampionshipId,
@@ -108,6 +114,7 @@ export async function POST(request: Request) {
       newData: { ...input, overAge },
     });
 
+    await refreshIdentityAlertsSafely(prisma, newLearnerIds);
     return NextResponse.json({ team: result.team.name, added: result.added, alreadyIn: result.alreadyIn, overAge });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
