@@ -2,7 +2,7 @@ import type { Gender, Prisma, PrismaClient } from "@prisma/client";
 import { assignNextBibNumber } from "./scoring";
 import { prisma } from "./prisma";
 import { gameSchoolLevelLabel } from "./school-levels";
-import { AuthorizationError, requireChampionshipAccess } from "./authorize";
+import { AuthorizationError, getAuthContext, managedTeamSchoolIds, requireChampionshipAccess, type AuthContext } from "./authorize";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -122,6 +122,21 @@ export async function updateLearner(
 export function normalizeBirthCert(value: string | null | undefined): string | null {
   const number = (value ?? "").replace(/\s+/g, "").toUpperCase();
   return number === "" ? null : number;
+}
+
+/**
+ * Who can change a learner's details and photo: the championship's
+ * tournament admins and scorekeepers, and the manager of a team from the
+ * learner's school (they register their own players).
+ */
+export async function requireLearnerEditor(learner: { championshipId: string; schoolId: string | null }): Promise<AuthContext> {
+  try {
+    return await requireChampionshipAccess(learner.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+  } catch (error) {
+    const ctx = await getAuthContext();
+    if (ctx && learner.schoolId && (await managedTeamSchoolIds(ctx, learner.championshipId)).includes(learner.schoolId)) return ctx;
+    throw error;
+  }
 }
 
 const KENYA_DATE: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Nairobi" };

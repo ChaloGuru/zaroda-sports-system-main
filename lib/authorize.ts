@@ -100,6 +100,20 @@ export function canViewChampionshipPrivateData(
   return ctx.roles.some((r) => r.championshipId === championship.id && CHAMPIONSHIP_OPERATIONAL_ROLES.includes(r.role));
 }
 
+/**
+ * Learners' identity details (photos, dates of birth, birth certificate
+ * numbers) are for the championship's officials. Team managers aren't
+ * included: they see only their own school's learners (managedTeamSchoolIds).
+ */
+export function canViewChampionshipLearners(ctx: AuthContext | null, championship: { id: string; tenantId: string }): boolean {
+  if (!ctx) return false;
+  if (isSuperAdmin(ctx)) return true;
+  if (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === championship.tenantId) return true;
+  return ctx.roles.some(
+    (r) => r.championshipId === championship.id && r.role !== "TEAM_MANAGER" && CHAMPIONSHIP_OPERATIONAL_ROLES.includes(r.role),
+  );
+}
+
 /** Championship-scoped roles expire once the event ends, with a one-day grace period. */
 async function isChampionshipRoleActive(championshipId: string): Promise<boolean> {
   const championship = await prisma.championship.findUnique({
@@ -218,6 +232,23 @@ export async function requireTeamAccess(championshipId: string, teamName: string
   }
 
   throw new AuthorizationError("You do not have access to manage this team");
+}
+
+/**
+ * The schools whose teams this user manages in a championship (TEAM_MANAGER
+ * roles name the team) - so a school team's manager can see and register
+ * that school's learners for their roster.
+ */
+export async function managedTeamSchoolIds(ctx: AuthContext, championshipId: string): Promise<string[]> {
+  const teamNames = ctx.roles
+    .filter((r) => r.championshipId === championshipId && r.role === "TEAM_MANAGER" && r.organizationName)
+    .map((r) => r.organizationName!.trim());
+  if (teamNames.length === 0 || !(await isChampionshipRoleActive(championshipId))) return [];
+  const teams = await prisma.tournamentTeam.findMany({
+    where: { championshipId, schoolId: { not: null }, OR: teamNames.map((name) => ({ name: { equals: name, mode: "insensitive" as const } })) },
+    select: { schoolId: true },
+  });
+  return Array.from(new Set(teams.map((t) => t.schoolId as string)));
 }
 
 /**

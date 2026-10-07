@@ -129,24 +129,12 @@ describe("POST /api/tournament-teams/promote", () => {
     );
   });
 
-  it("keeps a Primary-level team's own name unchanged at the target level", async () => {
+  it("refuses to promote a Primary team whole - its players are picked instead", async () => {
     gameFindUnique.mockResolvedValue(originGame("PRIMARY"));
-    tournamentTeamFindUnique.mockResolvedValue({
-      id: TEAM_ID,
-      name: "Kisangura",
-      gender: "BOYS",
-      teamColor: null,
-      contactName: null,
-      contactEmail: null,
-      contactPhone: null,
-      county: "Kisumu",
-    });
-
     const response = await POST(req({ gameId: GAME_ID, targetChampionshipId: TARGET_CHAMP_ID, topN: 1 }));
-    const json = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(json.promoted).toEqual([{ team: "Kisangura", created: true, rosterCopied: 0 }]);
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/picked player by player/);
+    expect(tournamentTeamCreate).not.toHaveBeenCalled();
   });
 
   it("copies the roster with fresh, non-colliding bib numbers", async () => {

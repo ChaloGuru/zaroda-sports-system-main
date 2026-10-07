@@ -20,9 +20,10 @@ export const dynamic = "force-dynamic";
  * exist there - level changes are a billing decision, so we never
  * auto-create a championship or game on someone's behalf.
  *
- * Naming rule: JS/Senior School/Tertiary teams are renamed
+ * JS/Senior School/Tertiary teams go up whole and are renamed
  * "{Origin Championship Name} - {Team Name}" so their lineage is visible at
- * the new level; Primary teams keep just their own organization name.
+ * the new level. Primary teams don't go up whole: the next level's team is
+ * picked player by player (see ./promote-selection).
  *
  * The roster is copied as an editable starting point (not a permanent link)
  * since squads can change between levels.
@@ -39,6 +40,9 @@ export async function POST(request: Request) {
     if (!originGame) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     if (originGame.isTimed || !originGame.sport) {
       return NextResponse.json({ error: "Only ball-game team events can be promoted" }, { status: 400 });
+    }
+    if (originGame.schoolLevel === "PRIMARY") {
+      return NextResponse.json({ error: "Primary teams going up are picked player by player - use Pick the team to send up" }, { status: 400 });
     }
 
     const targetChampionship = await prisma.championship.findUnique({ where: { id: input.targetChampionshipId } });
@@ -70,7 +74,6 @@ export async function POST(request: Request) {
     const promotees = standings.slice(0, input.topN);
 
     const newName = (originTeamName: string) => {
-      if (originGame.schoolLevel === "PRIMARY") return originTeamName;
       const prefix = originGame.championship.name;
       if (originTeamName.toLowerCase().includes(prefix.toLowerCase())) return originTeamName;
       return `${prefix} - ${originTeamName}`;

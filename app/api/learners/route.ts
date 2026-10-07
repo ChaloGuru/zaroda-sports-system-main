@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthContext, canViewChampionshipPrivateData, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, canViewChampionshipLearners, managedTeamSchoolIds, toErrorResponse } from "@/lib/authorize";
 import { ageDateOf } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 /**
  * A championship's registered learners (optionally one school's), with the
  * events each is entered in - for entering a learner in another event and
- * for identity checks. Officials only; photos are fetched separately.
+ * for identity checks. Officials, or a school team's manager for their own
+ * school; photos are fetched separately.
  */
 export async function GET(request: Request) {
   try {
@@ -27,8 +28,11 @@ export async function GET(request: Request) {
       },
     });
     if (!championship) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
-    if (!canViewChampionshipPrivateData(await getAuthContext(), championship)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Officials see every learner; a school team's manager sees their school's.
+    const ctx = await getAuthContext();
+    if (!canViewChampionshipLearners(ctx, championship)) {
+      const managed = ctx ? await managedTeamSchoolIds(ctx, championship.id) : [];
+      if (!schoolId || !managed.includes(schoolId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const learners = await prisma.learner.findMany({

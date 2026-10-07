@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, canViewChampionshipPrivateData, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
-import { MAX_PHOTO_BYTES, assertRegistrationOpen, photoContentType } from "@/lib/learners";
+import { getAuthContext, canViewChampionshipLearners, managedTeamSchoolIds, toErrorResponse } from "@/lib/authorize";
+import { MAX_PHOTO_BYTES, assertRegistrationOpen, photoContentType, requireLearnerEditor } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +15,13 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   try {
     const learner = await prisma.learner.findUnique({
       where: { id: params.id },
-      select: { photo: true, championship: { select: { id: true, tenantId: true } } },
+      select: { photo: true, schoolId: true, championship: { select: { id: true, tenantId: true } } },
     });
     if (!learner) return NextResponse.json({ error: "Learner not found" }, { status: 404 });
-    if (!canViewChampionshipPrivateData(await getAuthContext(), learner.championship)) {
+    const ctx = await getAuthContext();
+    const isTeamManager =
+      !!ctx && !!learner.schoolId && (await managedTeamSchoolIds(ctx, learner.championship.id)).includes(learner.schoolId);
+    if (!canViewChampionshipLearners(ctx, learner.championship) && !isTeamManager) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!learner.photo) return NextResponse.json({ error: "No photo" }, { status: 404 });
@@ -38,15 +41,16 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
 }
 
 /**
- * Sets the photo at registration. Call-room roles can't change it, so a
- * learner's photo can't be replaced with whoever turns up.
+ * Sets the photo at registration - by the championship's admins and
+ * scorekeepers, or the learner's school team manager. Call-room roles can't
+ * change it, so a learner's photo can't be replaced with whoever turns up.
  */
 export async function PUT(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
-    const learner = await prisma.learner.findUnique({ where: { id: params.id }, select: { id: true, championshipId: true } });
+    const learner = await prisma.learner.findUnique({ where: { id: params.id }, select: { id: true, championshipId: true, schoolId: true } });
     if (!learner) return NextResponse.json({ error: "Learner not found" }, { status: 404 });
-    const ctx = await requireChampionshipAccess(learner.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+    const ctx = await requireLearnerEditor(learner);
     await assertRegistrationOpen(learner.championshipId);
 
     // Photos arrive resized to well under the limit; refuse anything bigger

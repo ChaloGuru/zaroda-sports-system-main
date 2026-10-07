@@ -57,8 +57,9 @@ function RegistrationRulesCard({ championship }: { championship: ChampionshipDet
   const queryClient = useQueryClient();
   const [closesAt, setClosesAt] = React.useState(toDateTimeInput(championship.registrationClosesAt));
   const [ageDate, setAgeDate] = React.useState(championship.ageCutoffDate ? toDateInput(championship.ageCutoffDate) : "");
-  // A Primary/JS championship runs Primary and JS events, each with its own limit.
-  const levels = championship.schoolLevel === "PRIMARY_JS" ? ["PRIMARY", "JS"] : [championship.schoolLevel];
+  // Every school level can carry its own limit - a championship can run
+  // events outside its own level (e.g. Senior School ball games).
+  const levels = ["PRIMARY", "JS", "SENIOR_SCHOOL", ...(championship.schoolLevel === "TERTIARY" ? ["TERTIARY"] : [])];
   const [limits, setLimits] = React.useState<Record<string, string>>(() =>
     Object.fromEntries(levels.map((level) => [level, String(championship.ageLimits.find((l) => l.schoolLevel === level)?.maxAge ?? "")])),
   );
@@ -103,7 +104,7 @@ function RegistrationRulesCard({ championship }: { championship: ChampionshipDet
             <p className="mt-1 text-xs text-muted">Empty means the start date, {formatDate(championship.startDate)}.</p>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           {levels.map((level) => (
             <div key={level}>
               <Label htmlFor={`settings-age-${level}`}>{gameSchoolLevelLabel(level)} - maximum age</Label>

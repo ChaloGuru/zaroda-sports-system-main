@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { toErrorResponse } from "@/lib/authorize";
 import { learnerUpdateSchema } from "@/lib/validations";
-import { LEARNER_FIELDS, assertRegistrationOpen, assertWithinAgeLimit, updateLearner } from "@/lib/learners";
+import { LEARNER_FIELDS, assertRegistrationOpen, assertWithinAgeLimit, requireLearnerEditor, updateLearner } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   try {
     const existing = await prisma.learner.findUnique({ where: { id: params.id }, select: LEARNER_FIELDS });
     if (!existing) return NextResponse.json({ error: "Learner not found" }, { status: 404 });
-    const ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
+    const ctx = await requireLearnerEditor(existing);
 
     const body: unknown = await request.json();
     const input = learnerUpdateSchema.parse(body);

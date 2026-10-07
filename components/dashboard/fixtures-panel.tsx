@@ -19,6 +19,7 @@ import { computeStandings, type BallSport, type MatchResult, type StandingRow, t
 import { buildResultsShareMessage } from "@/lib/share-message";
 import { isHigherLevel, LEVEL_LABELS } from "@/lib/utils";
 import { useCanManageGame } from "@/hooks/use-game-access";
+import { LearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
 import type { Level, Role } from "@prisma/client";
 
 const FIXTURES_ROLES: Role[] = ["TOURNAMENT_ADMIN", "SCOREKEEPER", "GAME_COORDINATOR"];
@@ -29,6 +30,7 @@ interface GameOption {
   category: string;
   isTimed: boolean;
   sport: BallSport | null;
+  schoolLevel: string;
 }
 
 interface TeamOption {
@@ -691,19 +693,178 @@ interface ChampionshipOption {
   level: Level;
 }
 
+/** Championships above this one's level that the user manages - where teams can be promoted to. */
+function useHigherLevelChampionships(enabled: boolean, currentLevel: Level | undefined) {
+  const { data } = useQuery({
+    queryKey: ["championships-picker"],
+    queryFn: () => apiGet<{ championships: ChampionshipOption[] }>("/api/championships"),
+    enabled,
+  });
+  return (data?.championships ?? []).filter((c) => currentLevel && isHigherLevel(c.level, currentLevel));
+}
+
+function TargetChampionshipSelect({
+  value,
+  onChange,
+  championships,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  championships: ChampionshipOption[];
+}) {
+  return (
+    <div>
+      <Label>Target championship</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select a championship" /></SelectTrigger>
+        <SelectContent>
+          {championships.map((c) => (
+            <SelectItem key={c.id} value={c.id}>{c.name} ({LEVEL_LABELS[c.level]})</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {championships.length === 0 && (
+        <p className="mt-1.5 text-xs text-muted">
+          No higher-level championship found that you manage - create one first (e.g. a Zone-level event) before
+          promoting.
+        </p>
+      )}
+    </div>
+  );
+}
+
+interface GamePlayer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  jerseyNumber: number | null;
+  playingPosition: string | null;
+  tournamentTeam: { name: string } | null;
+  learner?: LearnerIdentity | null;
+}
+
+/**
+ * Primary ball games: the team that goes up is picked player by player from
+ * every team in the game (e.g. the zone team), rather than a winning team
+ * going up whole.
+ */
+function PromoteSelectedPlayersDialog({
+  gameId,
+  currentLevel,
+  championshipName,
+}: {
+  gameId: string;
+  currentLevel: Level | undefined;
+  championshipName: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [targetChampionshipId, setTargetChampionshipId] = React.useState("");
+  const [teamName, setTeamName] = React.useState(championshipName);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const championships = useHigherLevelChampionships(open, currentLevel);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["participants", gameId],
+    queryFn: () => apiGet<{ participants: GamePlayer[] }>(`/api/participants?gameId=${gameId}`),
+    enabled: open,
+  });
+  const byTeam = new Map<string, GamePlayer[]>();
+  for (const p of data?.participants ?? []) {
+    if (!p.tournamentTeam) continue;
+    byTeam.set(p.tournamentTeam.name, [...(byTeam.get(p.tournamentTeam.name) ?? []), p]);
+  }
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const promote = useMutation({
+    mutationFn: () =>
+      apiPost<{ team: string; added: number; alreadyIn: number; overAge: number }>("/api/tournament-teams/promote-selection", {
+        gameId,
+        targetChampionshipId,
+        teamName,
+        participantIds: Array.from(selected),
+      }),
+    onSuccess: (r) => {
+      const notes = [
+        r.alreadyIn > 0 ? `${r.alreadyIn} already there` : "",
+        r.overAge > 0 ? `${r.overAge} over the age limit left off` : "",
+      ].filter(Boolean);
+      toast.success(`${r.team}: ${r.added} player${r.added === 1 ? "" : "s"} added${notes.length ? ` (${notes.join(", ")})` : ""}`);
+      setSelected(new Set());
+      setOpen(false);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to promote players"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="secondary">
+          <ArrowUpRight className="h-4 w-4" /> Pick the team to send up
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Pick the team to send up</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            In Primary, the next level&apos;s team is picked from the players of all the teams here. The players you tick
+            go up as one team, each as the same learner with their photo and birth certificate number.
+          </p>
+          <TargetChampionshipSelect value={targetChampionshipId} onChange={setTargetChampionshipId} championships={championships} />
+          <div>
+            <Label htmlFor="select-team-name">Team name at the next level</Label>
+            <Input id="select-team-name" className="mt-1.5" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
+          </div>
+          {isLoading && <p className="text-sm text-muted">Loading players...</p>}
+          {!isLoading && byTeam.size === 0 && (
+            <p className="text-sm text-muted">No players on this game&apos;s team rosters yet - add them from each team&apos;s roster first.</p>
+          )}
+          {Array.from(byTeam.entries()).map(([team, players]) => (
+            <div key={team} className="space-y-1">
+              <p className="text-xs font-medium uppercase text-muted">{team}</p>
+              {players.map((p) => (
+                <label key={p.id} className="flex cursor-pointer items-center gap-3 rounded-md border border-border p-2 text-sm">
+                  <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
+                  {p.learner && (
+                    <LearnerPhoto learnerId={p.learner.id} photoUpdatedAt={p.learner.photoUpdatedAt} name={`${p.firstName} ${p.lastName}`} className="h-8 w-8" />
+                  )}
+                  <span className="flex-1">
+                    {p.firstName} {p.lastName}
+                    {(p.jerseyNumber || p.playingPosition) && (
+                      <span className="block text-xs text-muted">{[p.jerseyNumber ? `#${p.jerseyNumber}` : "", p.playingPosition ?? ""].filter(Boolean).join(" · ")}</span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          ))}
+          <Button
+            className="w-full"
+            disabled={!targetChampionshipId || selected.size === 0 || teamName.trim().length < 2 || promote.isPending}
+            onClick={() => promote.mutate()}
+          >
+            {promote.isPending ? "Sending up..." : `Send ${selected.size} player${selected.size === 1 ? "" : "s"} up as ${teamName || "the team"}`}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PromoteTeamsDialog({ gameId, currentLevel }: { gameId: string; currentLevel: Level | undefined }) {
   const [open, setOpen] = React.useState(false);
   const [targetChampionshipId, setTargetChampionshipId] = React.useState("");
   const [topN, setTopN] = React.useState("1");
-
-  const { data: championshipsData } = useQuery({
-    queryKey: ["championships-picker"],
-    queryFn: () => apiGet<{ championships: ChampionshipOption[] }>("/api/championships"),
-    enabled: open,
-  });
-  const higherLevelChampionships = (championshipsData?.championships ?? []).filter(
-    (c) => currentLevel && isHigherLevel(c.level, currentLevel),
-  );
+  const higherLevelChampionships = useHigherLevelChampionships(open, currentLevel);
 
   const promoteMutation = useMutation({
     mutationFn: () =>
@@ -736,23 +897,7 @@ function PromoteTeamsDialog({ gameId, currentLevel }: { gameId: string; currentL
           <DialogTitle>Promote top teams to a higher level</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div>
-            <Label>Target championship</Label>
-            <Select value={targetChampionshipId} onValueChange={setTargetChampionshipId}>
-              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select a championship" /></SelectTrigger>
-              <SelectContent>
-                {higherLevelChampionships.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name} ({LEVEL_LABELS[c.level]})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {higherLevelChampionships.length === 0 && (
-              <p className="mt-1.5 text-xs text-muted">
-                No higher-level championship found that you manage - create one first (e.g. a Zone-level event) before
-                promoting.
-              </p>
-            )}
-          </div>
+          <TargetChampionshipSelect value={targetChampionshipId} onChange={setTargetChampionshipId} championships={higherLevelChampionships} />
           <div>
             <Label>How many teams to promote</Label>
             <Select value={topN} onValueChange={setTopN}>
@@ -766,8 +911,8 @@ function PromoteTeamsDialog({ gameId, currentLevel }: { gameId: string; currentL
           </div>
           <p className="text-xs text-muted">
             A matching game (same category, gender, school level, and sport) must already exist in the target
-            championship. Rosters are copied as an editable starting point - JS/Senior School/Tertiary teams are
-            renamed &quot;{"{"}this championship&apos;s name{"}"} - {"{"}team name{"}"}&quot;; Primary teams keep just their own name.
+            championship. Teams go up whole with their roster (players over the next level&apos;s age limit are left off),
+            renamed &quot;{"{"}this championship&apos;s name{"}"} - {"{"}team name{"}"}&quot;.
           </p>
           <Button className="w-full" disabled={!targetChampionshipId || promoteMutation.isPending} onClick={() => promoteMutation.mutate()}>
             {promoteMutation.isPending ? "Promoting..." : "Promote teams"}
@@ -1036,7 +1181,12 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
             <CardDescription>Select a ball game/team event to manage its pools, fixtures, scores, and live standings.</CardDescription>
           </div>
           <div className="no-print flex flex-wrap items-center gap-2">
-            {gameId && <PromoteTeamsDialog gameId={gameId} currentLevel={championshipLevel} />}
+            {gameId && selectedGame?.schoolLevel === "PRIMARY" && (
+              <PromoteSelectedPlayersDialog gameId={gameId} currentLevel={championshipLevel} championshipName={championshipName} />
+            )}
+            {gameId && selectedGame && selectedGame.schoolLevel !== "PRIMARY" && (
+              <PromoteTeamsDialog gameId={gameId} currentLevel={championshipLevel} />
+            )}
             <PrintButton />
             <ShareButton
               title={selectedGame ? selectedGame.name : championshipName}
