@@ -49,7 +49,7 @@ export default async function ChampionshipPage(props: { params: Promise<{ champi
       </div>
 
       <div className="container py-16">
-        <div className="rounded-xl border border-white/10 bg-background/95 p-6 shadow-2xl backdrop-blur-sm sm:p-8">
+        <div className="rounded-xl border border-white/10 bg-background/95 p-6 shadow-2xl backdrop-blur-xs sm:p-8">
           <div className="flex flex-wrap items-center gap-2">
             <Badge>{LEVEL_LABELS[championship.level]}</Badge>
             <Badge variant="secondary">{championship.schoolLevel.replace("_", " ")}</Badge>

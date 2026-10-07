@@ -366,7 +366,7 @@ export function GamesPanel({
         )}
 
         {selected.size > 0 && (
-          <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-3 shadow-sm">
+          <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-3 shadow-xs">
             <span className="mr-auto text-sm font-medium text-foreground">
               {selected.size} selected
             </span>

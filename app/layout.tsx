@@ -9,19 +9,19 @@ import { cn } from "@/lib/utils";
 const archivo = Archivo({
   subsets: ["latin"],
   weight: ["700", "800"],
-  variable: "--font-heading",
+  variable: "--nf-heading",
   display: "swap",
 });
 const ibmPlexSans = IBM_Plex_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
-  variable: "--font-sans",
+  variable: "--nf-sans",
   display: "swap",
 });
 const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["500", "600"],
-  variable: "--font-mono",
+  variable: "--nf-mono",
   display: "swap",
 });
 

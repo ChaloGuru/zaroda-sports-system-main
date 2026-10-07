@@ -148,7 +148,7 @@ export function FeesPanel({ championshipId, championshipName }: { championshipId
                 checked={form.isRequired}
                 onChange={(e) => setForm((f) => ({ ...f, isRequired: e.target.checked }))}
               />
-              <Label htmlFor="fee-required" className="!mb-0">Required</Label>
+              <Label htmlFor="fee-required" className="mb-0!">Required</Label>
             </div>
             <div className="flex gap-2">
               <Button

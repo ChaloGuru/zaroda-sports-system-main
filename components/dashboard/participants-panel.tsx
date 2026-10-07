@@ -456,7 +456,7 @@ export function ParticipantsPanel({
                     key={value}
                     type="button"
                     onClick={() => setMode(value)}
-                    className={cn("rounded px-3 py-1.5", mode === value ? "bg-surface font-medium text-foreground shadow-sm" : "text-muted")}
+                    className={cn("rounded px-3 py-1.5", mode === value ? "bg-surface font-medium text-foreground shadow-xs" : "text-muted")}
                   >
                     {label}
                   </button>

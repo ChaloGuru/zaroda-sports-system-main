@@ -71,7 +71,7 @@ export default function LoginPage() {
         className="object-cover object-top"
       />
       <div className="absolute inset-0 bg-[#0A1633]/70" />
-      <Card className="relative w-full max-w-md border-white/10 bg-background/95 shadow-2xl backdrop-blur-sm">
+      <Card className="relative w-full max-w-md border-white/10 bg-background/95 shadow-2xl backdrop-blur-xs">
         <CardHeader className="items-center text-center">
           <Image src="/images/logo.png" alt="Zaroda Sports Management System" width={216} height={144} className="h-16 w-auto" priority />
           <CardTitle>Log in to Zaroda Sports</CardTitle>

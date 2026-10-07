@@ -92,12 +92,12 @@ export default async function LandingPage() {
           className="object-cover object-center"
         />
         {/* Navy wash - keeps the photo visible while still grounding the section in the brand color */}
-        <div className="absolute inset-0 bg-gradient-to-b from-navy/90 via-navy/70 to-navy/40" />
+        <div className="absolute inset-0 bg-linear-to-b from-navy/90 via-navy/70 to-navy/40" />
         {/* Subtle diagonal sheen for a glass-like highlight across the photo */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent" />
+        <div className="absolute inset-0 bg-linear-to-tr from-transparent via-white/5 to-transparent" />
 
         <div className="container relative flex flex-col items-center gap-6 py-24 text-center">
-          <span className="rounded-full border border-white/30 bg-white/15 px-4 py-1 text-sm font-medium text-white backdrop-blur-sm">
+          <span className="rounded-full border border-white/30 bg-white/15 px-4 py-1 text-sm font-medium text-white backdrop-blur-xs">
             Built for Kenyan school &amp; open championships
           </span>
           <h1 className="max-w-3xl font-heading text-4xl font-extrabold tracking-wide drop-shadow-[0_2px_16px_rgba(6,15,46,0.9)] sm:text-6xl">

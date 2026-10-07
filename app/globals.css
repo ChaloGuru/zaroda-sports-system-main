@@ -1,54 +1,148 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 1rem;
+  @media (width >= --theme(--breakpoint-sm)) {
+    max-width: none;
+  }
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+/* inline: utilities use these values directly, so they follow the light/dark
+   --rgb-* values and the next/font variables (--nf-*) set in app/layout.tsx. */
+@theme inline {
+  --font-sans:
+    var(--nf-sans), ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-heading:
+    var(--nf-heading), ui-sans-serif, system-ui, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-mono:
+    var(--nf-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+
+  --color-background: rgb(var(--rgb-background));
+  --color-foreground: rgb(var(--rgb-foreground));
+
+  --color-navy: rgb(var(--rgb-navy));
+  --color-navy-light: rgb(var(--rgb-navy-light));
+  --color-navy-dark: rgb(var(--rgb-navy-dark));
+
+  --color-primary: rgb(var(--rgb-primary));
+  --color-primary-foreground: rgb(var(--rgb-primary-foreground));
+
+  --color-accent: rgb(var(--rgb-accent));
+  --color-accent-foreground: rgb(var(--rgb-accent-foreground));
+
+  --color-gold: rgb(var(--rgb-gold));
+
+  --color-surface: rgb(var(--rgb-surface));
+  --color-surface-raised: rgb(var(--rgb-surface-raised));
+  --color-surface-overlay: rgb(var(--rgb-surface-overlay));
+
+  --color-card: rgb(var(--rgb-card));
+  --color-card-foreground: rgb(var(--rgb-card-foreground));
+
+  --color-border: rgb(var(--rgb-border));
+  --color-input: rgb(var(--rgb-input));
+  --color-muted: rgb(var(--rgb-muted));
+  --color-ring: rgb(var(--rgb-ring));
+
+  --color-destructive: rgb(var(--rgb-destructive));
+  --color-destructive-foreground: rgb(var(--rgb-destructive-foreground));
+
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 8px;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+/* Tailwind CSS v4 gives buttons the default cursor; keep v3's pointer. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@utility tabular {
+  font-family: var(--nf-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility prose-circular {
+  @apply text-sm leading-relaxed text-foreground [&_a]:text-primary [&_a]:underline [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5;
+}
 
 @layer base {
   :root {
-    --color-background: 238 242 249;
-    --color-foreground: 15 30 61;
-    --color-navy: 10 22 51;
-    --color-navy-light: 27 87 184;
-    --color-navy-dark: 6 14 34;
-    --color-primary: 27 87 184;
-    --color-primary-foreground: 255 255 255;
-    --color-accent: 46 107 230;
-    --color-accent-foreground: 255 255 255;
-    --color-gold: 201 154 46;
-    --color-surface: 255 255 255;
-    --color-surface-raised: 247 249 253;
-    --color-surface-overlay: 234 241 255;
-    --color-card: 255 255 255;
-    --color-card-foreground: 15 30 61;
-    --color-border: 226 231 240;
-    --color-input: 226 231 240;
-    --color-muted: 90 107 135;
-    --color-ring: 46 107 230;
-    --color-destructive: 196 61 61;
-    --color-destructive-foreground: 255 255 255;
+    --rgb-background: 238 242 249;
+    --rgb-foreground: 15 30 61;
+    --rgb-navy: 10 22 51;
+    --rgb-navy-light: 27 87 184;
+    --rgb-navy-dark: 6 14 34;
+    --rgb-primary: 27 87 184;
+    --rgb-primary-foreground: 255 255 255;
+    --rgb-accent: 46 107 230;
+    --rgb-accent-foreground: 255 255 255;
+    --rgb-gold: 201 154 46;
+    --rgb-surface: 255 255 255;
+    --rgb-surface-raised: 247 249 253;
+    --rgb-surface-overlay: 234 241 255;
+    --rgb-card: 255 255 255;
+    --rgb-card-foreground: 15 30 61;
+    --rgb-border: 226 231 240;
+    --rgb-input: 226 231 240;
+    --rgb-muted: 90 107 135;
+    --rgb-ring: 46 107 230;
+    --rgb-destructive: 196 61 61;
+    --rgb-destructive-foreground: 255 255 255;
   }
 
   .dark {
-    --color-background: 10 15 28;
-    --color-foreground: 232 237 247;
-    --color-navy: 10 22 51;
-    --color-navy-light: 59 125 222;
-    --color-navy-dark: 6 14 34;
-    --color-primary: 59 130 246;
-    --color-primary-foreground: 255 255 255;
-    --color-accent: 96 165 250;
-    --color-accent-foreground: 10 15 28;
-    --color-gold: 224 178 62;
-    --color-surface: 16 24 43;
-    --color-surface-raised: 13 20 36;
-    --color-surface-overlay: 27 39 64;
-    --color-card: 16 24 43;
-    --color-card-foreground: 232 237 247;
-    --color-border: 36 49 79;
-    --color-input: 36 49 79;
-    --color-muted: 140 160 196;
-    --color-ring: 96 165 250;
-    --color-destructive: 239 68 68;
-    --color-destructive-foreground: 255 255 255;
+    --rgb-background: 10 15 28;
+    --rgb-foreground: 232 237 247;
+    --rgb-navy: 10 22 51;
+    --rgb-navy-light: 59 125 222;
+    --rgb-navy-dark: 6 14 34;
+    --rgb-primary: 59 130 246;
+    --rgb-primary-foreground: 255 255 255;
+    --rgb-accent: 96 165 250;
+    --rgb-accent-foreground: 10 15 28;
+    --rgb-gold: 224 178 62;
+    --rgb-surface: 16 24 43;
+    --rgb-surface-raised: 13 20 36;
+    --rgb-surface-overlay: 27 39 64;
+    --rgb-card: 16 24 43;
+    --rgb-card-foreground: 232 237 247;
+    --rgb-border: 36 49 79;
+    --rgb-input: 36 49 79;
+    --rgb-muted: 140 160 196;
+    --rgb-ring: 96 165 250;
+    --rgb-destructive: 239 68 68;
+    --rgb-destructive-foreground: 255 255 255;
   }
 
   html {
@@ -64,22 +158,12 @@
   h2,
   h3,
   h4 {
-    font-family: var(--font-heading), sans-serif;
+    font-family: var(--nf-heading), sans-serif;
     font-weight: 700;
     letter-spacing: -0.01em;
   }
   ::selection {
     @apply bg-accent/20;
-  }
-}
-
-@layer utilities {
-  .tabular {
-    font-family: var(--font-mono), monospace;
-    font-variant-numeric: tabular-nums;
-  }
-  .prose-circular {
-    @apply text-sm leading-relaxed text-foreground [&_a]:text-primary [&_a]:underline [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5;
   }
 }
 

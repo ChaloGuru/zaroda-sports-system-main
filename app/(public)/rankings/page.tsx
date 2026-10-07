@@ -150,7 +150,7 @@ export default function RankingsPage() {
       </section>
 
       <div className="container py-16">
-        <div className="rounded-xl border border-white/10 bg-background/95 p-6 shadow-2xl backdrop-blur-sm sm:p-8">
+        <div className="rounded-xl border border-white/10 bg-background/95 p-6 shadow-2xl backdrop-blur-xs sm:p-8">
           <PanelErrorBoundary fallbackTitle="Rankings failed to load">
             <RankingsExplorer />
           </PanelErrorBoundary>

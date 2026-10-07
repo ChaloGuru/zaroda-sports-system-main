@@ -22,7 +22,7 @@ export default async function RegisterTeamPage(props: { params: Promise<{ champi
 
   return (
     <div className="container max-w-2xl py-16">
-      <div className="rounded-xl border border-border bg-background p-6 shadow-sm sm:p-8">
+      <div className="rounded-xl border border-border bg-background p-6 shadow-xs sm:p-8">
         <Badge>{championship.category.replace("_", " ")}</Badge>
         <h1 className="mt-4 text-3xl font-bold text-foreground">Register for {championship.name}</h1>
         <p className="mt-1 text-muted">

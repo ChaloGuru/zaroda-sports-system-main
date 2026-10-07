@@ -37,7 +37,7 @@ export function TestimonialsSection({ testimonials }: { testimonials: PublicTest
           // a grid that keeps growing taller. The track is the list rendered
           // twice back-to-back and scrolled exactly 50%, so the loop is seamless.
           <div
-            className="overflow-x-auto overflow-y-hidden [mask-image:linear-gradient(to_right,transparent,black_5%,black_95%,transparent)]"
+            className="overflow-x-auto overflow-y-hidden mask-[linear-gradient(to_right,transparent,black_5%,black_95%,transparent)]"
             onPointerDown={() => setHeld(true)}
           >
             <div
@@ -53,7 +53,7 @@ export function TestimonialsSection({ testimonials }: { testimonials: PublicTest
                 <TestimonialCard
                   key={`${t.id}-${i}`}
                   testimonial={t}
-                  className="w-80 flex-shrink-0"
+                  className="w-80 shrink-0"
                   aria-hidden={i >= testimonials.length || undefined}
                 />
               ))}
