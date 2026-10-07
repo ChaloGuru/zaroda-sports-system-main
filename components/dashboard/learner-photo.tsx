@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { UserRound } from "lucide-react";
+import { Camera, ImageUp, SwitchCamera, UserRound } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { checkLearnerPhoto } from "@/lib/photo-check";
 
@@ -152,7 +154,108 @@ export async function uploadLearnerPhoto(learnerId: string, file: File): Promise
   }
 }
 
-/** File picker for a learner photo, with a preview of the chosen file. */
+/**
+ * Takes a photo with the computer's camera: a live preview, Capture, and
+ * Switch camera. (Phones and tablets use their own camera app instead - see
+ * PhotoPicker.)
+ */
+function CameraDialog({ onCapture, onClose }: { onCapture: (file: File) => void; onClose: () => void }) {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const [facing, setFacing] = React.useState<"user" | "environment">("user");
+  const [error, setError] = React.useState<string | null>(null);
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let stream: MediaStream | null = null;
+    let cancelled = false;
+    setReady(false);
+    setError(null);
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false })
+      .then((s) => {
+        if (cancelled) return s.getTracks().forEach((t) => t.stop());
+        stream = s;
+        if (videoRef.current) {
+          videoRef.current.srcObject = s;
+          void videoRef.current.play().then(() => setReady(true));
+        }
+      })
+      .catch((e: unknown) => {
+        const name = e instanceof DOMException ? e.name : "";
+        setError(
+          name === "NotAllowedError"
+            ? "Camera access was blocked. Allow the camera for this site in your browser, or choose a photo file instead."
+            : name === "NotFoundError"
+              ? "No camera was found on this device. Choose a photo file instead."
+              : "The camera couldn't be started. Choose a photo file instead.",
+        );
+      });
+    return () => {
+      cancelled = true;
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [facing]);
+
+  function capture() {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    // The preview is mirrored for the front camera; the photo isn't.
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) onCapture(new File([blob], `camera-${Date.now()}.jpg`, { type: "image/jpeg" }));
+      },
+      "image/jpeg",
+      0.92,
+    );
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Take the learner&apos;s photo</DialogTitle>
+        </DialogHeader>
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : (
+          <>
+            <div className="overflow-hidden rounded-md bg-black">
+              <video
+                ref={videoRef}
+                playsInline
+                muted
+                className={cn("aspect-[4/3] w-full object-cover", facing === "user" && "-scale-x-100")}
+              />
+            </div>
+            <p className="text-xs text-muted">Face the camera in good light, with only the learner in the picture.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={!ready} onClick={capture}>
+                <Camera className="h-4 w-4" /> Capture
+              </Button>
+              <Button variant="outline" onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))}>
+                <SwitchCamera className="h-4 w-4" /> Switch camera
+              </Button>
+              <Button variant="ghost" onClick={onClose}>
+                Cancel
+              </Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Photo for a learner: taken with the device's camera or chosen from a file,
+ * then checked for a clear face before it's accepted.
+ */
 export function PhotoPicker({
   file,
   onChange,
@@ -166,12 +269,52 @@ export function PhotoPicker({
   const [problem, setProblem] = React.useState<string | null>(null);
   const [checking, setChecking] = React.useState(false);
   const [unchecked, setUnchecked] = React.useState(false);
+  const [cameraOpen, setCameraOpen] = React.useState(false);
+  const fileInput = React.useRef<HTMLInputElement>(null);
+  const cameraInput = React.useRef<HTMLInputElement>(null);
   React.useEffect(() => {
     if (!file) return setPreview(null);
     const url = URL.createObjectURL(file);
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
+
+  /** Every photo - taken or chosen - goes through the same checks. */
+  async function accept(chosen: File | null) {
+    setUnchecked(false);
+    const reason = chosen && photoFileProblem(chosen);
+    if (!chosen || reason) {
+      setProblem(reason || null);
+      onChange(null);
+      return;
+    }
+    // The face check runs here, so a poor photo is turned away at once.
+    setChecking(true);
+    setProblem(null);
+    const check = await checkLearnerPhoto(chosen);
+    setChecking(false);
+    if (check.ok === false) {
+      setProblem(check.problems.join(" "));
+      onChange(null);
+      return;
+    }
+    setUnchecked(check.ok === "unchecked");
+    onChange(chosen);
+  }
+
+  function takePhoto() {
+    // Phones and tablets open their own camera app (rear camera - the
+    // registrar photographs the learner); computers get the camera window.
+    const touch = window.matchMedia("(pointer: coarse)").matches;
+    if (touch || !navigator.mediaDevices?.getUserMedia) cameraInput.current?.click();
+    else setCameraOpen(true);
+  }
+
+  function fromInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const chosen = e.target.files?.[0] ?? null;
+    e.target.value = "";
+    void accept(chosen);
+  }
 
   return (
     <div className="flex items-center gap-3">
@@ -186,37 +329,16 @@ export function PhotoPicker({
         />
       )}
       <div className="text-sm">
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          disabled={checking}
-          onChange={async (e) => {
-            const input = e.target;
-            const chosen = input.files?.[0] ?? null;
-            setUnchecked(false);
-            const reason = chosen && photoFileProblem(chosen);
-            if (!chosen || reason) {
-              setProblem(reason || null);
-              if (reason) input.value = "";
-              onChange(null);
-              return;
-            }
-            // The face check runs here, so a poor photo is turned away at once.
-            setChecking(true);
-            setProblem(null);
-            const check = await checkLearnerPhoto(chosen);
-            setChecking(false);
-            if (check.ok === false) {
-              setProblem(check.problems.join(" "));
-              input.value = "";
-              onChange(null);
-              return;
-            }
-            setUnchecked(check.ok === "unchecked");
-            onChange(chosen);
-          }}
-          className="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-foreground"
-        />
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="secondary" disabled={checking} onClick={takePhoto}>
+            <Camera className="h-4 w-4" /> Take photo
+          </Button>
+          <Button type="button" size="sm" variant="outline" disabled={checking} onClick={() => fileInput.current?.click()}>
+            <ImageUp className="h-4 w-4" /> Choose file
+          </Button>
+        </div>
+        <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={fromInput} />
+        <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={fromInput} />
         {checking ? (
           <p className="mt-1 text-xs text-muted">Checking the photo...</p>
         ) : problem ? (
@@ -226,9 +348,18 @@ export function PhotoPicker({
             This photo couldn&apos;t be checked automatically on this device - make sure the face is clear and facing the camera.
           </p>
         ) : (
-          <p className="mt-1 text-xs text-muted">A clear face photo (up to 15 MB) - checked against the learner in the call room.</p>
+          <p className="mt-1 text-xs text-muted">A clear face photo - checked against the learner in the call room.</p>
         )}
       </div>
+      {cameraOpen && (
+        <CameraDialog
+          onClose={() => setCameraOpen(false)}
+          onCapture={(captured) => {
+            setCameraOpen(false);
+            void accept(captured);
+          }}
+        />
+      )}
     </div>
   );
 }
