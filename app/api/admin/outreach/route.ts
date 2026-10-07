@@ -4,7 +4,6 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole, toErrorResponse } from "@/lib/authorize";
 import { escapeHtml, isEmailConfigured, sendEmailBatch } from "@/lib/email";
-import { SMS_MAX, isSmsConfigured, sendSms, smsTextFor, toInternationalKenyan } from "@/lib/sms";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +14,8 @@ const outreachSchema = z
     county: z.string().trim().min(1).max(100).optional(),
     tenantIds: z.array(z.string().uuid()).max(2000).optional(),
     email: z.boolean(),
-    sms: z.boolean(),
     subject: z.string().trim().min(1, "Write a subject").max(200),
     body: z.string().trim().min(1, "Write the message").max(5000),
-    smsText: z.string().trim().max(SMS_MAX).optional(),
   })
   .refine((v) => v.audience !== "COUNTY" || !!v.county, { message: "Pick a county", path: ["county"] })
   .refine((v) => v.audience !== "TENANTS" || (v.tenantIds?.length ?? 0) > 0, { message: "Pick at least one tenant", path: ["tenantIds"] });
@@ -39,7 +36,7 @@ function emailFor(name: string, subject: string, body: string) {
 /**
  * The system owner messages tenants - all of them, one county's, or chosen
  * ones. Every tenant gets the message in their dashboard inbox (where they
- * can reply), and optionally by email and SMS; each delivery is logged.
+ * can reply), and optionally by email; each email is logged.
  */
 export async function POST(request: Request) {
   try {
@@ -64,7 +61,7 @@ export async function POST(request: Request) {
     });
     const messages = await prisma.adminMessage.findMany({ where: { batchId }, select: { id: true, recipientId: true } });
     const messageFor = new Map(messages.map((m) => [m.recipientId, m.id]));
-    const deliveries: { messageId: string; channel: "EMAIL" | "SMS"; recipient: string; status: "SENT" | "FAILED" | "SKIPPED"; error?: string; providerId?: string }[] = [];
+    const deliveries: { messageId: string; channel: "EMAIL"; recipient: string; status: "SENT" | "FAILED"; error?: string }[] = [];
 
     if (input.email) {
       const results = await sendEmailBatch(tenants.map((t) => ({ to: t.email, ...emailFor(t.contactName || t.organizationName, input.subject, input.body) })));
@@ -74,29 +71,6 @@ export async function POST(request: Request) {
       });
     }
 
-    if (input.sms) {
-      const numbers = new Map<string, string>(); // tenant id -> +254 number
-      for (const t of tenants) {
-        const number = toInternationalKenyan(t.phone);
-        if (number) numbers.set(t.id, number);
-        else deliveries.push({ messageId: messageFor.get(t.userId)!, channel: "SMS", recipient: t.phone || "-", status: "SKIPPED", error: "Not a Kenyan mobile number" });
-      }
-      const results = new Map((await sendSms(Array.from(new Set(numbers.values())), smsTextFor(input))).map((r) => [r.number, r]));
-      for (const t of tenants) {
-        const number = numbers.get(t.id);
-        if (!number) continue;
-        const r = results.get(number);
-        deliveries.push({
-          messageId: messageFor.get(t.userId)!,
-          channel: "SMS",
-          recipient: number,
-          status: r?.sent ? "SENT" : "FAILED",
-          error: r?.error,
-          providerId: r?.messageId,
-        });
-      }
-    }
-
     if (deliveries.length > 0) await prisma.messageDelivery.createMany({ data: deliveries });
     await prisma.auditLog.create({
       data: {
@@ -104,16 +78,15 @@ export async function POST(request: Request) {
         operation: "INSERT",
         tableName: "admin_messages",
         recordId: batchId,
-        newData: { audience: input.audience, county: input.county ?? null, tenants: tenants.length, email: input.email, sms: input.sms, subject: input.subject },
+        newData: { audience: input.audience, county: input.county ?? null, tenants: tenants.length, email: input.email, subject: input.subject },
       },
     });
 
-    const count = (channel: "EMAIL" | "SMS", status: string) => deliveries.filter((d) => d.channel === channel && d.status === status).length;
+    const count = (status: string) => deliveries.filter((d) => d.status === status).length;
     return NextResponse.json({
       batchId,
       tenants: tenants.length,
-      email: input.email ? { sent: count("EMAIL", "SENT"), failed: count("EMAIL", "FAILED") } : null,
-      sms: input.sms ? { sent: count("SMS", "SENT"), failed: count("SMS", "FAILED"), skipped: count("SMS", "SKIPPED") } : null,
+      email: input.email ? { sent: count("SENT"), failed: count("FAILED") } : null,
     });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
@@ -121,7 +94,7 @@ export async function POST(request: Request) {
   }
 }
 
-/** Recent sends with their delivery results, tenants' replies, and whether email and SMS are set up. */
+/** Recent sends with their email results, tenants' replies, and whether email is set up. */
 export async function GET() {
   try {
     const ctx = await requireRole(["SUPER_ADMIN"]);
@@ -161,7 +134,6 @@ export async function GET() {
       createdAt: Date;
       tenants: number;
       email: { sent: number; failed: number };
-      sms: { sent: number; failed: number; skipped: number };
       problems: { tenant: string; channel: string; recipient: string; error: string }[];
     };
     const batches = new Map<string, Batch>();
@@ -169,13 +141,13 @@ export async function GET() {
       const b =
         batches.get(m.batchId!) ??
         batches
-          .set(m.batchId!, { batchId: m.batchId!, subject: m.subject, createdAt: m.createdAt, tenants: 0, email: { sent: 0, failed: 0 }, sms: { sent: 0, failed: 0, skipped: 0 }, problems: [] })
+          .set(m.batchId!, { batchId: m.batchId!, subject: m.subject, createdAt: m.createdAt, tenants: 0, email: { sent: 0, failed: 0 }, problems: [] })
           .get(m.batchId!)!;
       b.tenants++;
       for (const d of m.deliveries) {
-        const key = d.status.toLowerCase() as "sent" | "failed" | "skipped";
-        if (d.channel === "EMAIL" && key !== "skipped") b.email[key]++;
-        if (d.channel === "SMS") b.sms[key]++;
+        if (d.channel !== "EMAIL") continue;
+        if (d.status === "SENT") b.email.sent++;
+        else b.email.failed++;
         if (d.status !== "SENT") {
           b.problems.push({ tenant: m.recipient?.tenant?.organizationName ?? "Unknown", channel: d.channel, recipient: d.recipient, error: d.error ?? d.status });
         }
@@ -184,7 +156,6 @@ export async function GET() {
 
     return NextResponse.json({
       emailReady: isEmailConfigured(),
-      smsReady: isSmsConfigured(),
       batches: Array.from(batches.values()).slice(0, 20),
       replies,
     });

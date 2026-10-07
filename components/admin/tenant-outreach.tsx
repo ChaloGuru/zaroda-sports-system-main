@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CornerDownRight, Mail, MessageSquare, Send, Smartphone } from "lucide-react";
+import { CornerDownRight, Mail, MessageSquare, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
-import { SMS_MAX, smsTextFor } from "@/lib/sms";
 
 interface TenantOption {
   id: string;
@@ -27,7 +26,6 @@ interface Batch {
   createdAt: string;
   tenants: number;
   email: { sent: number; failed: number };
-  sms: { sent: number; failed: number; skipped: number };
   problems: { tenant: string; channel: string; recipient: string; error: string }[];
 }
 
@@ -42,62 +40,52 @@ interface Reply {
 
 interface Overview {
   emailReady: boolean;
-  smsReady: boolean;
   batches: Batch[];
   replies: Reply[];
 }
 
 type Audience = "ALL" | "COUNTY" | "TENANTS";
 
-/** The system owner's channel to tenants: in-app always, plus email and SMS. */
+/** The system owner's channel to tenants: in-app always, plus email. */
 function Compose({ overview, onSent }: { overview: Overview | undefined; onSent: () => void }) {
   const [audience, setAudience] = React.useState<Audience>("ALL");
   const [county, setCounty] = React.useState("");
   const [picked, setPicked] = React.useState<string[]>([]);
   const [filter, setFilter] = React.useState("");
   const [email, setEmail] = React.useState(true);
-  const [sms, setSms] = React.useState(false);
   const [subject, setSubject] = React.useState("");
   const [body, setBody] = React.useState("");
-  const [smsText, setSmsText] = React.useState("");
 
   const { data } = useQuery({ queryKey: ["admin-tenants-lite"], queryFn: () => apiGet<{ tenants: TenantOption[] }>("/api/tenants") });
   const tenants = data?.tenants ?? [];
   const counties = Array.from(new Set(tenants.map((t) => t.county).filter(Boolean))).sort();
   const audienceSize =
     audience === "ALL" ? tenants.length : audience === "COUNTY" ? tenants.filter((t) => t.county === county).length : picked.length;
-  const smsPreview = smsTextFor({ subject, body, smsText });
 
   const send = useMutation({
     mutationFn: () =>
-      apiPost<{ tenants: number; email: { sent: number; failed: number } | null; sms: { sent: number; failed: number; skipped: number } | null }>(
+      apiPost<{ tenants: number; email: { sent: number; failed: number } | null }>(
         "/api/admin/outreach",
         {
           audience,
           county: audience === "COUNTY" ? county : undefined,
           tenantIds: audience === "TENANTS" ? picked : undefined,
           email,
-          sms,
           subject,
           body,
-          smsText: smsText || undefined,
         },
       ),
     onSuccess: (r) => {
       const parts = [`${r.tenants} inbox${r.tenants === 1 ? "" : "es"}`];
       if (r.email) parts.push(`${r.email.sent} email${r.email.sent === 1 ? "" : "s"}${r.email.failed ? ` (${r.email.failed} failed)` : ""}`);
-      if (r.sms) parts.push(`${r.sms.sent} SMS${r.sms.failed + r.sms.skipped ? ` (${r.sms.failed + r.sms.skipped} not sent)` : ""}`);
       toast.success(`Sent to ${parts.join(", ")}`);
       setSubject("");
       setBody("");
-      setSmsText("");
       onSent();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Sending failed"),
   });
 
-  const channelHint = (ready: boolean, what: string, settings: string) =>
-    ready ? null : <span className="block text-xs text-[#B45309]">{what} isn&apos;t set up yet - add {settings} in Vercel.</span>;
 
   return (
     <Card>
@@ -106,7 +94,7 @@ function Compose({ overview, onSent }: { overview: Overview | undefined; onSent:
           <Send className="h-5 w-5 text-primary" /> Message tenants
         </CardTitle>
         <CardDescription>
-          Every tenant gets it in their dashboard inbox, where they can reply - and by email and SMS if you tick them.
+          Every tenant gets it in their dashboard inbox, where they can reply - and by email if you tick it.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -157,22 +145,15 @@ function Compose({ overview, onSent }: { overview: Overview | undefined; onSent:
           </div>
         )}
 
-        <div className="flex flex-wrap gap-6 text-sm">
-          <label className="flex items-start gap-2">
-            <input type="checkbox" className="mt-1" checked={email} onChange={(e) => setEmail(e.target.checked)} />
-            <span>
-              <Mail className="mr-1 inline h-4 w-4" /> Email
-              {channelHint(!!overview?.emailReady, "Email", "RESEND_API_KEY and EMAIL_FROM")}
-            </span>
-          </label>
-          <label className="flex items-start gap-2">
-            <input type="checkbox" className="mt-1" checked={sms} onChange={(e) => setSms(e.target.checked)} />
-            <span>
-              <Smartphone className="mr-1 inline h-4 w-4" /> SMS
-              {channelHint(!!overview?.smsReady, "SMS", "AT_USERNAME and AT_API_KEY")}
-            </span>
-          </label>
-        </div>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={email} onChange={(e) => setEmail(e.target.checked)} />
+          <span>
+            <Mail className="mr-1 inline h-4 w-4" /> Also send by email
+            {!overview?.emailReady && (
+              <span className="block text-xs text-[#B45309]">Email isn&apos;t set up yet - add RESEND_API_KEY and EMAIL_FROM in Vercel.</span>
+            )}
+          </span>
+        </label>
 
         <div>
           <Label htmlFor="outreach-subject">Subject</Label>
@@ -182,28 +163,10 @@ function Compose({ overview, onSent }: { overview: Overview | undefined; onSent:
           <Label htmlFor="outreach-body">Message</Label>
           <Textarea id="outreach-body" className="mt-1.5" rows={6} value={body} onChange={(e) => setBody(e.target.value)} maxLength={5000} />
         </div>
-        {sms && (
-          <div>
-            <Label htmlFor="outreach-sms">Shorter SMS version (optional)</Label>
-            <Textarea
-              id="outreach-sms"
-              className="mt-1.5"
-              rows={2}
-              value={smsText}
-              onChange={(e) => setSmsText(e.target.value)}
-              maxLength={SMS_MAX}
-              placeholder="Leave empty to send the subject and message, shortened"
-            />
-            <p className="mt-1 text-xs text-muted">
-              SMS sent: &ldquo;{smsPreview}&rdquo; ({smsPreview.length} characters, {Math.ceil(smsPreview.length / 153) || 1} SMS each)
-            </p>
-          </div>
-        )}
-
         <Button
           disabled={send.isPending || !subject.trim() || !body.trim() || audienceSize === 0 || (audience === "COUNTY" && !county)}
           onClick={() => {
-            if (window.confirm(`Send "${subject}" to ${audienceSize} tenant${audienceSize === 1 ? "" : "s"}${email ? " by email" : ""}${sms ? `${email ? " and" : " by"} SMS` : ""}?`)) {
+            if (window.confirm(`Send "${subject}" to ${audienceSize} tenant${audienceSize === 1 ? "" : "s"}${email ? " (inbox and email)" : " (inbox only)"}?`)) {
               send.mutate();
             }
           }}
@@ -288,7 +251,7 @@ function SentLog({ batches }: { batches: Batch[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Sent messages</CardTitle>
-        <CardDescription>What went out, and any email or SMS that didn&apos;t arrive.</CardDescription>
+        <CardDescription>What went out, and any email that didn&apos;t arrive.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {batches.length === 0 && <p className="text-sm text-muted">Nothing sent yet.</p>}
@@ -299,18 +262,13 @@ function SentLog({ batches }: { batches: Batch[] }) {
               <span className="text-muted">· {formatDate(b.createdAt)} · {b.tenants} tenant{b.tenants === 1 ? "" : "s"}</span>
               <span className="mt-1 flex flex-wrap gap-2 text-xs">
                 {b.email.sent + b.email.failed > 0 && <Badge variant={b.email.failed ? "warning" : "success"}>Email {b.email.sent} sent{b.email.failed ? `, ${b.email.failed} failed` : ""}</Badge>}
-                {b.sms.sent + b.sms.failed + b.sms.skipped > 0 && (
-                  <Badge variant={b.sms.failed + b.sms.skipped ? "warning" : "success"}>
-                    SMS {b.sms.sent} sent{b.sms.failed ? `, ${b.sms.failed} failed` : ""}{b.sms.skipped ? `, ${b.sms.skipped} no valid number` : ""}
-                  </Badge>
-                )}
               </span>
             </summary>
             {b.problems.length > 0 && (
               <ul className="mt-2 space-y-1 text-xs text-muted">
                 {b.problems.map((p, i) => (
                   <li key={i}>
-                    {p.tenant} - {p.channel === "EMAIL" ? "email" : "SMS"} to {p.recipient}: {p.error}
+                    {p.tenant} - email to {p.recipient}: {p.error}
                   </li>
                 ))}
               </ul>

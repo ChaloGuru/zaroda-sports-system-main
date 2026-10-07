@@ -8,7 +8,7 @@ export default function AdminMessagingPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Messaging &amp; Circulars</h1>
         <p className="text-muted">
-          Message tenants by email and SMS, answer their replies, broadcast announcements, or publish a level-targeted circular.
+          Message tenants in-app and by email, answer their replies, broadcast announcements, or publish a level-targeted circular.
         </p>
       </div>
       <PanelErrorBoundary fallbackTitle="Tenant messaging failed to load">

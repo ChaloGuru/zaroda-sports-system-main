@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const tenantFindMany = vi.fn();
 const messageCreateMany = vi.fn();
@@ -21,69 +21,11 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const { POST } = await import("@/app/api/admin/outreach/route");
-const { sendSms, smsTextFor, toInternationalKenyan } = await import("@/lib/sms");
-
-const fetchMock = vi.fn();
-function atReply(recipients: { number: string; statusCode: number; status: string; messageId?: string }[]) {
-  return { ok: true, status: 201, text: async () => JSON.stringify({ SMSMessageData: { Message: "Sent", Recipients: recipients } }) };
-}
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.AT_USERNAME = "zaroda";
-  process.env.AT_API_KEY = "key";
   process.env.RESEND_API_KEY = "re_test";
   process.env.EMAIL_FROM = "Zaroda Sports <noreply@zarodasports.live>";
-  vi.stubGlobal("fetch", fetchMock);
-});
-afterEach(() => vi.unstubAllGlobals());
-
-describe("SMS through Africa's Talking", () => {
-  it("formats Kenyan numbers internationally", () => {
-    expect(toInternationalKenyan("0712 345 678")).toBe("+254712345678");
-    expect(toInternationalKenyan("254112345678")).toBe("+254112345678");
-    expect(toInternationalKenyan("12345")).toBeNull();
-  });
-
-  it("sends to many numbers in one request and reads each result", async () => {
-    fetchMock.mockResolvedValue(
-      atReply([
-        { number: "+254712345678", statusCode: 101, status: "Success", messageId: "ATXid_1" },
-        { number: "+254722000000", statusCode: 403, status: "InvalidPhoneNumber" },
-      ]),
-    );
-    const results = await sendSms(["+254712345678", "+254722000000"], "Hello");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe("https://api.africastalking.com/version1/messaging");
-    expect(String(init.body)).toContain("to=%2B254712345678%2C%2B254722000000");
-    expect(results).toEqual([
-      { number: "+254712345678", sent: true, messageId: "ATXid_1" },
-      { number: "+254722000000", sent: false, messageId: undefined, error: "InvalidPhoneNumber" },
-    ]);
-  });
-
-  it("uses the sandbox for the sandbox account", async () => {
-    process.env.AT_USERNAME = "sandbox";
-    fetchMock.mockResolvedValue(atReply([{ number: "+254712345678", statusCode: 101, status: "Success" }]));
-    await sendSms(["+254712345678"], "Hello");
-    expect(fetchMock.mock.calls[0]![0]).toBe("https://api.sandbox.africastalking.com/version1/messaging");
-  });
-
-  it("reports, rather than throws, when it isn't set up", async () => {
-    delete process.env.AT_API_KEY;
-    expect(await sendSms(["+254712345678"], "Hello")).toEqual([
-      { number: "+254712345678", sent: false, error: "SMS isn't set up yet (AT_USERNAME / AT_API_KEY)" },
-    ]);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("keeps an SMS within three segments, signed off", () => {
-    const text = smsTextFor({ subject: "Fees", body: "x".repeat(1000) });
-    expect(text.length).toBeLessThanOrEqual(459);
-    expect(text.endsWith("... - Zaroda Sports")).toBe(true);
-    expect(smsTextFor({ subject: "Hi", body: "Long", smsText: "Short version" })).toBe("Short version - Zaroda Sports");
-  });
 });
 
 describe("messaging tenants", () => {
@@ -97,7 +39,7 @@ describe("messaging tenants", () => {
       new Request("http://localhost/api/admin/outreach", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ audience: "ALL", email: true, sms: true, subject: "Fees due", body: "Please pay by Friday.", ...body }),
+        body: JSON.stringify({ audience: "ALL", email: true, subject: "Fees due", body: "Please pay by Friday.", ...body }),
       }),
     );
   }
@@ -106,13 +48,12 @@ describe("messaging tenants", () => {
     tenantFindMany.mockResolvedValue(tenants);
     messageFindMany.mockResolvedValue([{ id: "m1", recipientId: "u1" }, { id: "m2", recipientId: "u2" }]);
     batchSend.mockResolvedValue({ data: {}, error: null });
-    fetchMock.mockResolvedValue(atReply([{ number: "+254712345678", statusCode: 101, status: "Success", messageId: "ATXid_1" }]));
   });
 
-  it("puts it in every tenant's inbox, emails them, texts valid numbers, and logs each delivery", async () => {
+  it("puts it in every tenant's inbox, emails them, and logs each email", async () => {
     const res = await send({});
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ tenants: 2, email: { sent: 2, failed: 0 }, sms: { sent: 1, failed: 0, skipped: 1 } });
+    expect(await res.json()).toEqual({ batchId: expect.any(String), tenants: 2, email: { sent: 2, failed: 0 } });
     expect(messageCreateMany).toHaveBeenCalledWith({
       data: [
         expect.objectContaining({ senderId: "owner-admin", recipientId: "u1", subject: "Fees due" }),
@@ -122,19 +63,26 @@ describe("messaging tenants", () => {
     expect(batchSend.mock.calls[0]![0]).toHaveLength(2);
     expect(batchSend.mock.calls[0]![0][0]).toMatchObject({ to: "jane@school.ke", subject: "Fees due - Zaroda Sports" });
     expect(deliveryCreateMany).toHaveBeenCalledWith({
-      data: expect.arrayContaining([
-        expect.objectContaining({ messageId: "m1", channel: "SMS", recipient: "+254712345678", status: "SENT", providerId: "ATXid_1" }),
-        expect.objectContaining({ messageId: "m2", channel: "SMS", status: "SKIPPED", error: "Not a Kenyan mobile number" }),
-        expect.objectContaining({ messageId: "m1", channel: "EMAIL", status: "SENT" }),
-      ]),
+      data: [
+        expect.objectContaining({ messageId: "m1", channel: "EMAIL", recipient: "jane@school.ke", status: "SENT" }),
+        expect.objectContaining({ messageId: "m2", channel: "EMAIL", recipient: "otieno@school.ke", status: "SENT" }),
+      ],
     });
   });
 
-  it("only goes in the inbox when email and SMS aren't ticked", async () => {
-    const res = await send({ email: false, sms: false });
-    expect(await res.json()).toMatchObject({ tenants: 2, email: null, sms: null });
+  it("only goes in the inbox when email isn't ticked", async () => {
+    const res = await send({ email: false });
+    expect(await res.json()).toMatchObject({ tenants: 2, email: null });
     expect(batchSend).not.toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("logs an email the service refused", async () => {
+    batchSend.mockResolvedValue({ data: null, error: { name: "validation_error", message: "The domain is not verified" } });
+    const res = await send({});
+    expect(await res.json()).toMatchObject({ email: { sent: 0, failed: 2 } });
+    expect(deliveryCreateMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([expect.objectContaining({ status: "FAILED", error: "The domain is not verified" })]),
+    });
   });
 
   it("targets one county", async () => {
