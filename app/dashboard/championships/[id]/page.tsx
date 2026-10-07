@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getAuthContext, isSuperAdmin, hasRole, CHAMPIONSHIP_OPERATIONAL_ROLES } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import { formatDate } from "@/lib/utils";
 import { ChampionshipManager } from "@/components/dashboard/championship-manager";
 
 export default async function DashboardChampionshipDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -17,6 +19,30 @@ export default async function DashboardChampionshipDetailPage(props: { params: P
   const isFullAdmin = isSuperAdmin(ctx) || (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === championship.tenantId);
   const owns = isFullAdmin || scopedRoles.length > 0;
   if (!owns) notFound();
+
+  // Officials' roles end a day after the championship does (see
+  // isChampionshipRoleActive in lib/authorize.ts); say so plainly instead of
+  // showing panels that can no longer load. The organiser keeps access.
+  const rolesEndAt = new Date(championship.endDate);
+  rolesEndAt.setDate(rolesEndAt.getDate() + 1);
+  if (!isFullAdmin && new Date() >= rolesEndAt) {
+    return (
+      <div className="mx-auto max-w-lg space-y-3 py-16 text-center">
+        <h1 className="text-2xl font-bold text-foreground">{championship.name}</h1>
+        <p className="text-muted">
+          This championship ended on {formatDate(championship.endDate)}, so your role in it has ended too. The organiser
+          can still make changes - contact them if something needs correcting.
+        </p>
+        {championship.isPublished && (
+          <p>
+            <Link href={`/championship/${championship.id}`} className="text-primary hover:underline">
+              View the published results
+            </Link>
+          </p>
+        )}
+      </div>
+    );
+  }
 
   // A user whose ONLY role here is Team Manager gets a cut-down view scoped
   // to just their own organization's teams - not the full admin surface

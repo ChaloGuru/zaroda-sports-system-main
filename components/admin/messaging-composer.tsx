@@ -46,6 +46,12 @@ function CircularComposer() {
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Larger uploads are refused by Vercel before they reach the server.
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("PDF must be smaller than 4 MB - compress it or split it into parts");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
 
     setUploading(true);
     try {
