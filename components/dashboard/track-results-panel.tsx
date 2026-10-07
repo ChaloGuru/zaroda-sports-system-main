@@ -109,7 +109,7 @@ function HeatResultsForm({ heat, gameId, isTimed, canManage }: { heat: HeatRow; 
   });
 
   return (
-    <div className="space-y-2 rounded-md border border-border bg-white p-4">
+    <div className="space-y-2 rounded-md border border-border bg-surface p-4">
       <p className="font-medium text-foreground">{heatLabel(heat)}</p>
       {heat.participants.map((hp) => (
         <div key={hp.id} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
@@ -157,7 +157,7 @@ function ResultRowEditor({ participant, gameId, isTimed, canManage }: { particip
   });
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
         <LaneChip value={participant.bibNumber} size="lg" />
         <div>

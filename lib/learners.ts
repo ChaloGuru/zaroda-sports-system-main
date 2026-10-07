@@ -51,12 +51,32 @@ export async function highestBib(db: Db, championshipId: string): Promise<number
   return Math.max(entry?.bibNumber ?? 0, learner?.bibNumber ?? 0);
 }
 
-/** The next free bib in a school's range, counting its learners and any older entries. */
-export async function nextSchoolBib(db: Db, championshipId: string, schoolId: string, schoolName: string): Promise<number> {
-  const range = await db.schoolBibRange.findUnique({ where: { championshipId_schoolId: { championshipId, schoolId } } });
-  if (!range) {
-    throw new Error(`${schoolName} has no bib range yet - allocate one in the Bib Ranges tab, or enter a bib number.`);
+/**
+ * A school's bib range, allocated on the spot if it has none yet (e.g. a
+ * school typed in while registering a learner): the next free block after
+ * every range and bib in the championship, the size most of its ranges are
+ * (50 if there are none). It shows in the Bib Ranges tab and can be changed.
+ */
+export async function ensureSchoolBibRange(db: Db, championshipId: string, schoolId: string) {
+  const existing = await db.schoolBibRange.findUnique({ where: { championshipId_schoolId: { championshipId, schoolId } } });
+  if (existing) return existing;
+  const [ranges, highest] = await Promise.all([
+    db.schoolBibRange.findMany({ where: { championshipId }, select: { rangeStart: true, rangeEnd: true } }),
+    highestBib(db, championshipId),
+  ]);
+  const sizes = new Map<number, number>();
+  for (const r of ranges) {
+    const size = r.rangeEnd - r.rangeStart + 1;
+    sizes.set(size, (sizes.get(size) ?? 0) + 1);
   }
+  const size = [...sizes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 50;
+  const rangeStart = Math.max(highest, ...ranges.map((r) => r.rangeEnd), 0) + 1;
+  return db.schoolBibRange.create({ data: { championshipId, schoolId, rangeStart, rangeEnd: rangeStart + size - 1 } });
+}
+
+/** The next free bib in a school's range (allocating one if needed), counting its learners and any older entries. */
+export async function nextSchoolBib(db: Db, championshipId: string, schoolId: string): Promise<number> {
+  const range = await ensureSchoolBibRange(db, championshipId, schoolId);
   const [learners, entries] = await Promise.all([
     db.learner.findMany({ where: { championshipId, schoolId }, select: { bibNumber: true } }),
     db.participant.findMany({ where: { championshipId, schoolId }, select: { bibNumber: true } }),

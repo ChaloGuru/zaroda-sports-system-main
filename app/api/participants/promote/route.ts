@@ -124,7 +124,7 @@ export async function POST(request: Request) {
         where: { championshipId_schoolId: { championshipId: input.targetChampionshipId, schoolId: origin.schoolId } },
         select: { id: true },
       }))) {
-        bibNumber = await nextSchoolBib(prisma, input.targetChampionshipId, origin.schoolId, origin.school?.name ?? "This school");
+        bibNumber = await nextSchoolBib(prisma, input.targetChampionshipId, origin.schoolId);
       } else {
         if (nextBibNumber === null) {
           nextBibNumber = (await highestBib(prisma, input.targetChampionshipId)) + 1;

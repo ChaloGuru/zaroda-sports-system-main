@@ -73,11 +73,11 @@ describe("POST /api/championship-schools", () => {
     championshipSchoolFindMany.mockResolvedValue([{ school: { name: "Manyonge Primary", schoolLevel: null } }]);
   });
 
-  it("requires tournament-admin access", async () => {
+  it("requires tournament-admin or scorekeeper access (scorekeepers add schools while registering learners)", async () => {
     requireChampionshipAccessMock.mockRejectedValue(new AuthorizationError("You do not have access to this championship"));
     const res = await POST(post({ championshipId: CHAMP, names: ["Oruba Primary"] }));
     expect(res.status).toBe(403);
-    expect(requireChampionshipAccessMock).toHaveBeenCalledWith(CHAMP, ["TOURNAMENT_ADMIN"]);
+    expect(requireChampionshipAccessMock).toHaveBeenCalledWith(CHAMP, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
     expect(txSchoolCreateMany).not.toHaveBeenCalled();
   });
 

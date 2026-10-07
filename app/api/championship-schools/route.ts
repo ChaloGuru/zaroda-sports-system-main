@@ -97,7 +97,9 @@ export async function POST(request: Request) {
   try {
     const body: unknown = await request.json();
     const input = championshipSchoolsAddSchema.parse(body);
-    const ctx = await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN"]);
+    // Scorekeepers register learners, so they can add a missing school while
+    // doing it; editing and removing schools stays with tournament admins.
+    const ctx = await requireChampionshipAccess(input.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
 
     const championship = await prisma.championship.findUniqueOrThrow({
       where: { id: input.championshipId },

@@ -187,7 +187,7 @@ export async function POST(request: Request) {
         // Ball-game schools often have no bib range - the bib is internal there.
         bib = (await highestBib(prisma, input.championshipId)) + 1;
       } else {
-        bib = await nextSchoolBib(prisma, input.championshipId, schoolId, label);
+        bib = await nextSchoolBib(prisma, input.championshipId, schoolId);
       }
       const bibNumber = bib;
 

@@ -282,7 +282,7 @@ function ParticipantRowEditor({ participant, gameId, canManage }: { participant:
   });
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
         {/* Compare this photo with the learner standing in front of you. */}
         {learner && (

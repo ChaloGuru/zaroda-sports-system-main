@@ -17,6 +17,7 @@ import { learnerEntryCreateSchema, type LearnerEntryCreateInput } from "@/lib/va
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { useCanManageGame } from "@/hooks/use-game-access";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
+import { SchoolCombobox } from "@/components/dashboard/school-combobox";
 import { LearnerPhoto, PhotoPicker, idSearchText, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
 import { EditLearnerDialog } from "@/components/dashboard/learners-panel";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,8 @@ interface GameOption {
 interface SchoolOption {
   id: string;
   name: string;
+  baseName: string;
+  schoolLevel: string | null;
 }
 
 interface TeamOption {
@@ -226,21 +229,18 @@ function ExistingLearnerForm({
   return (
     <div className="space-y-4">
       <div>
-        <Label>School</Label>
-        <Select
+        <Label htmlFor="existing-school">School</Label>
+        <SchoolCombobox
+          id="existing-school"
+          championshipId={championshipId}
+          schools={schools}
           value={schoolId}
-          onValueChange={(v) => {
+          eventLevel={game.schoolLevel}
+          onChange={(v) => {
             setSchoolId(v);
             setLearnerId("");
           }}
-        >
-          <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select school" /></SelectTrigger>
-          <SelectContent>
-            {schools.map((s) => (
-              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       </div>
 
       {schoolId && (
@@ -317,7 +317,7 @@ export function ParticipantsPanel({
   const eventLevel = (gamesData?.games ?? []).find((g) => g.id === gameId)?.schoolLevel;
   const schools: SchoolOption[] = (schoolsData?.schools ?? [])
     .filter((s) => !s.schoolLevel || !eventLevel || s.schoolLevel === eventLevel)
-    .map((s) => ({ id: s.schoolId, name: s.label }));
+    .map((s) => ({ id: s.schoolId, name: s.label, baseName: s.name, schoolLevel: s.schoolLevel }));
   // Open tournaments: participants belong to a registered organization/team
   // instead of a School.
   const { data: teamsData } = useQuery({
@@ -477,7 +477,13 @@ export function ParticipantsPanel({
               />
             )}
             {showNewForm && (
-              <form onSubmit={handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
+              <form onSubmit={handleSubmit((v) => {
+                if (!isOpenTournament && !v.schoolId) {
+                  toast.error("Type the school's name and pick it from the list (or add it as a new school).");
+                  return;
+                }
+                createMutation.mutate(v);
+              })} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="firstName">First name</Label>
@@ -513,18 +519,18 @@ export function ParticipantsPanel({
                     </div>
                   ) : (
                     <div>
-                      <Label>School</Label>
-                      <Select value={watch("schoolId") ?? ""} onValueChange={(v) => setValue("schoolId", v)}>
-                        <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select school" /></SelectTrigger>
-                        <SelectContent>
-                          {schools.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {schools.length === 0 && (
-                        <p className="mt-1 text-xs text-muted">No schools yet - add this championship&apos;s schools in the Schools tab first.</p>
-                      )}
+                      <Label htmlFor="new-learner-school">School</Label>
+                      {/* Type to find the school - or add it if it isn't on the list yet. */}
+                      <SchoolCombobox
+                        id="new-learner-school"
+                        championshipId={championshipId}
+                        schools={schools}
+                        value={watch("schoolId") ?? ""}
+                        eventLevel={selectedGame?.schoolLevel}
+                        allowAdd
+                        onChange={(v) => setValue("schoolId", v || undefined, { shouldValidate: !!v })}
+                      />
+                      {errors.schoolId && <p className="mt-1 text-sm text-red-400">Type the school&apos;s name and pick it from the list.</p>}
                     </div>
                   )}
                 </div>
