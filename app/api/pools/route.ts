@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { canSeeGame, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { poolSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const gameId = searchParams.get("gameId");
     if (!gameId) return NextResponse.json({ error: "gameId is required" }, { status: 400 });
+    // Unpublished championships are only for the people running them.
+    if (!(await canSeeGame(gameId))) return NextResponse.json({ pools: [] });
 
     const pools = await prisma.pool.findMany({
       where: { gameId },

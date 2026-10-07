@@ -135,7 +135,18 @@ describe("team managers and their school's learners", () => {
 
   it("lets officials list every learner", async () => {
     getAuthContext.mockResolvedValue({ userId: "sk-1", roles: [{ role: "SCOREKEEPER", championshipId: CHAMP }] });
+    championshipFindUnique.mockResolvedValueOnce({
+      id: CHAMP, tenantId: "tenant", registrationClosesAt: null, ageCutoffDate: null, startDate: new Date("2026-06-01"), ageLimits: [],
+    }).mockResolvedValueOnce({ endDate: new Date("2999-01-01") });
     expect((await list()).status).toBe(200);
+  });
+
+  it("stops showing learners to an official once the championship has ended", async () => {
+    getAuthContext.mockResolvedValue({ userId: "sk-1", roles: [{ role: "SCOREKEEPER", championshipId: CHAMP }] });
+    championshipFindUnique.mockResolvedValueOnce({
+      id: CHAMP, tenantId: "tenant", registrationClosesAt: null, ageCutoffDate: null, startDate: new Date("2026-06-01"), ageLimits: [],
+    }).mockResolvedValueOnce({ endDate: new Date("2020-01-01") });
+    expect((await list()).status).toBe(403);
   });
 
   it("refuses another school's learners, or the whole championship's", async () => {

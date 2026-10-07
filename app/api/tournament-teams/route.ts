@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, requireAuth, canViewChampionshipPrivateData, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, requireAuth, canViewChampionshipPrivateData, managesTeam, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { dashboardTournamentTeamSchema } from "@/lib/validations";
 import { resolveTeamSchoolId } from "@/lib/championship-schools";
 import type { SchoolLevel } from "@prisma/client";
@@ -21,18 +21,27 @@ export async function GET(request: Request) {
     });
     if (!championship) return NextResponse.json({ teams: [] });
 
-    const isStaff = canViewChampionshipPrivateData(await getAuthContext(), championship);
-    if (!isStaff && !championship.isPublished) return NextResponse.json({ teams: [] });
+    const ctx = await getAuthContext();
+    const isStaff = await canViewChampionshipPrivateData(ctx, championship);
 
     const where: Record<string, unknown> = { championshipId };
     if (gameId) where.gameId = gameId;
+    const all = await prisma.tournamentTeam.findMany({ where, orderBy: { name: "asc" } });
 
-    const teams = await prisma.tournamentTeam.findMany({ where, orderBy: { name: "asc" } });
-    // Contact details and internal notes are staff-only.
+    // A team manager sees their own team(s) in full, published or not; other
+    // teams only as the public does. Contact details and notes are for
+    // officials and the team's own manager.
+    const own = new Set<string>();
+    if (!isStaff && ctx) {
+      for (const team of all) if (await managesTeam(ctx, championshipId, team.name)) own.add(team.id);
+    }
+    const visible = isStaff || championship.isPublished ? all : all.filter((team) => own.has(team.id));
     return NextResponse.json({
-      teams: isStaff
-        ? teams
-        : teams.map(({ contactName: _n, contactEmail: _e, contactPhone: _p, notes: _notes, ...rest }) => rest),
+      teams: visible.map((team) => {
+        if (isStaff || own.has(team.id)) return team;
+        const { contactName: _n, contactEmail: _e, contactPhone: _p, notes: _notes, ...rest } = team;
+        return rest;
+      }),
     });
   } catch (error) {
     const { body, status } = toErrorResponse(error);

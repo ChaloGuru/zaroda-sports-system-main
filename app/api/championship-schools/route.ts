@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import {
   getAuthContext,
-  canViewChampionshipPrivateData,
+  canSeeChampionship,
   requireChampionshipAccess,
   isGeographicallyRestricted,
   assertWithinGeographicScope,
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       select: { id: true, tenantId: true, isPublished: true },
     });
     if (!championship) return NextResponse.json({ schools: [] });
-    if (!championship.isPublished && !canViewChampionshipPrivateData(await getAuthContext(), championship)) {
+    if (!(await canSeeChampionship(await getAuthContext(), championship))) {
       return NextResponse.json({ schools: [] });
     }
 

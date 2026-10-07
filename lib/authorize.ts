@@ -85,33 +85,70 @@ export const CHAMPIONSHIP_OPERATIONAL_ROLES: Role[] = [
 ];
 
 /**
- * True if the caller may see a championship's private data (participant
- * dates of birth/notes, team contact details) rather than just the public
- * results view: SUPER_ADMIN, the owning TENANT_OWNER, or anyone holding an
- * operational role scoped to this championship.
+ * True if the caller may see a championship's private data - participants'
+ * dates of birth and notes, team contact details, learners' photos and
+ * birth certificate numbers - rather than just the public results view:
+ * SUPER_ADMIN, the owning TENANT_OWNER, or an official holding an
+ * operational role scoped to this championship that hasn't expired. Team
+ * managers aren't officials here: they see only their own team(s)
+ * (managesTeam) and their own school's learners (managedTeamSchoolIds).
  */
-export function canViewChampionshipPrivateData(
+export async function canViewChampionshipPrivateData(
   ctx: AuthContext | null,
   championship: { id: string; tenantId: string },
-): boolean {
+): Promise<boolean> {
   if (!ctx) return false;
   if (isSuperAdmin(ctx)) return true;
   if (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === championship.tenantId) return true;
-  return ctx.roles.some((r) => r.championshipId === championship.id && CHAMPIONSHIP_OPERATIONAL_ROLES.includes(r.role));
+  const official = ctx.roles.some(
+    (r) => r.championshipId === championship.id && r.role !== "TEAM_MANAGER" && CHAMPIONSHIP_OPERATIONAL_ROLES.includes(r.role),
+  );
+  return official && (await isChampionshipRoleActive(championship.id));
 }
 
 /**
- * Learners' identity details (photos, dates of birth, birth certificate
- * numbers) are for the championship's officials. Team managers aren't
- * included: they see only their own school's learners (managedTeamSchoolIds).
+ * True if the caller may see a championship at all: it's published, or
+ * they run it or hold any active role in it (team managers included -
+ * they need its events and fixtures before it's published).
  */
-export function canViewChampionshipLearners(ctx: AuthContext | null, championship: { id: string; tenantId: string }): boolean {
+export async function canSeeChampionship(
+  ctx: AuthContext | null,
+  championship: { id: string; tenantId: string; isPublished: boolean },
+): Promise<boolean> {
+  if (championship.isPublished) return true;
   if (!ctx) return false;
   if (isSuperAdmin(ctx)) return true;
   if (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === championship.tenantId) return true;
-  return ctx.roles.some(
-    (r) => r.championshipId === championship.id && r.role !== "TEAM_MANAGER" && CHAMPIONSHIP_OPERATIONAL_ROLES.includes(r.role),
+  const scoped = ctx.roles.some((r) => r.championshipId === championship.id && CHAMPIONSHIP_OPERATIONAL_ROLES.includes(r.role));
+  return scoped && (await isChampionshipRoleActive(championship.id));
+}
+
+/** canSeeChampionship for a championship by id - false if it doesn't exist. */
+export async function canSeeChampionshipById(championshipId: string): Promise<boolean> {
+  const championship = await prisma.championship.findUnique({
+    where: { id: championshipId },
+    select: { id: true, tenantId: true, isPublished: true },
+  });
+  return !!championship && (await canSeeChampionship(await getAuthContext(), championship));
+}
+
+/** canSeeChampionship for the championship a game belongs to - false if the game doesn't exist. */
+export async function canSeeGame(gameId: string): Promise<boolean> {
+  const game = await prisma.game.findUnique({
+    where: { id: gameId },
+    select: { championship: { select: { id: true, tenantId: true, isPublished: true } } },
+  });
+  return !!game && (await canSeeChampionship(await getAuthContext(), game.championship));
+}
+
+/** True if the caller is the (active) team manager of the team named `teamName` in this championship. */
+export async function managesTeam(ctx: AuthContext | null, championshipId: string, teamName: string): Promise<boolean> {
+  if (!ctx) return false;
+  const name = teamName.trim().toLowerCase();
+  const role = ctx.roles.some(
+    (r) => r.championshipId === championshipId && r.role === "TEAM_MANAGER" && r.organizationName?.trim().toLowerCase() === name,
   );
+  return role && (await isChampionshipRoleActive(championshipId));
 }
 
 /** Championship-scoped roles expire once the event ends, with a one-day grace period. */

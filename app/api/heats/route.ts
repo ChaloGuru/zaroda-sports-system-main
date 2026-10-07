@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireGameAccess, toErrorResponse } from "@/lib/authorize";
+import { canSeeGame, requireGameAccess, toErrorResponse } from "@/lib/authorize";
 import { seedLanes, DEFAULT_LANE_PRIORITY } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const gameId = searchParams.get("gameId");
     if (!gameId) return NextResponse.json({ error: "gameId is required" }, { status: 400 });
+    // Unpublished championships are only for the people running them.
+    if (!(await canSeeGame(gameId))) return NextResponse.json({ heats: [] });
 
     const heats = await prisma.heat.findMany({
       where: { gameId },

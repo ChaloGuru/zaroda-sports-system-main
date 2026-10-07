@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, canViewChampionshipLearners, managedTeamSchoolIds, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, canViewChampionshipPrivateData, managedTeamSchoolIds, toErrorResponse } from "@/lib/authorize";
 import { MAX_PHOTO_BYTES, assertRegistrationOpen, photoContentType, requireLearnerEditor } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     const ctx = await getAuthContext();
     const isTeamManager =
       !!ctx && !!learner.schoolId && (await managedTeamSchoolIds(ctx, learner.championship.id)).includes(learner.schoolId);
-    if (!canViewChampionshipLearners(ctx, learner.championship) && !isTeamManager) {
+    if (!isTeamManager && !(await canViewChampionshipPrivateData(ctx, learner.championship))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!learner.photo) return NextResponse.json({ error: "No photo" }, { status: 404 });

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { canSeeChampionshipById, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { championshipCircularSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const championshipId = searchParams.get("championshipId");
     if (!championshipId) return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
+    // Unpublished championships are only for the people running them.
+    if (!(await canSeeChampionshipById(championshipId))) return NextResponse.json({ circulars: [] });
 
     const circulars = await prisma.championshipCircular.findMany({
       where: { championshipId },

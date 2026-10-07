@@ -15,6 +15,23 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { loginSchema, type LoginInput } from "@/lib/validations";
 
+/**
+ * `next` as a path on this site, or the dashboard. Resolving it as a URL
+ * catches tricks a prefix check misses (e.g. "/\evil.com", which browsers
+ * read as "//evil.com"), so sign-in can't bounce people to another site.
+ */
+function sameSitePath(next: string | null): string {
+  if (!next) return "/dashboard";
+  try {
+    const url = new URL(next, window.location.origin);
+    // A path starting "//" would itself be read as another site.
+    if (url.origin === window.location.origin && !url.pathname.startsWith("//")) return url.pathname + url.search + url.hash;
+  } catch {
+    // Not a URL - fall through.
+  }
+  return "/dashboard";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = React.useState(false);
@@ -35,10 +52,8 @@ export default function LoginPage() {
         return;
       }
       toast.success("Welcome back!");
-      // Return to the page that sent people here to sign in. Only same-site
-      // paths are honoured.
-      const next = new URLSearchParams(window.location.search).get("callbackUrl");
-      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+      // Return to the page that sent people here to sign in.
+      router.push(sameSitePath(new URLSearchParams(window.location.search).get("callbackUrl")));
       router.refresh();
     } finally {
       setSubmitting(false);

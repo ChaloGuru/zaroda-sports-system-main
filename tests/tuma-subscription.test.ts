@@ -83,12 +83,12 @@ describe("paying for a subscription by M-Pesa", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ paymentId: PAYMENT, amountKes: 2500, phone: "254712345678" });
     expect(txCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ provider: "TUMA", amountKes: 2500, phone: "254712345678" }) });
-    const push = JSON.parse(fetchMock.mock.calls[1][1].body);
+    const push = JSON.parse(fetchMock.mock.calls[1]![1].body);
     expect(push).toMatchObject({ amount: 2500, phone: "254712345678" });
     const key = new URL(push.callback_url).searchParams.get("key")!;
     expect(push.callback_url).toMatch(new RegExp(`^https://www\\.zarodasports\\.live/api/payments/tuma-callback\\?payment=${PAYMENT}&key=`));
     // Only a hash of the key is stored.
-    expect(txCreate.mock.calls[0][0].data.callbackSecretHash).toBe(sha(key));
+    expect(txCreate.mock.calls[0]![0].data.callbackSecretHash).toBe(sha(key));
     expect(txUpdate).toHaveBeenCalledWith({ where: { id: PAYMENT }, data: { checkoutRequestId: "ws_CO_1" } });
   });
 

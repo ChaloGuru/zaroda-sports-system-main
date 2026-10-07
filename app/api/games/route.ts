@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
+import { canSeeChampionshipById, requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { gameCreateSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,8 @@ export async function GET(request: Request) {
     if (!championshipId) {
       return NextResponse.json({ error: "championshipId is required" }, { status: 400 });
     }
+    // Unpublished championships are only for the people running them.
+    if (!(await canSeeChampionshipById(championshipId))) return NextResponse.json({ games: [] });
 
     // Deactivated games are only listed for the Games tab (includeInactive),
     // so every entry screen and public view naturally skips them.

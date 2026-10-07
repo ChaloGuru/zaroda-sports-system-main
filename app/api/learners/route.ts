@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthContext, canViewChampionshipLearners, managedTeamSchoolIds, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, canViewChampionshipPrivateData, managedTeamSchoolIds, toErrorResponse } from "@/lib/authorize";
 import { ageDateOf } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     if (!championship) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
     // Officials see every learner; a school team's manager sees their school's.
     const ctx = await getAuthContext();
-    if (!canViewChampionshipLearners(ctx, championship)) {
+    if (!(await canViewChampionshipPrivateData(ctx, championship))) {
       const managed = ctx ? await managedTeamSchoolIds(ctx, championship.id) : [];
       if (!schoolId || !managed.includes(schoolId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

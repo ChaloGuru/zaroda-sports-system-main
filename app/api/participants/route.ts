@@ -3,7 +3,7 @@ import type { z } from "zod";
 import type { Role, SchoolLevel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, canViewChampionshipPrivateData, canViewChampionshipLearners, requireGameAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, canViewChampionshipPrivateData, managesTeam, requireGameAccess, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { learnerEntryCreateSchema, learnerEntrySchema } from "@/lib/validations";
 import { requireChampionshipSchool } from "@/lib/championship-schools";
 import { schoolEntryLabel, gameSchoolLevelLabel } from "@/lib/school-levels";
@@ -42,14 +42,13 @@ export async function GET(request: Request) {
       : null;
     if (!championship) return NextResponse.json({ participants: [] });
 
+    // Officials see dates of birth, notes and learner identity; a team's
+    // manager sees them for their own team's roster only.
     const ctx = await getAuthContext();
-    const isStaff = canViewChampionshipPrivateData(ctx, championship);
-    // Learner identity (photos, birth certificate numbers) is for officials,
-    // and for a team's own manager on that team's roster.
-    let showIdentity = canViewChampionshipLearners(ctx, championship);
-    if (!showIdentity && ctx && tournamentTeamId) {
+    let isStaff = await canViewChampionshipPrivateData(ctx, championship);
+    if (!isStaff && tournamentTeamId) {
       const team = await prisma.tournamentTeam.findUnique({ where: { id: tournamentTeamId }, select: { name: true } });
-      showIdentity = !!team && (await requireTeamAccess(championship.id, team.name).then(() => true, () => false));
+      isStaff = !!team && (await managesTeam(ctx, championship.id, team.name));
     }
     if (!isStaff && !championship.isPublished) return NextResponse.json({ participants: [] });
 
@@ -65,7 +64,7 @@ export async function GET(request: Request) {
         school: { select: { name: true } },
         tournamentTeam: { select: { name: true } },
         // Identity details for officials checking learners in the call room.
-        ...(showIdentity
+        ...(isStaff
           ? {
               learner: {
                 select: {

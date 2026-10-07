@@ -41,7 +41,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
       if (!owns) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     }
 
-    if (canViewChampionshipPrivateData(ctx, game.championship)) return NextResponse.json({ game });
+    if (await canViewChampionshipPrivateData(ctx, game.championship)) return NextResponse.json({ game });
     // Deactivated games are invisible outside the championship's own staff.
     if (!game.isActive) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     // Public view: no participant dates of birth or internal notes.

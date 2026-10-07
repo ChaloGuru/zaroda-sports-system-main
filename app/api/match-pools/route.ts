@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireGameAccess, toErrorResponse } from "@/lib/authorize";
+import { canSeeGame, requireGameAccess, toErrorResponse } from "@/lib/authorize";
 import { matchPoolSchema } from "@/lib/validations";
 import { resolveTeamNames } from "@/lib/match-pool-teams";
 
@@ -12,6 +12,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const gameId = searchParams.get("gameId");
     if (!gameId) return NextResponse.json({ error: "gameId is required" }, { status: 400 });
+    // Unpublished championships are only for the people running them.
+    if (!(await canSeeGame(gameId))) return NextResponse.json({ matchPools: [] });
 
     const matchPools = await prisma.matchPool.findMany({ where: { gameId }, orderBy: { createdAt: "asc" } });
     const names = await resolveTeamNames(matchPools.flatMap((mp) => [mp.teamAId, mp.teamBId]));

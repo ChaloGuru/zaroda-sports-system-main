@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthContext, isSuperAdmin, hasRole, CHAMPIONSHIP_OPERATIONAL_ROLES, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, canViewChampionshipPrivateData, toErrorResponse } from "@/lib/authorize";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +23,10 @@ export async function GET(request: Request) {
     const championship = await prisma.championship.findUnique({ where: { id: championshipId } });
     if (!championship) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
 
-    const isFullAdmin = isSuperAdmin(ctx) || (hasRole(ctx, "TENANT_OWNER") && ctx.tenantId === championship.tenantId);
-    const hasOperationalRole = ctx.roles.some(
-      (r) => r.championshipId === championshipId && CHAMPIONSHIP_OPERATIONAL_ROLES.includes(r.role),
-    );
-    if (!isFullAdmin && !hasOperationalRole) return NextResponse.json({ error: "Championship not found" }, { status: 404 });
+    // Officials only (it includes fee payments) - not team managers.
+    if (!(await canViewChampionshipPrivateData(ctx, championship))) {
+      return NextResponse.json({ error: "Championship not found" }, { status: 404 });
+    }
 
     const schoolLevelFilter = !schoolLevelParam || schoolLevelParam === "OVERALL" ? null : schoolLevelParam;
     const genderFilter = !genderParam || genderParam === "OVERALL" ? null : genderParam;

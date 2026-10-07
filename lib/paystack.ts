@@ -2,7 +2,7 @@
 // a client component - this module is only safe to import from Route Handlers,
 // Server Actions, and other server-only lib code.
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
@@ -110,8 +110,13 @@ export function kesToKobo(amountKes: number): number {
   return Math.round(amountKes * 100);
 }
 
+/**
+ * Our reference for a payment. It doubles as the bearer token for its
+ * receipt (/api/payments/receipt), so the random part must be unguessable -
+ * 128 bits from the secure generator, not Math.random().
+ */
 export function generatePaymentReference(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}_${Date.now()}_${randomBytes(16).toString("hex")}`;
 }
 
 /**
