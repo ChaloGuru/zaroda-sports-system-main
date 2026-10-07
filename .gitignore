@@ -4,3 +4,6 @@ node_modules
 *.log
 *.tsbuildinfo
 coverage
+
+# MediaPipe runtime, copied from node_modules at build time (scripts/copy-mediapipe.mjs)
+/public/mediapipe/

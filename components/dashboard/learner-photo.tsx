@@ -3,6 +3,7 @@
 import * as React from "react";
 import { UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { checkLearnerPhoto } from "@/lib/photo-check";
 
 /** A learner's identity details as officials' participant lists return them. */
 export interface LearnerIdentity {
@@ -91,23 +92,25 @@ function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob>
 }
 
 /**
- * Crops a photo to a centred square and shrinks it to a small JPEG (at most
- * 320px) before upload - square so it fits the call-room frame and the
- * nominal roll without stretching. Lowers the quality if it's still over
- * the upload limit.
+ * Crops a photo to a square - around the face when the face check found one,
+ * otherwise the centre - and shrinks it to a small JPEG (at most 320px)
+ * before upload, so it fits the call-room frame and the nominal roll
+ * without stretching. Lowers the quality if it's still over the upload limit.
  */
-export async function resizePhoto(file: File, maxSide = 320): Promise<Blob> {
+export async function resizePhoto(file: File, maxSide = 320, crop?: { x: number; y: number; size: number }): Promise<Blob> {
   const problem = photoFileProblem(file);
   if (problem) throw new Error(problem);
   const bitmap = await createImageBitmap(file).catch(() => {
     throw new Error("Couldn't read that photo - try another one.");
   });
-  const side = Math.min(bitmap.width, bitmap.height);
+  const side = crop ? Math.min(crop.size, bitmap.width, bitmap.height) : Math.min(bitmap.width, bitmap.height);
+  const sx = crop ? Math.min(Math.max(0, crop.x), bitmap.width - side) : (bitmap.width - side) / 2;
+  const sy = crop ? Math.min(Math.max(0, crop.y), bitmap.height - side) : (bitmap.height - side) / 2;
   const out = Math.min(maxSide, side);
   const canvas = document.createElement("canvas");
   canvas.width = out;
   canvas.height = out;
-  canvas.getContext("2d")?.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, out, out);
+  canvas.getContext("2d")?.drawImage(bitmap, sx, sy, side, side, 0, 0, out, out);
   bitmap.close();
   for (const quality of [0.82, 0.7, 0.55, 0.4]) {
     const blob = await canvasToJpeg(canvas, quality);
@@ -116,10 +119,12 @@ export async function resizePhoto(file: File, maxSide = 320): Promise<Blob> {
   throw new Error("That photo is too large even after shrinking - try another one.");
 }
 
-/** Resizes and uploads a learner's photo. */
+/** Checks, crops around the face, resizes and uploads a learner's photo. */
 export async function uploadLearnerPhoto(learnerId: string, file: File): Promise<void> {
+  const check = await checkLearnerPhoto(file);
+  if (check.ok === false) throw new Error(check.problems.join(" "));
   const form = new FormData();
-  form.append("photo", await resizePhoto(file), "photo.jpg");
+  form.append("photo", await resizePhoto(file, 320, check.ok === true ? check.crop : undefined), "photo.jpg");
   const res = await fetch(`/api/learners/${learnerId}/photo`, { method: "PUT", body: form });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -139,6 +144,8 @@ export function PhotoPicker({
 }) {
   const [preview, setPreview] = React.useState<string | null>(null);
   const [problem, setProblem] = React.useState<string | null>(null);
+  const [checking, setChecking] = React.useState(false);
+  const [unchecked, setUnchecked] = React.useState(false);
   React.useEffect(() => {
     if (!file) return setPreview(null);
     const url = URL.createObjectURL(file);
@@ -162,17 +169,42 @@ export function PhotoPicker({
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          onChange={(e) => {
-            const chosen = e.target.files?.[0] ?? null;
+          disabled={checking}
+          onChange={async (e) => {
+            const input = e.target;
+            const chosen = input.files?.[0] ?? null;
+            setUnchecked(false);
             const reason = chosen && photoFileProblem(chosen);
-            setProblem(reason || null);
-            if (reason) e.target.value = "";
-            onChange(reason ? null : chosen);
+            if (!chosen || reason) {
+              setProblem(reason || null);
+              if (reason) input.value = "";
+              onChange(null);
+              return;
+            }
+            // The face check runs here, so a poor photo is turned away at once.
+            setChecking(true);
+            setProblem(null);
+            const check = await checkLearnerPhoto(chosen);
+            setChecking(false);
+            if (check.ok === false) {
+              setProblem(check.problems.join(" "));
+              input.value = "";
+              onChange(null);
+              return;
+            }
+            setUnchecked(check.ok === "unchecked");
+            onChange(chosen);
           }}
           className="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-foreground"
         />
-        {problem ? (
+        {checking ? (
+          <p className="mt-1 text-xs text-muted">Checking the photo...</p>
+        ) : problem ? (
           <p className="mt-1 text-xs font-medium text-destructive">{problem}</p>
+        ) : unchecked ? (
+          <p className="mt-1 text-xs text-[#B45309]">
+            This photo couldn&apos;t be checked automatically on this device - make sure the face is clear and facing the camera.
+          </p>
         ) : (
           <p className="mt-1 text-xs text-muted">A clear face photo (up to 15 MB) - checked against the learner in the call room.</p>
         )}
