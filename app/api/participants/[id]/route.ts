@@ -102,7 +102,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         if (existing.learnerId && Object.keys(learnerChanges).length > 0) {
           const learner = await tx.learner.findUniqueOrThrow({
             where: { id: existing.learnerId },
-            select: { id: true, championshipId: true, bibNumber: true, birthCertNumber: true },
+            select: { id: true, championshipId: true, bibNumber: true },
           });
           await updateLearner(tx, learner, learnerChanges);
         }

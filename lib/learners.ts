@@ -16,6 +16,8 @@ export const LEARNER_FIELDS = {
   gender: true,
   dateOfBirth: true,
   birthCertNumber: true,
+  knecAssessmentNumber: true,
+  kemisUpi: true,
   bibNumber: true,
   photoUpdatedAt: true,
 } satisfies Prisma.LearnerSelect;
@@ -63,23 +65,56 @@ export async function nextSchoolBib(db: Db, championshipId: string, schoolId: st
   return assignNextBibNumber(schoolId, range, used);
 }
 
-export interface LearnerChanges {
+/** A learner's official ID numbers - each optional, and each belongs to one learner per championship. */
+export const LEARNER_ID_FIELDS = [
+  { key: "birthCertNumber", label: "Birth certificate entry no." },
+  { key: "knecAssessmentNumber", label: "KNEC assessment no." },
+  { key: "kemisUpi", label: "KEMIS UPI" },
+] as const;
+export type LearnerIdKey = (typeof LEARNER_ID_FIELDS)[number]["key"];
+export type LearnerIds = Partial<Record<LearnerIdKey, string | null>>;
+
+/** ID numbers are stored uppercase without spaces, so typing differences don't hide a duplicate. */
+export function normalizeIdNumber(value: string | null | undefined): string | null {
+  const number = (value ?? "").replace(/\s+/g, "").toUpperCase();
+  return number === "" ? null : number;
+}
+
+/** The given ID numbers, normalised, for saving on a learner. */
+export function normalizeIds(ids: LearnerIds): Record<LearnerIdKey, string | null> {
+  return Object.fromEntries(LEARNER_ID_FIELDS.map(({ key }) => [key, normalizeIdNumber(ids[key])])) as Record<LearnerIdKey, string | null>;
+}
+
+/** Why one of these ID numbers can't go to this learner - another learner in the championship has it - or null. */
+export async function idNumberConflict(db: Db, championshipId: string, ids: LearnerIds, learnerId: string | null): Promise<string | null> {
+  for (const { key, label } of LEARNER_ID_FIELDS) {
+    const value = normalizeIdNumber(ids[key]);
+    if (!value) continue;
+    const other = await db.learner.findFirst({
+      where: { championshipId, [key]: value, ...(learnerId ? { NOT: { id: learnerId } } : {}) },
+      select: { firstName: true, lastName: true },
+    });
+    if (other) return `${label} ${value} is already registered to ${other.firstName} ${other.lastName}`;
+  }
+  return null;
+}
+
+export interface LearnerChanges extends LearnerIds {
   firstName?: string;
   lastName?: string;
   gender?: Gender;
   dateOfBirth?: Date | null;
-  birthCertNumber?: string | null;
   bibNumber?: number;
 }
 
 /**
  * Applies identity changes to a learner and copies the shared fields onto
  * every one of their event entries, so all events show the same name and
- * bib. Checks the new bib and birth certificate number aren't someone else's first.
+ * bib. Checks the new bib and ID numbers aren't someone else's first.
  */
 export async function updateLearner(
   tx: Prisma.TransactionClient,
-  learner: { id: string; championshipId: string; bibNumber: number; birthCertNumber: string | null },
+  learner: { id: string; championshipId: string; bibNumber: number },
   changes: LearnerChanges,
 ) {
   const data: Prisma.LearnerUpdateInput = {};
@@ -87,17 +122,13 @@ export async function updateLearner(
   if (changes.lastName !== undefined) data.lastName = changes.lastName.trim();
   if (changes.gender !== undefined) data.gender = changes.gender;
   if (changes.dateOfBirth !== undefined) data.dateOfBirth = changes.dateOfBirth;
-  if (changes.birthCertNumber !== undefined) {
-    const birthCertNumber = normalizeBirthCert(changes.birthCertNumber);
-    if (birthCertNumber && birthCertNumber !== learner.birthCertNumber) {
-      const other = await tx.learner.findUnique({
-        where: { championshipId_birthCertNumber: { championshipId: learner.championshipId, birthCertNumber } },
-        select: { firstName: true, lastName: true },
-      });
-      if (other) throw new Error(`Birth certificate entry no. ${birthCertNumber} is already registered to ${other.firstName} ${other.lastName}`);
-    }
-    data.birthCertNumber = birthCertNumber;
+  const idChanges: LearnerIds = {};
+  for (const { key } of LEARNER_ID_FIELDS) {
+    if (changes[key] !== undefined) idChanges[key] = normalizeIdNumber(changes[key]);
   }
+  const conflict = await idNumberConflict(tx, learner.championshipId, idChanges, learner.id);
+  if (conflict) throw new Error(conflict);
+  Object.assign(data, idChanges);
   if (changes.bibNumber !== undefined && changes.bibNumber !== learner.bibNumber) {
     const conflict = await bibConflict(tx, learner.championshipId, changes.bibNumber, learner.id);
     if (conflict) throw new Error(conflict);
@@ -116,12 +147,6 @@ export async function updateLearner(
     },
   });
   return updated;
-}
-
-/** Birth certificate entry numbers are stored uppercase without spaces, so typing differences don't hide a duplicate. */
-export function normalizeBirthCert(value: string | null | undefined): string | null {
-  const number = (value ?? "").replace(/\s+/g, "").toUpperCase();
-  return number === "" ? null : number;
 }
 
 /**
@@ -266,6 +291,8 @@ export async function mergeLearners(tx: Prisma.TransactionClient, keepId: string
     data: {
       dateOfBirth: keep.dateOfBirth ?? duplicate.dateOfBirth,
       birthCertNumber: keep.birthCertNumber ?? duplicate.birthCertNumber,
+      knecAssessmentNumber: keep.knecAssessmentNumber ?? duplicate.knecAssessmentNumber,
+      kemisUpi: keep.kemisUpi ?? duplicate.kemisUpi,
       ...(!keep.photo && duplicate.photo ? { photo: duplicate.photo, photoUpdatedAt: duplicate.photoUpdatedAt } : {}),
     },
   });
@@ -279,14 +306,17 @@ type PromotableLearner = Prisma.LearnerGetPayload<Record<string, never>>;
 /**
  * A promoted learner's record at the next level, if there is one already -
  * the one promoted from them, or one their school registered there with the
- * same birth certificate number. They keep that record (and its bib)
+ * same ID number (birth certificate, KNEC or KEMIS). They keep that record (and its bib)
  * however many events or teams they're promoted in.
  */
 export function findPromotedLearner(db: Db, origin: PromotableLearner, targetChampionshipId: string) {
   return db.learner.findFirst({
     where: {
       championshipId: targetChampionshipId,
-      OR: [{ promotedFromLearnerId: origin.id }, ...(origin.birthCertNumber ? [{ birthCertNumber: origin.birthCertNumber }] : [])],
+      OR: [
+        { promotedFromLearnerId: origin.id },
+        ...LEARNER_ID_FIELDS.filter(({ key }) => origin[key]).map(({ key }) => ({ [key]: origin[key] })),
+      ],
     },
   });
 }
@@ -302,6 +332,8 @@ export function createPromotedLearner(tx: Prisma.TransactionClient, origin: Prom
       gender: origin.gender,
       dateOfBirth: origin.dateOfBirth,
       birthCertNumber: origin.birthCertNumber,
+      knecAssessmentNumber: origin.knecAssessmentNumber,
+      kemisUpi: origin.kemisUpi,
       bibNumber,
       photo: origin.photo,
       photoUpdatedAt: origin.photoUpdatedAt,

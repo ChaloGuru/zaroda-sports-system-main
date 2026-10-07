@@ -8,7 +8,7 @@ import { learnerEntryCreateSchema, learnerEntrySchema } from "@/lib/validations"
 import { requireChampionshipSchool } from "@/lib/championship-schools";
 import { schoolEntryLabel, gameSchoolLevelLabel } from "@/lib/school-levels";
 import { parseTimeToSeconds } from "@/lib/scoring";
-import { assertRegistrationOpen, assertWithinAgeLimit, bibConflict, highestBib, nextSchoolBib, normalizeBirthCert } from "@/lib/learners";
+import { assertRegistrationOpen, assertWithinAgeLimit, bibConflict, highestBib, idNumberConflict, nextSchoolBib, normalizeIds } from "@/lib/learners";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +70,8 @@ export async function GET(request: Request) {
                 select: {
                   id: true,
                   birthCertNumber: true,
+                  knecAssessmentNumber: true,
+                  kemisUpi: true,
                   dateOfBirth: true,
                   photoUpdatedAt: true,
                   participants: { select: { gameId: true, game: { select: { name: true } } } },
@@ -153,18 +155,11 @@ export async function POST(request: Request) {
       const label = schoolName ?? "this school";
       await assertRegistrationOpen(input.championshipId);
       await assertWithinAgeLimit(input.championshipId, { ...input, dateOfBirth: input.dateOfBirth ?? null }, [game.schoolLevel]);
-      const birthCertNumber = normalizeBirthCert(input.birthCertNumber);
-      if (birthCertNumber) {
-        const sameCert = await prisma.learner.findUnique({
-          where: { championshipId_birthCertNumber: { championshipId: input.championshipId, birthCertNumber } },
-          select: { firstName: true, lastName: true },
-        });
-        if (sameCert) {
-          throw new Error(
-            `Birth certificate entry no. ${birthCertNumber} is already registered to ${sameCert.firstName} ${sameCert.lastName} - add them to this event as an existing learner.`,
-          );
-        }
-      }
+      // A birth certificate, KNEC or KEMIS number already on record means
+      // this learner is registered - enter that learner instead.
+      const ids = normalizeIds(input);
+      const idConflict = await idNumberConflict(prisma, input.championshipId, ids, null);
+      if (idConflict) throw new Error(`${idConflict} - add them to this event as an existing learner.`);
       const sameName = await prisma.learner.findFirst({
         where: {
           championshipId: input.championshipId,
@@ -209,7 +204,7 @@ export async function POST(request: Request) {
               lastName: input.lastName.trim(),
               gender: input.gender,
               dateOfBirth: input.dateOfBirth ?? null,
-              birthCertNumber,
+              ...ids,
               bibNumber,
             },
           });
@@ -234,7 +229,7 @@ export async function POST(request: Request) {
           });
         },
         recordId: (result) => result.id,
-        newData: { ...input, birthCertNumber, bibNumber },
+        newData: { ...input, ...ids, bibNumber },
       });
       return NextResponse.json({ participant }, { status: 201 });
     }

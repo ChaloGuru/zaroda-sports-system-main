@@ -171,17 +171,25 @@ export const participantCreateSchema = z.object({
 });
 export type ParticipantCreateInput = z.infer<typeof participantCreateSchema>;
 
-const birthCertSchema = z
-  .string()
-  .trim()
-  .regex(/^[A-Za-z0-9 /-]{4,20}$/, "Birth certificate entry no. should be 4-20 letters and digits")
-  .nullable()
-  .optional();
+/** An optional official ID number (birth certificate, KNEC assessment, KEMIS UPI); "" means none. */
+const idNumberSchema = (label: string) =>
+  z.preprocess(
+    (v) => (v === "" ? null : v),
+    z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9 /-]{4,20}$/, `${label} should be 4-20 letters and digits`)
+      .nullable()
+      .optional(),
+  );
+const learnerIdsSchema = {
+  birthCertNumber: idNumberSchema("Birth certificate entry no."),
+  knecAssessmentNumber: idNumberSchema("KNEC assessment no."),
+  kemisUpi: idNumberSchema("KEMIS UPI"),
+};
 
 /** A new learner, entered in their first event. */
-export const learnerEntryCreateSchema = participantCreateSchema.extend({
-  birthCertNumber: z.preprocess((v) => (v === "" ? null : v), birthCertSchema),
-});
+export const learnerEntryCreateSchema = participantCreateSchema.extend(learnerIdsSchema);
 export type LearnerEntryCreateInput = z.infer<typeof learnerEntryCreateSchema>;
 
 /** An already-registered learner entered in another event. */
@@ -201,7 +209,7 @@ export const learnerUpdateSchema = z.object({
   lastName: z.string().trim().min(1).max(100).optional(),
   gender: genderSchema.optional(),
   dateOfBirth: z.coerce.date().nullable().optional(),
-  birthCertNumber: birthCertSchema,
+  ...learnerIdsSchema,
   bibNumber: z.number().int().positive().optional(),
 });
 

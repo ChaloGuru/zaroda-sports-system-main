@@ -504,6 +504,11 @@ model Learner {
   dateOfBirth           DateTime?
   // The entry number on the learner's birth certificate - one per learner.
   birthCertNumber       String?
+  // Optional: the learner's KNEC assessment number and KEMIS UPI (Unique
+  // Personal Identifier) - like the birth certificate number, each belongs to
+  // one learner per championship.
+  knecAssessmentNumber  String?
+  kemisUpi              String?
   bibNumber             Int
   // A small JPEG (resized in the browser), served only to the
   // championship's officials through /api/learners/[id]/photo.
@@ -521,6 +526,8 @@ model Learner {
 
   @@unique([championshipId, bibNumber])
   @@unique([championshipId, birthCertNumber])
+  @@unique([championshipId, knecAssessmentNumber])
+  @@unique([championshipId, kemisUpi])
   @@index([schoolId])
   @@index([promotedFromLearnerId])
   @@map("learners")

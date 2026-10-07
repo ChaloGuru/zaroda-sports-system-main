@@ -48,7 +48,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const { POST } = await import("@/app/api/participants/route");
-const { ageOn, mergeLearners, normalizeBirthCert, overAgeReason, photoContentType, updateLearner } = await import("@/lib/learners");
+const { ageOn, mergeLearners, normalizeIdNumber, overAgeReason, photoContentType, updateLearner } = await import("@/lib/learners");
 
 const CHAMP = "11111111-1111-1111-1111-111111111111";
 const GAME = "22222222-2222-2222-2222-222222222222";
@@ -98,12 +98,35 @@ describe("registering a new learner", () => {
     expect(txParticipantCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ learnerId: "l-new", bibNumber: 102 }) });
   });
 
+  /** Another learner in the championship already holds this ID number. */
+  function heldBy(key: string, value: string) {
+    learnerFindFirst.mockImplementation(async (args: { where: Record<string, unknown> }) =>
+      args.where[key] === value ? { firstName: "Mary", lastName: "Akinyi" } : null,
+    );
+  }
+
   it("refuses a birth certificate entry no. already registered to another learner", async () => {
-    learnerFindUnique.mockResolvedValue({ firstName: "Mary", lastName: "Akinyi" });
-    const res = await POST(newLearner({ birthCertNumber: "AB12CD3" }));
+    heldBy("birthCertNumber", "AB12CD3");
+    const res = await POST(newLearner({ birthCertNumber: "ab 12cd3" }));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/Birth certificate entry no. AB12CD3 is already registered to Mary Akinyi/);
+    expect((await res.json()).error).toBe("Birth certificate entry no. AB12CD3 is already registered to Mary Akinyi - add them to this event as an existing learner.");
     expect(txLearnerCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a KNEC assessment no. or KEMIS UPI already registered to another learner", async () => {
+    heldBy("knecAssessmentNumber", "20345678");
+    expect((await (await POST(newLearner({ knecAssessmentNumber: "20345678" }))).json()).error).toMatch(/^KNEC assessment no. 20345678 is already registered to Mary Akinyi/);
+    heldBy("kemisUpi", "AB1C2D");
+    expect((await (await POST(newLearner({ kemisUpi: "ab1c2d" }))).json()).error).toMatch(/^KEMIS UPI AB1C2D is already registered to Mary Akinyi/);
+    expect(txLearnerCreate).not.toHaveBeenCalled();
+  });
+
+  it("saves the optional KNEC and KEMIS numbers, tidied", async () => {
+    const res = await POST(newLearner({ knecAssessmentNumber: " 2034 5678 ", kemisUpi: "ab1c2d", birthCertNumber: "" }));
+    expect(res.status).toBe(201);
+    expect(txLearnerCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ knecAssessmentNumber: "20345678", kemisUpi: "AB1C2D", birthCertNumber: null }),
+    });
   });
 
   it("points to the existing learner when the same name is registered again at the school", async () => {
@@ -178,8 +201,10 @@ describe("updateLearner", () => {
   function fakeTx(conflicts: { learner?: unknown; cert?: unknown } = {}) {
     return {
       learner: {
-        findFirst: vi.fn().mockResolvedValue(conflicts.learner ?? null),
-        findUnique: vi.fn().mockResolvedValue(conflicts.cert ?? null),
+        // A bib lookup finds conflicts.learner; an ID number lookup finds conflicts.cert.
+        findFirst: vi.fn().mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+          "bibNumber" in where ? (conflicts.learner ?? null) : (conflicts.cert ?? null),
+        ),
         update: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
           firstName: "Amina",
           lastName: "Otieno",
@@ -221,10 +246,10 @@ describe("learner helpers", () => {
     expect(ageOn(new Date("2012-10-06"), new Date("2026-10-06"))).toBe(14);
   });
 
-  it("normalises birth certificate entry numbers", () => {
-    expect(normalizeBirthCert(" ab 12 cd ")).toBe("AB12CD");
-    expect(normalizeBirthCert("")).toBeNull();
-    expect(normalizeBirthCert(null)).toBeNull();
+  it("normalises ID numbers", () => {
+    expect(normalizeIdNumber(" ab 12 cd ")).toBe("AB12CD");
+    expect(normalizeIdNumber("")).toBeNull();
+    expect(normalizeIdNumber(null)).toBeNull();
   });
 
   it("recognises photos by their file signature", () => {

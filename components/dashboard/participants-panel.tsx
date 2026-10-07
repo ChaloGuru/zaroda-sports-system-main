@@ -17,7 +17,7 @@ import { learnerEntryCreateSchema, type LearnerEntryCreateInput } from "@/lib/va
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { useCanManageGame } from "@/hooks/use-game-access";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
-import { LearnerPhoto, PhotoPicker, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
+import { LearnerPhoto, PhotoPicker, idSearchText, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
 import { EditLearnerDialog } from "@/components/dashboard/learners-panel";
 import { cn } from "@/lib/utils";
 import { gameSchoolLevelLabel } from "@/lib/school-levels";
@@ -68,6 +68,8 @@ interface LearnerOption {
   gender: string;
   bibNumber: number;
   birthCertNumber: string | null;
+  knecAssessmentNumber?: string | null;
+  kemisUpi?: string | null;
   photoUpdatedAt: string | null;
   participants: { gameId: string; game: { name: string } }[];
 }
@@ -210,7 +212,7 @@ function ExistingLearnerForm({
   const learners = (data?.learners ?? [])
     .filter((l) => !l.participants.some((p) => p.gameId === game.id))
     .filter((l) => game.gender === "MIXED" || l.gender === game.gender)
-    .filter((l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${l.birthCertNumber ?? ""}`.toLowerCase().includes(search.toLowerCase()));
+    .filter((l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${idSearchText(l)}`.toLowerCase().includes(search.toLowerCase()));
 
   const enter = useMutation({
     mutationFn: () => apiPost("/api/participants", { championshipId, gameId: game.id, learnerId, personalBest: personalBest || null }),
@@ -245,7 +247,7 @@ function ExistingLearnerForm({
         <div className="space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <Input placeholder="Search name, bib or birth cert. no..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Search name, bib or ID no..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <div className="max-h-64 space-y-1 overflow-y-auto">
             {isLoading && <p className="text-sm text-muted">Loading learners...</p>}
@@ -542,6 +544,20 @@ export function ParticipantsPanel({
                       <Label htmlFor="birthCertNumber">Birth cert. entry no.</Label>
                       <Input id="birthCertNumber" className="mt-1.5" {...register("birthCertNumber")} />
                       {errors.birthCertNumber && <p className="mt-1 text-sm text-red-400">{errors.birthCertNumber.message}</p>}
+                    </div>
+                  </div>
+                )}
+                {!isOpenTournament && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="knecAssessmentNumber">KNEC assessment no. (optional)</Label>
+                      <Input id="knecAssessmentNumber" className="mt-1.5" {...register("knecAssessmentNumber")} />
+                      {errors.knecAssessmentNumber && <p className="mt-1 text-sm text-red-400">{errors.knecAssessmentNumber.message}</p>}
+                    </div>
+                    <div>
+                      <Label htmlFor="kemisUpi">KEMIS UPI (optional)</Label>
+                      <Input id="kemisUpi" className="mt-1.5" {...register("kemisUpi")} />
+                      {errors.kemisUpi && <p className="mt-1 text-sm text-red-400">{errors.kemisUpi.message}</p>}
                     </div>
                   </div>
                 )}

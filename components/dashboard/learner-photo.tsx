@@ -9,9 +9,29 @@ import { checkLearnerPhoto } from "@/lib/photo-check";
 export interface LearnerIdentity {
   id: string;
   birthCertNumber: string | null;
+  knecAssessmentNumber?: string | null;
+  kemisUpi?: string | null;
   dateOfBirth: string | null;
   photoUpdatedAt: string | null;
   participants: { gameId: string; game: { name: string } }[];
+}
+
+type LearnerIdNumbers = { birthCertNumber: string | null; knecAssessmentNumber?: string | null; kemisUpi?: string | null };
+
+/** "Birth cert. 123 · KNEC 456 · KEMIS UPI ABC" - only the numbers given, for identity checks. */
+export function idNumbersLine(l: LearnerIdNumbers): string {
+  return [
+    l.birthCertNumber ? `Birth cert. ${l.birthCertNumber}` : "No birth cert. no.",
+    l.knecAssessmentNumber ? `KNEC ${l.knecAssessmentNumber}` : null,
+    l.kemisUpi ? `KEMIS UPI ${l.kemisUpi}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** The ID numbers as one lowercase string, for search boxes. */
+export function idSearchText(l: LearnerIdNumbers): string {
+  return `${l.birthCertNumber ?? ""} ${l.knecAssessmentNumber ?? ""} ${l.kemisUpi ?? ""}`.toLowerCase();
 }
 
 /** The learner's photo for identity checks, or an empty frame when there isn't one. */

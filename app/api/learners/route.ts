@@ -46,6 +46,8 @@ export async function GET(request: Request) {
         gender: true,
         dateOfBirth: true,
         birthCertNumber: true,
+        knecAssessmentNumber: true,
+        kemisUpi: true,
         bibNumber: true,
         photoUpdatedAt: true,
         school: { select: { name: true } },

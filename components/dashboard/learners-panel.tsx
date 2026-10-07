@@ -16,7 +16,7 @@ import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
 import { gameSchoolLevelLabel } from "@/lib/school-levels";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
-import { LearnerPhoto, PhotoPicker, ageFrom, learnerPhotoDataUrl, uploadLearnerPhoto } from "@/components/dashboard/learner-photo";
+import { LearnerPhoto, PhotoPicker, ageFrom, idNumbersLine, idSearchText, learnerPhotoDataUrl, uploadLearnerPhoto } from "@/components/dashboard/learner-photo";
 import type { NominalRollSchool } from "@/lib/export-nominal-roll-pdf";
 
 export interface LearnerRow {
@@ -27,6 +27,8 @@ export interface LearnerRow {
   gender: string;
   dateOfBirth: string | null;
   birthCertNumber: string | null;
+  knecAssessmentNumber?: string | null;
+  kemisUpi?: string | null;
   bibNumber: number;
   photoUpdatedAt: string | null;
   school?: { name: string } | null;
@@ -63,6 +65,8 @@ export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: Lear
     bibNumber: String(learner.bibNumber),
     dateOfBirth: learner.dateOfBirth?.slice(0, 10) ?? "",
     birthCertNumber: learner.birthCertNumber ?? "",
+    knecAssessmentNumber: learner.knecAssessmentNumber ?? "",
+    kemisUpi: learner.kemisUpi ?? "",
   });
   const [photo, setPhoto] = React.useState<File | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -78,6 +82,8 @@ export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: Lear
         bibNumber: Number(form.bibNumber),
         dateOfBirth: form.dateOfBirth || null,
         birthCertNumber: form.birthCertNumber.trim() || null,
+        knecAssessmentNumber: form.knecAssessmentNumber.trim() || null,
+        kemisUpi: form.kemisUpi.trim() || null,
       });
       if (photo) await uploadLearnerPhoto(learner.id, photo);
       toast.success("Learner updated");
@@ -140,6 +146,16 @@ export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: Lear
               <Input id="learner-birth-cert" className="mt-1.5" {...field("birthCertNumber")} />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="learner-knec">KNEC assessment no.</Label>
+              <Input id="learner-knec" className="mt-1.5" {...field("knecAssessmentNumber")} />
+            </div>
+            <div>
+              <Label htmlFor="learner-kemis">KEMIS UPI</Label>
+              <Input id="learner-kemis" className="mt-1.5" {...field("kemisUpi")} />
+            </div>
+          </div>
           <div>
             <Label>Photo</Label>
             <div className="mt-1.5">
@@ -198,7 +214,7 @@ function MergeDialog({ learners, onClose, onMerged }: { learners: [LearnerRow, L
                   {l.firstName} {l.lastName} - bib {l.bibNumber}
                 </span>
                 <span className="block text-xs text-muted">
-                  {l.dateOfBirth ? `Born ${formatDate(l.dateOfBirth)}` : "No date of birth"} · Birth cert. {l.birthCertNumber ?? "-"}
+                  {l.dateOfBirth ? `Born ${formatDate(l.dateOfBirth)}` : "No date of birth"} · {idNumbersLine(l)}
                 </span>
                 <span className="block text-xs text-muted">{l.participants.map((p) => p.game.name).join(", ") || "No events"}</span>
               </span>
@@ -253,7 +269,7 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
   const flagged = all.filter((l) => learnerFlags(l, rules).length > 0).length;
   const inSchool = schoolId === ALL ? all : all.filter((l) => l.schoolId === schoolId);
   const shown = inSchool.filter(
-    (l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${l.birthCertNumber ?? ""}`.toLowerCase().includes(search.toLowerCase()),
+    (l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${idSearchText(l)}`.toLowerCase().includes(search.toLowerCase()),
   );
   const duplicateGroups = findDuplicateGroups(inSchool);
   const schoolName = (id: string | null) => schools.find((s) => s.schoolId === id)?.label ?? all.find((l) => l.schoolId === id)?.school?.name ?? "No school";
@@ -285,6 +301,8 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
               gender: l.gender === "BOYS" ? "Boy" : l.gender === "GIRLS" ? "Girl" : "Mixed",
               dateOfBirth: l.dateOfBirth,
               birthCertNumber: l.birthCertNumber,
+              knecAssessmentNumber: l.knecAssessmentNumber ?? null,
+              kemisUpi: l.kemisUpi ?? null,
               events: l.participants.map((p) => p.game.name),
               photo: await learnerPhotoDataUrl(l.id, l.photoUpdatedAt),
             })),
@@ -344,7 +362,7 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
             </Select>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <Input placeholder="Search name, bib or birth cert. no..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64 pl-9" />
+              <Input placeholder="Search name, bib or ID no..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64 pl-9" />
             </div>
             <div className="flex flex-wrap gap-2 sm:ml-auto">
               <Button size="sm" variant="outline" disabled={!!exporting} onClick={() => nominalRoll("download")}>
@@ -409,7 +427,7 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
                   <TableHead>Bib</TableHead>
                   {schoolId === ALL && <TableHead>School</TableHead>}
                   <TableHead>Date of birth</TableHead>
-                  <TableHead>Birth cert. no.</TableHead>
+                  <TableHead>ID numbers</TableHead>
                   <TableHead>Events</TableHead>
                   <TableHead className="text-right">Edit</TableHead>
                 </TableRow>
@@ -435,7 +453,17 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
                     <TableCell>{l.bibNumber}</TableCell>
                     {schoolId === ALL && <TableCell>{schoolName(l.schoolId)}</TableCell>}
                     <TableCell>{l.dateOfBirth ? `${formatDate(l.dateOfBirth)} (${ageFrom(l.dateOfBirth)})` : <span className="text-muted">-</span>}</TableCell>
-                    <TableCell>{l.birthCertNumber ?? <span className="text-muted">-</span>}</TableCell>
+                    <TableCell className="text-sm">
+                      {l.birthCertNumber || l.knecAssessmentNumber || l.kemisUpi ? (
+                        <>
+                          {l.birthCertNumber && <span className="block">Birth cert. {l.birthCertNumber}</span>}
+                          {l.knecAssessmentNumber && <span className="block">KNEC {l.knecAssessmentNumber}</span>}
+                          {l.kemisUpi && <span className="block">KEMIS UPI {l.kemisUpi}</span>}
+                        </>
+                      ) : (
+                        <span className="text-muted">-</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm">{l.participants.map((p) => p.game.name).join(", ") || <span className="text-muted">None</span>}</TableCell>
                     <TableCell className="text-right">
                       <Button size="icon" variant="ghost" onClick={() => setEditing(l)} aria-label="Edit learner">

@@ -6,6 +6,8 @@ export interface NominalRollLearner {
   gender: string;
   dateOfBirth: string | null;
   birthCertNumber: string | null;
+  knecAssessmentNumber?: string | null;
+  kemisUpi?: string | null;
   events: string[];
   /** JPEG/PNG data URL, or null when the learner has no photo. */
   photo: string | null;
@@ -24,9 +26,19 @@ function formatDob(iso: string | null): string {
   return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
 }
 
+/** Each ID number on its own line, labelled. */
+function idNumbers(l: NominalRollLearner): string {
+  const lines = [
+    l.birthCertNumber ? `Birth cert. ${l.birthCertNumber}` : null,
+    l.knecAssessmentNumber ? `KNEC ${l.knecAssessmentNumber}` : null,
+    l.kemisUpi ? `KEMIS UPI ${l.kemisUpi}` : null,
+  ].filter(Boolean);
+  return lines.length ? lines.join("\n") : "-";
+}
+
 /**
  * A school's signed nominal roll: every learner it entered, with photo, date
- * of birth, birth certificate entry number and events, and a certificate for
+ * of birth, ID numbers (birth certificate, KNEC, KEMIS UPI) and events, and a certificate for
  * the head teacher to sign and stamp. One school per page (or more if long).
  */
 export async function buildNominalRollDoc(championshipName: string, schools: NominalRollSchool[]) {
@@ -43,10 +55,10 @@ export async function buildNominalRollDoc(championshipName: string, schools: Nom
 
     autoTable(doc, {
       startY: schoolEndY + 4,
-      head: [["Photo", "Bib", "Name", "Gender", "Date of birth", "Birth cert. entry no.", "Events"]],
-      body: school.learners.map((l) => ["", String(l.bibNumber), l.name, l.gender, formatDob(l.dateOfBirth), l.birthCertNumber ?? "-", l.events.join(", ") || "-"]),
+      head: [["Photo", "Bib", "Name", "Gender", "Date of birth", "ID numbers", "Events"]],
+      body: school.learners.map((l) => ["", String(l.bibNumber), l.name, l.gender, formatDob(l.dateOfBirth), idNumbers(l), l.events.join(", ") || "-"]),
       styles: { fontSize: 8, valign: "middle", minCellHeight: PHOTO_SIZE + 2 },
-      columnStyles: { 0: { cellWidth: PHOTO_SIZE + 2 }, 1: { cellWidth: 12 }, 3: { cellWidth: 15 }, 4: { cellWidth: 22 }, 5: { cellWidth: 28 } },
+      columnStyles: { 0: { cellWidth: PHOTO_SIZE + 2 }, 1: { cellWidth: 12 }, 3: { cellWidth: 15 }, 4: { cellWidth: 20 }, 5: { cellWidth: 36 } },
       didDrawCell: (data) => {
         if (data.section !== "body" || data.column.index !== 0) return;
         const photo = school.learners[data.row.index]?.photo;

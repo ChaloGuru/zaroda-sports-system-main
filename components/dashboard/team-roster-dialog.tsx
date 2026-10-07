@@ -14,7 +14,7 @@ import { PrintButton } from "@/components/ui/print-button";
 import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { downloadTeamRosterPdf } from "@/lib/export-team-roster-pdf";
-import { LearnerPhoto, PhotoPicker, learnerPhotoDataUrl, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
+import { LearnerPhoto, PhotoPicker, idSearchText, learnerPhotoDataUrl, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
 import { EditLearnerDialog, type LearnerRow } from "@/components/dashboard/learners-panel";
 
 interface RosterPlayer {
@@ -28,7 +28,7 @@ interface RosterPlayer {
   learner?: LearnerIdentity | null;
 }
 
-const EMPTY_NEW = { firstName: "", lastName: "", gender: "", dateOfBirth: "", birthCertNumber: "" };
+const EMPTY_NEW = { firstName: "", lastName: "", gender: "", dateOfBirth: "", birthCertNumber: "", knecAssessmentNumber: "", kemisUpi: "" };
 
 /**
  * A team's players. A school team's players are that school's learners -
@@ -82,7 +82,7 @@ export function TeamRosterDialog({
   const candidates = (learnersData?.learners ?? [])
     .filter((l) => !l.participants.some((p) => p.gameId === gameId))
     .filter((l) => gender === "MIXED" || l.gender === gender)
-    .filter((l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${l.birthCertNumber ?? ""}`.toLowerCase().includes(search.toLowerCase()));
+    .filter((l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${idSearchText(l)}`.toLowerCase().includes(search.toLowerCase()));
 
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ["team-roster", teamId] });
@@ -107,7 +107,12 @@ export function TeamRosterDialog({
         lastName: newLearner.lastName,
         gender: isSchoolTeam && gender === "MIXED" ? newLearner.gender : gender,
         ...(isSchoolTeam
-          ? { dateOfBirth: newLearner.dateOfBirth || null, birthCertNumber: newLearner.birthCertNumber.trim() || null }
+          ? {
+              dateOfBirth: newLearner.dateOfBirth || null,
+              birthCertNumber: newLearner.birthCertNumber.trim() || null,
+              knecAssessmentNumber: newLearner.knecAssessmentNumber.trim() || null,
+              kemisUpi: newLearner.kemisUpi.trim() || null,
+            }
           : {}),
         ...shirtFields,
       });
@@ -207,7 +212,7 @@ export function TeamRosterDialog({
 
             {isSchoolTeam && mode === "existing" ? (
               <div className="space-y-2">
-                <Input placeholder="Search name, bib or birth cert. no..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Input placeholder="Search name, bib or ID no..." value={search} onChange={(e) => setSearch(e.target.value)} />
                 <div className="max-h-48 space-y-1 overflow-y-auto">
                   {candidates.length === 0 && (
                     <p className="text-sm text-muted">No other learners from this school yet - register a new learner instead.</p>
@@ -276,6 +281,26 @@ export function TeamRosterDialog({
                           className="mt-1.5"
                           value={newLearner.birthCertNumber}
                           onChange={(e) => setNewLearner({ ...newLearner, birthCertNumber: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label htmlFor="roster-knec">KNEC assessment no. (optional)</Label>
+                        <Input
+                          id="roster-knec"
+                          className="mt-1.5"
+                          value={newLearner.knecAssessmentNumber}
+                          onChange={(e) => setNewLearner({ ...newLearner, knecAssessmentNumber: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="roster-kemis">KEMIS UPI (optional)</Label>
+                        <Input
+                          id="roster-kemis"
+                          className="mt-1.5"
+                          value={newLearner.kemisUpi}
+                          onChange={(e) => setNewLearner({ ...newLearner, kemisUpi: e.target.value })}
                         />
                       </div>
                     </div>
