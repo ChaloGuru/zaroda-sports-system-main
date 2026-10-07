@@ -239,7 +239,10 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col">
+      {/* min-w-0: the column stays the screen's width instead of stretching to
+          its widest content (e.g. the scrolling tab rows) - otherwise phones
+          zoom the whole page out and the menu ribbon and footer scroll away. */}
+      <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print flex flex-col border-b border-border lg:hidden">
           <div className="flex h-12 items-center justify-between px-6">
             <span className="font-heading font-extrabold text-foreground">
@@ -307,7 +310,7 @@ export function AppShell({
           })()}
         </header>
         <IdentityBar />
-        <main className="flex-1 bg-background p-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-auto bg-background p-4 sm:p-6">{children}</main>
       </div>
     </div>
     </AppShellContextProvider>
