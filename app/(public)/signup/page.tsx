@@ -225,6 +225,11 @@ export default function SignupPage() {
             <Button type="submit" className="w-full" size="lg" disabled={submitting}>
               {submitting ? "Creating account..." : "Create free account"}
             </Button>
+            <p className="text-center text-xs text-muted">
+              By creating an account you agree to our{" "}
+              <Link href="/terms" className="text-primary hover:underline">Terms of Use</Link> and{" "}
+              <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+            </p>
           </form>
         </CardContent>
       </Card>

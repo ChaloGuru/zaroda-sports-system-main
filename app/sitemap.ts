@@ -15,6 +15,8 @@ const staticRoutes: MetadataRoute.Sitemap = [
   { url: `${BASE_URL}/medal-table`, changeFrequency: "daily", priority: 0.7 },
   { url: `${BASE_URL}/circulars`, changeFrequency: "weekly", priority: 0.6 },
   { url: `${BASE_URL}/contacts`, changeFrequency: "monthly", priority: 0.5 },
+  { url: `${BASE_URL}/privacy`, changeFrequency: "yearly", priority: 0.3 },
+  { url: `${BASE_URL}/terms`, changeFrequency: "yearly", priority: 0.3 },
   { url: `${BASE_URL}/signup`, changeFrequency: "monthly", priority: 0.6 },
   { url: `${BASE_URL}/login`, changeFrequency: "yearly", priority: 0.3 },
   { url: `${BASE_URL}/category/ball_games`, changeFrequency: "weekly", priority: 0.7 },

@@ -14,7 +14,8 @@ export function SiteFooter() {
       · Call <a href="tel:+254724282065">0724282065</a>
       <span className="hidden min-[701px]:inline">
         {" "}
-        · <Link href="/guide">User guide</Link> · <Link href="/contacts">Contact</Link>
+        · <Link href="/guide">User guide</Link> · <Link href="/contacts">Contact</Link> ·{" "}
+        <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link>
       </span>
     </footer>
   );

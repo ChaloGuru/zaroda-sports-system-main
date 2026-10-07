@@ -132,6 +132,15 @@ export function SiteHeader() {
                 </Link>
               ),
             )}
+            {/* The footer is one short line on phones, so these live here. */}
+            <div className="flex gap-4 px-3 pt-1 text-xs">
+              <Link href="/privacy" className="text-white/70 hover:text-gold" onClick={() => setOpen(false)}>
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="text-white/70 hover:text-gold" onClick={() => setOpen(false)}>
+                Terms of Use
+              </Link>
+            </div>
             <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-3">
               {status === "authenticated" ? (
                 <>
