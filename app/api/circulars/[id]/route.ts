@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireRole, toErrorResponse } from "@/lib/authorize";
 import { circularSchema } from "@/lib/validations";
+import { revalidatePath } from "next/cache";
+import { deleteCircularFile } from "@/lib/circular-files";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       newData: data,
     });
 
+    // A replaced or removed attachment no longer needs storing.
+    if (input.documentUrl !== undefined && input.documentUrl !== existing.documentUrl) await deleteCircularFile(existing.documentUrl);
+    revalidatePath("/circulars");
     return NextResponse.json({ circular: updated });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
@@ -50,6 +55,8 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
       mutate: (tx) => tx.circular.delete({ where: { id: params.id } }),
       recordId: () => params.id,
     });
+    await deleteCircularFile(existing.documentUrl);
+    revalidatePath("/circulars");
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -322,7 +322,8 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
             <CardTitle>Learners</CardTitle>
             <CardDescription>
               Each learner is registered once, with one bib for all their events. Print a school&apos;s nominal roll for
-              the head teacher to sign and stamp, and keep it with the call room.
+              the head teacher to sign and stamp, and keep it with the call room. Photos are deleted automatically six
+              months after the championship ends.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-3">

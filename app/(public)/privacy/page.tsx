@@ -159,7 +159,8 @@ const SECTIONS: LegalSection[] = [
     title: "How long we keep data",
     body: (
       <ul>
-        <li><strong>Championship data</strong> (learners, entries, results, photos) is kept until the organiser deletes the championship or asks us to delete it. Past results stay available so rankings and promotions keep working.</li>
+        <li><strong>Learners&rsquo; photos</strong> are deleted automatically about six months after the championship ends - long enough for appeals and the rest of that season&rsquo;s levels. A learner who competes again next season has a new photo taken then.</li>
+        <li><strong>Other championship data</strong> (learners&rsquo; names, dates of birth, birth certificate numbers, entries and results) is kept until the organiser deletes the championship or asks us to delete it. Past results stay available so rankings and promotions keep working.</li>
         <li><strong>Accounts</strong> are kept until you ask us to close them. Officials&rsquo; access to a championship&rsquo;s private data ends when their role expires after the championship.</li>
         <li><strong>Payment records</strong> are kept as long as the law requires for tax and accounting.</li>
         <li><strong>Sign-in records</strong> are deleted after 30 days, and rate-limiting records after one day.</li>

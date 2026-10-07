@@ -11,8 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SanitizedHtml } from "@/components/sanitized-html";
-import { FileText, X } from "lucide-react";
-import { ApiError, apiGet, apiPost } from "@/lib/api-client";
+import { FileText, Pencil, Trash2, X } from "lucide-react";
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { formatDate, LEVEL_LABELS } from "@/lib/utils";
 
 const LEVELS = ["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL"];
@@ -21,18 +21,25 @@ interface CircularRow {
   id: string;
   title: string;
   content: string;
+  senderName: string;
   targetLevel: string;
+  documentUrl: string | null;
   createdAt: string;
+}
+
+const EMPTY_FORM = { title: "", content: "", senderName: "National Admin", targetLevel: "NATIONAL" };
+
+/** "…/circulars/1730000000000-Fixtures-a1B2c3.pdf" -> "Fixtures-a1B2c3.pdf", for showing the current attachment. */
+function fileNameOf(url: string): string {
+  const last = decodeURIComponent(url.split("/").pop() ?? "PDF");
+  return last.replace(/^\d+-/, "");
 }
 
 function CircularComposer() {
   const queryClient = useQueryClient();
-  const [form, setForm] = React.useState({
-    title: "",
-    content: "",
-    senderName: "National Admin",
-    targetLevel: "NATIONAL",
-  });
+  const [form, setForm] = React.useState(EMPTY_FORM);
+  // The circular being edited, or null when writing a new one.
+  const [editingId, setEditingId] = React.useState<string | null>(null);
   const [documentUrl, setDocumentUrl] = React.useState<string | null>(null);
   const [fileName, setFileName] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
@@ -76,31 +83,57 @@ function CircularComposer() {
     setFileName(null);
   }
 
+  function resetForm() {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    removeAttachment();
+  }
+
+  function startEditing(c: CircularRow) {
+    setEditingId(c.id);
+    setForm({ title: c.title, content: c.content, senderName: c.senderName, targetLevel: c.targetLevel });
+    setDocumentUrl(c.documentUrl);
+    setFileName(c.documentUrl ? fileNameOf(c.documentUrl) : null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   const sendMutation = useMutation({
-    mutationFn: () =>
-      apiPost("/api/circulars", {
+    mutationFn: () => {
+      const fields = {
         title: form.title,
         content: form.content,
         senderName: form.senderName,
-        senderRole: "National Admin",
         targetLevel: form.targetLevel,
-        isPublished: true,
-        documentUrl: documentUrl ?? undefined,
-      }),
+      };
+      return editingId
+        ? apiPatch(`/api/circulars/${editingId}`, { ...fields, documentUrl: documentUrl ?? null })
+        : apiPost("/api/circulars", { ...fields, senderRole: "National Admin", isPublished: true, documentUrl: documentUrl ?? undefined });
+    },
     onSuccess: () => {
-      toast.success("Circular published");
-      setForm({ title: "", content: "", senderName: "National Admin", targetLevel: "NATIONAL" });
-      removeAttachment();
+      toast.success(editingId ? "Circular updated" : "Circular published");
+      resetForm();
       queryClient.invalidateQueries({ queryKey: ["admin-circulars"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to publish circular"),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to save circular"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiDelete(`/api/circulars/${id}`),
+    onSuccess: (_data, id) => {
+      toast.success("Circular deleted");
+      if (id === editingId) resetForm();
+      queryClient.invalidateQueries({ queryKey: ["admin-circulars"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to delete circular"),
   });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Circulars</CardTitle>
-        <CardDescription>Broadcast to all tenants, or target a specific competition level.</CardDescription>
+        <CardTitle>{editingId ? "Edit circular" : "Circulars"}</CardTitle>
+        <CardDescription>
+          {editingId ? "Change it, then save - tenants see the updated version." : "Broadcast to all tenants, or target a specific competition level."}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -148,20 +181,41 @@ function CircularComposer() {
           )}
           {uploading && <p className="text-xs text-muted">Uploading...</p>}
         </div>
-        <Button
-          onClick={() => sendMutation.mutate()}
-          disabled={!form.title || !form.content || uploading || sendMutation.isPending}
-        >
-          {sendMutation.isPending ? "Publishing..." : "Publish Circular"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => sendMutation.mutate()}
+            disabled={!form.title || !form.content || uploading || sendMutation.isPending}
+          >
+            {sendMutation.isPending ? "Saving..." : editingId ? "Save changes" : "Publish Circular"}
+          </Button>
+          {editingId && (
+            <Button variant="ghost" onClick={resetForm}>
+              Cancel
+            </Button>
+          )}
+        </div>
 
         <div className="space-y-2 pt-2">
-          <p className="text-sm font-medium text-foreground">Recently published</p>
-          {(data?.circulars ?? []).slice(0, 5).map((c) => (
-            <div key={c.id} className="rounded-md border border-border p-3">
-              <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-foreground">Published circulars</p>
+          {(data?.circulars ?? []).slice(0, 20).map((c) => (
+            <div key={c.id} className={`rounded-md border p-3 ${c.id === editingId ? "border-primary" : "border-border"}`}>
+              <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium text-foreground">{c.title}</p>
-                <Badge variant="outline">{c.targetLevel.replace("_", " ")}</Badge>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Badge variant="outline">{c.targetLevel.replace("_", " ")}</Badge>
+                  <Button size="icon" variant="ghost" aria-label="Edit circular" onClick={() => startEditing(c)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Delete circular"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => window.confirm(`Delete the circular "${c.title}"? Tenants will no longer see it.`) && deleteMutation.mutate(c.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
               </div>
               <p className="text-xs text-muted">{formatDate(c.createdAt)}</p>
               <div className="mt-1 text-sm text-muted line-clamp-2">
