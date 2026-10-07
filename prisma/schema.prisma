@@ -661,16 +661,30 @@ model ChampionshipSubscription {
   @@map("championship_subscriptions")
 }
 
+// A subscription payment. Paid by M-Pesa through TUMA (provider "TUMA");
+// earlier ones went through Paystack. paystackReference is our own payment
+// reference for both - receipts are looked up by it.
 model PaymentTransaction {
-  id                String        @id @default(uuid())
-  tenantId          String
-  planId            String
-  paystackReference String        @unique
-  amountKes         Int
-  status            PaymentStatus @default(PENDING)
-  paystackResponse  Json?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                 String        @id @default(uuid())
+  tenantId           String
+  planId             String
+  paystackReference  String        @unique
+  amountKes          Int
+  status             PaymentStatus @default(PENDING)
+  paystackResponse   Json?
+  provider           String        @default("PAYSTACK")
+  // The championship this subscription is for, when bought for one.
+  championshipId     String?
+  // TUMA: the M-Pesa number prompted, a hash of the secret in the payment's
+  // notification address, and what TUMA/M-Pesa sent back.
+  phone              String?
+  callbackSecretHash String?
+  checkoutRequestId  String?
+  mpesaReceipt       String?
+  message            String?
+  completedAt        DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   plan   SubscriptionPlan @relation(fields: [planId], references: [id])

@@ -38,6 +38,48 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 }
 
 /**
+ * Turns a paid subscription payment into an active subscription (or renews
+ * the existing one) - for Paystack verification and TUMA notifications alike.
+ */
+export async function activateSubscription(
+  tx: Prisma.TransactionClient,
+  transaction: { tenantId: string; planId: string; amountKes: number; paystackReference: string },
+  championshipId: string | null,
+): Promise<void> {
+  const plan = await tx.subscriptionPlan.findUniqueOrThrow({ where: { id: transaction.planId } });
+  const now = new Date();
+  const expiresAt = computeSubscriptionExpiry(now);
+  const paid = {
+    status: "ACTIVE" as const,
+    paidAt: now,
+    expiresAt,
+    amountPaidKes: transaction.amountKes,
+    paystackReference: transaction.paystackReference,
+  };
+
+  const existingSub = await tx.championshipSubscription.findFirst({
+    where: { tenantId: transaction.tenantId, planId: plan.id, championshipId },
+  });
+  if (existingSub) {
+    await tx.championshipSubscription.update({ where: { id: existingSub.id }, data: paid });
+  } else {
+    await tx.championshipSubscription.create({
+      data: { tenantId: transaction.tenantId, planId: plan.id, championshipId, trialStartedAt: now, trialEndsAt: now, ...paid },
+    });
+  }
+
+  await tx.auditLog.create({
+    data: {
+      changedBy: null,
+      operation: "UPDATE",
+      tableName: "championship_subscriptions",
+      recordId: transaction.tenantId,
+      newData: toJson({ status: "ACTIVE", expiresAt, planId: plan.id }),
+    },
+  });
+}
+
+/**
  * The redirect from Paystack's hosted checkout only triggers this call - it
  * never proves payment succeeded on its own. This verify call against
  * Paystack's API is the sole source of truth for marking anything PAID.
@@ -78,53 +120,7 @@ export async function verifyAndRecordPayment(reference: string): Promise<VerifyR
         where: { id: transaction.id },
         data: { status: "PAID", paystackResponse: toJson(data) },
       });
-
-      const plan = await tx.subscriptionPlan.findUniqueOrThrow({ where: { id: transaction.planId } });
-      const now = new Date();
-      const expiresAt = computeSubscriptionExpiry(now);
-      const championshipId = (data.metadata.championshipId as string | undefined) ?? null;
-
-      const existingSub = await tx.championshipSubscription.findFirst({
-        where: { tenantId: transaction.tenantId, planId: plan.id, championshipId },
-      });
-
-      if (existingSub) {
-        await tx.championshipSubscription.update({
-          where: { id: existingSub.id },
-          data: {
-            status: "ACTIVE",
-            paidAt: now,
-            expiresAt,
-            amountPaidKes: transaction.amountKes,
-            paystackReference: transaction.paystackReference,
-          },
-        });
-      } else {
-        await tx.championshipSubscription.create({
-          data: {
-            tenantId: transaction.tenantId,
-            planId: plan.id,
-            championshipId,
-            status: "ACTIVE",
-            trialStartedAt: now,
-            trialEndsAt: now,
-            paidAt: now,
-            expiresAt,
-            amountPaidKes: transaction.amountKes,
-            paystackReference: transaction.paystackReference,
-          },
-        });
-      }
-
-      await tx.auditLog.create({
-        data: {
-          changedBy: null,
-          operation: "UPDATE",
-          tableName: "championship_subscriptions",
-          recordId: transaction.tenantId,
-          newData: toJson({ status: "ACTIVE", expiresAt, planId: plan.id }),
-        },
-      });
+      await activateSubscription(tx, transaction, (data.metadata.championshipId as string | undefined) ?? transaction.championshipId);
     });
 
     return { success: true, mode, message: "Subscription activated" };

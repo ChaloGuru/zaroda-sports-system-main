@@ -16,6 +16,7 @@ import { championshipCreateSchema, type ChampionshipCreateInput } from "@/lib/va
 import { apiGet, apiPost } from "@/lib/api-client";
 import { formatKes, LEVEL_LABELS } from "@/lib/utils";
 import { SCHOOL_LEVELS } from "@/lib/school-levels";
+import { MpesaSubscribeDialog } from "@/components/dashboard/mpesa-subscribe-dialog";
 
 interface Plan {
   id: string;
@@ -27,6 +28,7 @@ interface Plan {
 interface TenantMe {
   tenant: {
     id: string;
+    phone: string;
     subscriptions: Array<{ status: string; expiresAt: string | null; plan: { level: string } }>;
   };
 }
@@ -42,7 +44,7 @@ export default function NewChampionshipPage() {
     queryKey: ["plans"],
     queryFn: () => apiGet<{ plans: Plan[] }>("/api/plans"),
   });
-  const { data: tenantMe } = useQuery({
+  const { data: tenantMe, refetch: refetchTenant } = useQuery({
     queryKey: ["tenant-me"],
     queryFn: () => apiGet<TenantMe>("/api/tenants/me"),
   });
@@ -78,18 +80,7 @@ export default function NewChampionshipPage() {
   const needsUpgrade = level !== "BASE" && !hasActiveSubForLevel(level);
   const planForLevel = plans?.plans.find((p) => p.level === level);
 
-  async function handleSubscribe() {
-    if (!planForLevel) return;
-    try {
-      const result = await apiPost<{ authorizationUrl: string }>("/api/payments/initialize", {
-        mode: "subscription",
-        planId: planForLevel.id,
-      });
-      window.location.href = result.authorizationUrl;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to start checkout");
-    }
-  }
+  const [paying, setPaying] = React.useState(false);
 
   async function onSubmit(values: ChampionshipCreateInput) {
     if (needsUpgrade) {
@@ -172,8 +163,8 @@ export default function NewChampionshipPage() {
                   <p className="text-sm text-muted">
                     Subscribe for {planForLevel ? formatKes(planForLevel.priceKes) : "..."} to unlock this level.
                   </p>
-                  <Button type="button" size="sm" className="mt-3" onClick={handleSubscribe} disabled={!planForLevel}>
-                    Subscribe now
+                  <Button type="button" size="sm" className="mt-3" onClick={() => setPaying(true)} disabled={!planForLevel}>
+                    Subscribe with M-Pesa
                   </Button>
                 </div>
               </div>
@@ -227,6 +218,15 @@ export default function NewChampionshipPage() {
           </form>
         </CardContent>
       </Card>
+
+      {paying && planForLevel && (
+        <MpesaSubscribeDialog
+          plan={planForLevel}
+          defaultPhone={tenantMe?.tenant.phone}
+          onClose={() => setPaying(false)}
+          onPaid={() => void refetchTenant()}
+        />
+      )}
     </div>
   );
 }

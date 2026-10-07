@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiGet } from "@/lib/api-client";
+import { MpesaSubscribeDialog } from "@/components/dashboard/mpesa-subscribe-dialog";
 import { formatKes, formatDate } from "@/lib/utils";
 
 interface Plan {
@@ -27,6 +27,7 @@ interface Subscription {
 
 interface TenantMe {
   tenant: {
+    phone: string;
     subscriptions: Subscription[];
   };
 }
@@ -38,17 +39,7 @@ export default function BillingPage() {
     queryFn: () => apiGet<TenantMe>("/api/tenants/me"),
   });
 
-  async function subscribe(planId: string) {
-    try {
-      const result = await apiPost<{ authorizationUrl: string }>("/api/payments/initialize", {
-        mode: "subscription",
-        planId,
-      });
-      window.location.href = result.authorizationUrl;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to start checkout");
-    }
-  }
+  const [paying, setPaying] = React.useState<Plan | null>(null);
 
   React.useEffect(() => {
     refetch();
@@ -104,13 +95,22 @@ export default function BillingPage() {
                 <p className="font-medium text-foreground">{plan.displayName}</p>
                 <p className="font-mono text-2xl font-bold tabular-nums text-primary">{formatKes(plan.priceKes)}</p>
               </div>
-              <Button className="mt-4" size="sm" onClick={() => subscribe(plan.id)}>
-                Subscribe
+              <Button className="mt-4" size="sm" onClick={() => setPaying(plan)}>
+                Subscribe with M-Pesa
               </Button>
             </div>
           ))}
         </CardContent>
       </Card>
+
+      {paying && (
+        <MpesaSubscribeDialog
+          plan={paying}
+          defaultPhone={tenantMe?.tenant.phone}
+          onClose={() => setPaying(null)}
+          onPaid={() => void refetch()}
+        />
+      )}
     </div>
   );
 }

@@ -273,6 +273,13 @@ export const paymentInitializeSchema = z.object({
 });
 export type PaymentInitializeInput = z.infer<typeof paymentInitializeSchema>;
 
+/** Paying for a subscription by M-Pesa (TUMA sends the PIN prompt to phone). */
+export const subscriptionPaySchema = z.object({
+  planId: z.string().uuid(),
+  championshipId: z.string().uuid().optional(),
+  phone: z.string().trim().min(9).max(20),
+});
+
 export const paymentVerifySchema = z.object({
   reference: z.string().min(1),
 });
