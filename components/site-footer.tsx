@@ -4,7 +4,7 @@ import Link from "next/link";
 // page scrolls. Small screens drop the tagline and links to stay on one line.
 export function SiteFooter() {
   return (
-    <footer className="no-print sticky bottom-0 z-40 bg-[#0a1633] px-2 py-[0.45rem] text-center text-[0.66rem] text-white/80 shadow-[0_-2px_10px_rgba(5,12,35,0.25)] min-[381px]:text-[0.72rem] min-[701px]:px-4 min-[701px]:py-[0.6rem] min-[701px]:text-[0.8rem] [&_a]:text-[#c99a2e]">
+    <footer className="no-print sticky bottom-0 z-40 bg-navy px-2 py-[0.45rem] text-center text-[0.66rem] text-white/80 shadow-[0_-2px_10px_rgba(5,12,35,0.25)] min-[381px]:text-[0.72rem] min-[701px]:px-4 min-[701px]:py-[0.6rem] min-[701px]:text-[0.8rem] [&_a]:text-gold">
       <span className="hidden min-[701px]:inline">Powered by </span>
       <strong className="text-white">ZARODA SOLUTIONS</strong>
       <span className="hidden min-[701px]:inline"> - Innovative. Reliable. Forward.</span> · WhatsApp{" "}

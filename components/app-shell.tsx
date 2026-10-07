@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
@@ -162,12 +161,9 @@ export function AppShell({
 
   return (
     <AppShellContextProvider>
-      <div className="flex min-h-screen">
+      <div className="flex flex-1">
       <aside className="no-print hidden w-64 shrink-0 flex-col border-r border-border bg-surface-raised lg:flex">
-        <div className="flex h-16 items-center gap-2 border-b border-border px-6 font-heading font-extrabold text-foreground">
-          <Image src="/images/logo.png" alt="Zaroda Sports" width={144} height={96} className="h-9 w-auto" priority />
-          {title}
-        </div>
+        <div className="flex h-14 items-center border-b border-border px-6 font-heading font-extrabold text-foreground">{title}</div>
         <nav className="flex-1 space-y-1 p-4">
           {navItems.map((item) => {
             const active = isNavItemActive(item, pathname);
@@ -245,9 +241,9 @@ export function AppShell({
 
       <div className="flex flex-1 flex-col">
         <header className="no-print flex flex-col border-b border-border lg:hidden">
-          <div className="flex h-16 items-center justify-between px-6">
-            <span className="flex items-center gap-2 font-heading font-extrabold text-foreground">
-              <Image src="/images/logo.png" alt="Zaroda Sports" width={144} height={96} className="h-9 w-auto" /> {title}
+          <div className="flex h-12 items-center justify-between px-6">
+            <span className="font-heading font-extrabold text-foreground">
+              {title}
             </span>
             <div className="flex items-center gap-1">
               <ThemeToggle />

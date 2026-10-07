@@ -36,7 +36,8 @@ export function SiteHeader() {
   const isSuperAdmin = session?.user?.roles?.some((r) => r.role === "SUPER_ADMIN");
 
   return (
-    <header className="no-print sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur-sm supports-backdrop-filter:bg-surface/80">
+    // A navy ribbon with a gold edge, matching the footer - the same in light and dark mode.
+    <header className="no-print sticky top-0 z-40 border-b-[3px] border-gold bg-navy text-white shadow-[0_2px_12px_rgba(5,12,35,0.35)]">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center">
           <Image src="/images/logo.png" alt="Zaroda Sports Management System" width={144} height={96} className="h-12 w-auto" priority />
@@ -50,7 +51,7 @@ export function SiteHeader() {
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary transition-colors hover:bg-primary/20"
+                className="flex items-center gap-1 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-sm font-semibold text-white transition-colors hover:border-gold hover:text-gold"
               >
                 {link.label}
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -60,8 +61,8 @@ export function SiteHeader() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "text-sm font-medium text-muted transition-colors hover:text-foreground",
-                  pathname === link.href && "text-primary",
+                  "text-sm font-semibold text-white/85 transition-colors hover:text-gold",
+                  pathname === link.href && "text-gold underline decoration-2 underline-offset-8",
                 )}
               >
                 {link.label}
@@ -71,22 +72,22 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
-          <ThemeToggle />
+          <ThemeToggle className="text-white hover:bg-white/10 hover:text-white" />
           {status === "authenticated" ? (
             <>
-              <Button variant="secondary" size="sm" asChild>
+              <Button size="sm" className="bg-gold text-navy hover:bg-gold/90" asChild>
                 <Link href={isSuperAdmin ? "/admin" : "/dashboard"}>{isSuperAdmin ? "Admin" : "Dashboard"}</Link>
               </Button>
-              <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
+              <Button variant="outline" size="sm" className="border-white/40 text-white hover:bg-white/10 hover:text-white" onClick={() => signOut({ callbackUrl: "/" })}>
                 Sign out
               </Button>
             </>
           ) : (
             <>
-              <Button variant="ghost" size="sm" asChild>
+              <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 hover:text-white" asChild>
                 <Link href="/login">Log in</Link>
               </Button>
-              <Button size="sm" asChild>
+              <Button size="sm" className="bg-gold text-navy hover:bg-gold/90" asChild>
                 <Link href="/signup">Sign up free</Link>
               </Button>
             </>
@@ -94,15 +95,15 @@ export function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-1 lg:hidden">
-          <ThemeToggle />
-          <button className="p-1.5" onClick={() => setOpen((v) => !v)} aria-label="Toggle menu">
+          <ThemeToggle className="text-white hover:bg-white/10 hover:text-white" />
+          <button className="rounded-md p-1.5 text-white hover:bg-white/10" onClick={() => setOpen((v) => !v)} aria-label="Toggle menu">
             {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
       </div>
 
       {open && (
-        <div className="border-t border-border bg-surface-raised lg:hidden">
+        <div className="border-t border-white/10 bg-navy-dark lg:hidden">
           <div className="container flex flex-col gap-1 py-3">
             {NAV_LINKS.map((link) =>
               link.external ? (
@@ -112,7 +113,7 @@ export function SiteHeader() {
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-1 rounded-md bg-primary/10 px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/20"
+                  className="flex items-center gap-1 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:text-gold"
                 >
                   {link.label}
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -121,22 +122,26 @@ export function SiteHeader() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="rounded-md px-3 py-2 text-sm font-medium text-muted hover:bg-surface-overlay hover:text-foreground"
+                  className={cn(
+                    "rounded-md px-3 py-2 text-sm font-semibold text-white/85 hover:bg-white/10 hover:text-gold",
+                    pathname === link.href && "text-gold",
+                  )}
                   onClick={() => setOpen(false)}
                 >
                   {link.label}
                 </Link>
               ),
             )}
-            <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
+            <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-3">
               {status === "authenticated" ? (
                 <>
-                  <Button variant="secondary" size="sm" asChild onClick={() => setOpen(false)}>
+                  <Button size="sm" className="bg-gold text-navy hover:bg-gold/90" asChild onClick={() => setOpen(false)}>
                     <Link href={isSuperAdmin ? "/admin" : "/dashboard"}>{isSuperAdmin ? "Admin" : "Dashboard"}</Link>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
+                    className="border-white/40 text-white hover:bg-white/10 hover:text-white"
                     onClick={() => {
                       setOpen(false);
                       signOut({ callbackUrl: "/" });
@@ -147,10 +152,10 @@ export function SiteHeader() {
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" size="sm" asChild onClick={() => setOpen(false)}>
+                  <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 hover:text-white" asChild onClick={() => setOpen(false)}>
                     <Link href="/login">Log in</Link>
                   </Button>
-                  <Button size="sm" asChild onClick={() => setOpen(false)}>
+                  <Button size="sm" className="bg-gold text-navy hover:bg-gold/90" asChild onClick={() => setOpen(false)}>
                     <Link href="/signup">Sign up free</Link>
                   </Button>
                 </>

@@ -4,6 +4,8 @@ import Script from "next/script";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { THEME_INIT_SCRIPT } from "@/components/theme-provider";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 import { cn } from "@/lib/utils";
 
 const archivo = Archivo({
@@ -67,7 +69,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </noscript>
       </head>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          {/* The menu ribbon and footer are on every page - public, dashboard and admin. */}
+          <div className="flex min-h-screen flex-col">
+            <SiteHeader />
+            <div className="flex flex-1 flex-col">{children}</div>
+            <SiteFooter />
+          </div>
+        </Providers>
       </body>
     </html>
   );
