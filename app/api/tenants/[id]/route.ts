@@ -29,7 +29,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
       where: { id: params.id },
       include: {
         championships: { orderBy: { createdAt: "desc" } },
-        subscriptions: { orderBy: { createdAt: "desc" }, include: { plan: true } },
+        subscriptions: { orderBy: { createdAt: "desc" }, include: { plan: true, championship: { select: { id: true, name: true } } } },
       },
     });
     if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });

@@ -25,7 +25,7 @@ interface TenantRow {
   subcounty: string;
   createdAt: string;
   _count: { championships: number };
-  subscriptions: Array<{ id: string; status: string; expiresAt: string | null; plan: { displayName: string; level: string } }>;
+  subscriptions: Array<{ id: string; status: string; championship?: { name: string } | null; plan: { displayName: string; level: string } }>;
 }
 
 function EditTenantDialog({ tenant }: { tenant: TenantRow }) {
@@ -162,7 +162,7 @@ function TenantCard({ tenant }: { tenant: TenantRow }) {
           <div key={sub.id} className="flex items-center justify-between rounded-md border border-border p-2">
             <div>
               <p className="text-sm font-medium text-foreground">{sub.plan.displayName}</p>
-              <p className="text-xs text-muted">{sub.expiresAt ? `Expires ${formatDate(sub.expiresAt)}` : "No expiry set"}</p>
+              <p className="text-xs text-muted">{sub.championship ? `For ${sub.championship.name}` : "Not used yet"}</p>
             </div>
             <Select
               value={sub.status}

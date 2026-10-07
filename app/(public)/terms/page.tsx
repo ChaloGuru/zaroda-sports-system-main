@@ -85,9 +85,9 @@ const SECTIONS: LegalSection[] = [
         <ul>
           <li>Inter School-level championships are free.</li>
           <li>
-            Zone level and above need a subscription for that level, at the price shown on our{" "}
-            <Link href="/pricing">pricing page</Link> when you pay. A subscription is paid by M-Pesa through TUMA and
-            lasts one year from payment.
+            Each championship at Zone level and above needs its own subscription for that level, at the price shown on
+            our <Link href="/pricing">pricing page</Link> when you pay. A subscription is paid by M-Pesa through TUMA,
+            covers one championship, and stays with that championship.
           </li>
           <li>
             If you were charged in error - for example twice for the same subscription - contact us within 14 days and

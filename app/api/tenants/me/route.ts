@@ -4,7 +4,7 @@ import { requireAuth, toErrorResponse, AuthorizationError } from "@/lib/authoriz
 
 export const dynamic = "force-dynamic";
 
-/** Convenience endpoint: the signed-in tenant owner's own tenant + active subscriptions. */
+/** Convenience endpoint: the signed-in tenant owner's own tenant + active subscriptions (each with the championship it paid for, if used). */
 export async function GET() {
   try {
     const ctx = await requireAuth();
@@ -12,7 +12,7 @@ export async function GET() {
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: ctx.tenantId },
-      include: { subscriptions: { where: { status: "ACTIVE" }, include: { plan: true } } },
+      include: { subscriptions: { where: { status: "ACTIVE" }, include: { plan: true, championship: { select: { id: true, name: true } } }, orderBy: { paidAt: "desc" } } },
     });
     if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 

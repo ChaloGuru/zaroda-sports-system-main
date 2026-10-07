@@ -13,7 +13,7 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
       include: {
         _count: { select: { championships: true } },
-        subscriptions: { where: { status: "ACTIVE" }, include: { plan: true } },
+        subscriptions: { where: { status: "ACTIVE" }, include: { plan: true, championship: { select: { id: true, name: true } } } },
       },
     });
 

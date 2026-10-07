@@ -5,7 +5,7 @@ import {
   getAuthContext,
   isSuperAdmin,
   hasRole,
-  requireActiveSubscriptionForLevel,
+  requireUnusedSubscriptionForLevel,
   toErrorResponse,
   AuthorizationError,
 } from "@/lib/authorize";
@@ -91,9 +91,10 @@ export async function POST(request: Request) {
         : null;
 
     let effectiveTenantId = ctx.tenantId;
+    let subscription: { id: string } | null = null;
     if (!isSuperAdmin(ctx)) {
       if (!effectiveTenantId) throw new AuthorizationError("No tenant associated with this account");
-      await requireActiveSubscriptionForLevel(effectiveTenantId, input.level);
+      subscription = await requireUnusedSubscriptionForLevel(effectiveTenantId, input.level);
     } else {
       if (!requestedTenantId) {
         throw new AuthorizationError("tenantId is required when a super admin creates a championship on behalf of a tenant", 400);
@@ -105,8 +106,8 @@ export async function POST(request: Request) {
       actorId: ctx.userId,
       operation: "INSERT",
       tableName: "championships",
-      mutate: (tx) =>
-        tx.championship.create({
+      mutate: async (tx) => {
+        const created = await tx.championship.create({
           data: {
             tenantId: effectiveTenantId,
             name: withLevelInName(input.name, input.level),
@@ -120,7 +121,20 @@ export async function POST(request: Request) {
             isPublished: input.isPublished,
             createdBy: ctx.userId,
           },
-        }),
+        });
+        // The paid subscription now belongs to this championship - only one
+        // championship can claim it, even if two are created at once.
+        if (subscription) {
+          const claimed = await tx.championshipSubscription.updateMany({
+            where: { id: subscription.id, championshipId: null },
+            data: { championshipId: created.id },
+          });
+          if (claimed.count !== 1) {
+            throw new AuthorizationError("That subscription was just used for another championship - pay for another to create this one", 409);
+          }
+        }
+        return created;
+      },
       recordId: (result) => result.id,
       newData: input,
     });

@@ -5,7 +5,6 @@ const verifyPaystackTransactionMock = vi.fn();
 vi.mock("@/lib/paystack", () => ({
   verifyPaystackTransaction: (...args: unknown[]) => verifyPaystackTransactionMock(...args),
   kesToKobo: (amountKes: number) => Math.round(amountKes * 100),
-  computeSubscriptionExpiry: (from: Date = new Date()) => new Date(from.getTime() + 365 * 24 * 60 * 60 * 1000),
 }));
 
 const paymentTransactionUpdateMany = vi.fn();
@@ -119,17 +118,27 @@ describe("verifyAndRecordPayment", () => {
     expect(auditLogCreate).toHaveBeenCalled();
   });
 
-  it("extends an existing subscription rather than creating a duplicate", async () => {
+  it("gives each payment its own subscription - one championship each, with no expiry", async () => {
     verifyPaystackTransactionMock.mockResolvedValue(
       paystackResponse({ metadata: { mode: "subscription", tenantId: "tenant-1", planId: "plan-1" } }),
     );
-    paymentTransactionFindUnique.mockResolvedValue({
-      id: "txn-1",
-      tenantId: "tenant-1",
-      planId: "plan-1",
-      status: "PENDING",
-      amountKes: 580,
-    });
+    paymentTransactionFindUnique.mockResolvedValue({ id: "txn-1", tenantId: "tenant-1", planId: "plan-1", status: "PENDING", amountKes: 580 });
+    subscriptionPlanFindUniqueOrThrow.mockResolvedValue({ id: "plan-1", level: "ZONE", priceKes: 580 });
+    championshipSubscriptionFindFirst.mockResolvedValue({ id: "earlier-sub" });
+
+    await verifyAndRecordPayment("ref1");
+
+    expect(championshipSubscriptionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ championshipId: null, status: "ACTIVE", expiresAt: null }) }),
+    );
+    expect(championshipSubscriptionUpdate).not.toHaveBeenCalled();
+  });
+
+  it("restores the subscription of the championship a payment is for", async () => {
+    verifyPaystackTransactionMock.mockResolvedValue(
+      paystackResponse({ metadata: { mode: "subscription", tenantId: "tenant-1", planId: "plan-1", championshipId: "champ-1" } }),
+    );
+    paymentTransactionFindUnique.mockResolvedValue({ id: "txn-1", tenantId: "tenant-1", planId: "plan-1", status: "PENDING", amountKes: 580 });
     subscriptionPlanFindUniqueOrThrow.mockResolvedValue({ id: "plan-1", level: "ZONE", priceKes: 580 });
     championshipSubscriptionFindFirst.mockResolvedValue({ id: "existing-sub" });
 

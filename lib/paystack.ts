@@ -143,12 +143,6 @@ export function verifyPaystackWebhookSignature(rawBody: string, signature: strin
 }
 
 /** Essential-tier subscriptions run for 12 months from payment. */
-export function computeSubscriptionExpiry(from: Date = new Date()): Date {
-  const expires = new Date(from);
-  expires.setFullYear(expires.getFullYear() + 1);
-  return expires;
-}
-
 export interface PaystackBank {
   name: string;
   code: string;

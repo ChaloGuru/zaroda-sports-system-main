@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import Link from "next/link";
 import { apiGet } from "@/lib/api-client";
 import { MpesaSubscribeDialog } from "@/components/dashboard/mpesa-subscribe-dialog";
 import { formatKes, formatDate } from "@/lib/utils";
@@ -21,8 +22,9 @@ interface Plan {
 interface Subscription {
   id: string;
   status: string;
-  expiresAt: string | null;
+  paidAt: string | null;
   plan: { displayName: string; level: string };
+  championship: { id: string; name: string } | null;
 }
 
 interface TenantMe {
@@ -49,33 +51,43 @@ export default function BillingPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Billing</h1>
-        <p className="text-muted">Manage your Essential subscriptions. Inter School level is always free.</p>
+        <p className="text-muted">
+          Each subscription pays for one championship at its level. Inter School level championships are always free.
+        </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Active subscriptions</CardTitle>
+          <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Your subscriptions</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Plan</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Expires</TableHead>
+                <TableHead>Paid</TableHead>
+                <TableHead>Championship</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(tenantMe?.tenant.subscriptions ?? []).map((s) => (
                 <TableRow key={s.id}>
                   <TableCell>{s.plan.displayName}</TableCell>
-                  <TableCell><Badge variant={s.status === "ACTIVE" ? "success" : "outline"}>{s.status}</Badge></TableCell>
-                  <TableCell>{s.expiresAt ? formatDate(s.expiresAt) : "-"}</TableCell>
+                  <TableCell>{s.paidAt ? formatDate(s.paidAt) : "-"}</TableCell>
+                  <TableCell>
+                    {s.championship ? (
+                      <Link href={`/dashboard/championships/${s.championship.id}`} className="text-primary hover:underline">
+                        {s.championship.name}
+                      </Link>
+                    ) : (
+                      <Badge variant="success">Ready - create a championship at this level</Badge>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
               {(tenantMe?.tenant.subscriptions ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted">No active subscriptions yet.</TableCell>
+                  <TableCell colSpan={3} className="text-center text-muted">No subscriptions yet.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -86,7 +98,7 @@ export default function BillingPage() {
       <Card>
         <CardHeader>
           <CardTitle>Essential plans</CardTitle>
-          <CardDescription>Subscribe to unlock a specific level for your championships.</CardDescription>
+          <CardDescription>Pay once for each championship you run at Zone level and above.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(plans?.plans ?? []).map((plan) => (

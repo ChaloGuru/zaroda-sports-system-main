@@ -77,8 +77,9 @@ export default async function DashboardOverviewPage() {
       include: { _count: { select: { games: true, participants: true } } },
     }),
     prisma.championshipSubscription.findMany({
-      where: { tenantId: ctx.tenantId, status: "ACTIVE", expiresAt: { gt: new Date() } },
-      include: { plan: true },
+      where: { tenantId: ctx.tenantId, status: "ACTIVE" },
+      include: { plan: true, championship: { select: { name: true } } },
+      orderBy: { paidAt: "desc" },
     }),
   ]);
 
@@ -113,9 +114,11 @@ export default async function DashboardOverviewPage() {
               <div key={sub.id} className="flex items-center justify-between rounded-md border border-border p-3">
                 <div>
                   <p className="font-medium text-foreground">{sub.plan.displayName}</p>
-                  <p className="text-sm text-muted">Expires {sub.expiresAt ? formatDate(sub.expiresAt) : "-"}</p>
+                  <p className="text-sm text-muted">
+                    {sub.championship ? `For ${sub.championship.name}` : "Not used yet - create a championship at this level"}
+                  </p>
                 </div>
-                <Badge variant="success">Active</Badge>
+                <Badge variant={sub.championship ? "outline" : "success"}>{sub.championship ? "In use" : "Ready"}</Badge>
               </div>
             ))}
           </CardContent>

@@ -29,7 +29,7 @@ interface TenantMe {
   tenant: {
     id: string;
     phone: string;
-    subscriptions: Array<{ status: string; expiresAt: string | null; plan: { level: string } }>;
+    subscriptions: Array<{ status: string; plan: { level: string }; championship: { id: string } | null }>;
   };
 }
 
@@ -74,7 +74,8 @@ export default function NewChampionshipPage() {
   const hasActiveSubForLevel = (lvl: string) =>
     lvl === "BASE" ||
     (tenantMe?.tenant.subscriptions ?? []).some(
-      (s) => s.plan.level === lvl && s.status === "ACTIVE" && (!s.expiresAt || new Date(s.expiresAt) > new Date()),
+      // One subscription per championship: only one not yet used counts.
+      (s) => s.plan.level === lvl && s.status === "ACTIVE" && !s.championship,
     );
 
   const needsUpgrade = level !== "BASE" && !hasActiveSubForLevel(level);
@@ -102,7 +103,7 @@ export default function NewChampionshipPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold text-foreground">New championship</h1>
-      <p className="mt-1 text-muted">Inter School level is free forever. Zone and above require an Essential subscription.</p>
+      <p className="mt-1 text-muted">Inter School level is free forever. Each championship at Zone level and above needs its own Essential subscription.</p>
 
       <Card className="mt-6">
         <CardHeader>

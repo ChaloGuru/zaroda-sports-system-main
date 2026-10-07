@@ -3,6 +3,7 @@ import { Prisma, type Level, type Role } from "@prisma/client";
 import { ZodError } from "zod";
 import { authOptions, type SessionRole } from "./auth";
 import { prisma } from "./prisma";
+import { LEVEL_LABELS } from "./utils";
 import { roleMatchesGameScope } from "./role-scope";
 
 export class AuthorizationError extends Error {
@@ -289,28 +290,34 @@ export async function managedTeamSchoolIds(ctx: AuthContext, championshipId: str
 }
 
 /**
- * Subscription gate (§4.2): BASE level is always free for a TENANT_OWNER.
- * ZONE and above require an ACTIVE, unexpired ChampionshipSubscription
- * covering this tenant + level.
+ * Subscription gate: BASE level is free. Every championship at ZONE and
+ * above needs its own paid subscription for that level - one not yet used
+ * for another championship. Returns it so creating the championship can
+ * claim it (ChampionshipSubscription.championshipId), so one payment covers
+ * exactly one championship.
  */
-export async function requireActiveSubscriptionForLevel(tenantId: string, level: Level): Promise<void> {
-  if (level === "BASE") return;
+export async function requireUnusedSubscriptionForLevel(tenantId: string, level: Level): Promise<{ id: string } | null> {
+  if (level === "BASE") return null;
 
   const subscription = await prisma.championshipSubscription.findFirst({
     where: {
       tenantId,
       status: "ACTIVE",
-      expiresAt: { gt: new Date() },
+      championshipId: null,
       plan: { level },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
     },
+    orderBy: { paidAt: "asc" },
+    select: { id: true },
   });
 
   if (!subscription) {
     throw new AuthorizationError(
-      `Upgrade required: an active Essential subscription for the ${level} level is required to create or edit championships at this level.`,
+      `Pay for a ${LEVEL_LABELS[level]} championship first - each subscription covers one championship at its level.`,
       402,
     );
   }
+  return subscription;
 }
 
 /**

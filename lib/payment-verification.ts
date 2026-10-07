@@ -1,6 +1,6 @@
 import type { Gender, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { verifyPaystackTransaction, computeSubscriptionExpiry, kesToKobo } from "./paystack";
+import { verifyPaystackTransaction, kesToKobo } from "./paystack";
 
 /**
  * Registration details for a publicly self-registered team, stored on its
@@ -38,8 +38,11 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 }
 
 /**
- * Turns a paid subscription payment into an active subscription (or renews
- * the existing one) - for Paystack verification and TUMA notifications alike.
+ * Turns a paid subscription payment into an active subscription - for
+ * Paystack verification and TUMA notifications alike. A subscription pays
+ * for one championship at its level and doesn't expire: paid from inside a
+ * championship it belongs to that one; otherwise it waits, unused, for the
+ * next championship the tenant creates at that level.
  */
 export async function activateSubscription(
   tx: Prisma.TransactionClient,
@@ -48,18 +51,19 @@ export async function activateSubscription(
 ): Promise<void> {
   const plan = await tx.subscriptionPlan.findUniqueOrThrow({ where: { id: transaction.planId } });
   const now = new Date();
-  const expiresAt = computeSubscriptionExpiry(now);
   const paid = {
     status: "ACTIVE" as const,
     paidAt: now,
-    expiresAt,
+    expiresAt: null,
     amountPaidKes: transaction.amountKes,
     paystackReference: transaction.paystackReference,
   };
 
-  const existingSub = await tx.championshipSubscription.findFirst({
-    where: { tenantId: transaction.tenantId, planId: plan.id, championshipId },
-  });
+  // Each payment is its own subscription, unless it pays for a championship
+  // that already has one (e.g. an expired or cancelled one being restored).
+  const existingSub = championshipId
+    ? await tx.championshipSubscription.findFirst({ where: { tenantId: transaction.tenantId, planId: plan.id, championshipId } })
+    : null;
   if (existingSub) {
     await tx.championshipSubscription.update({ where: { id: existingSub.id }, data: paid });
   } else {
@@ -74,7 +78,7 @@ export async function activateSubscription(
       operation: "UPDATE",
       tableName: "championship_subscriptions",
       recordId: transaction.tenantId,
-      newData: toJson({ status: "ACTIVE", expiresAt, planId: plan.id }),
+      newData: toJson({ status: "ACTIVE", planId: plan.id, championshipId }),
     },
   });
 }
@@ -120,7 +124,7 @@ export async function verifyAndRecordPayment(reference: string): Promise<VerifyR
         where: { id: transaction.id },
         data: { status: "PAID", paystackResponse: toJson(data) },
       });
-      await activateSubscription(tx, transaction, (data.metadata.championshipId as string | undefined) ?? transaction.championshipId);
+      await activateSubscription(tx, transaction, (data.metadata.championshipId as string | undefined) ?? transaction.championshipId ?? null);
     });
 
     return { success: true, mode, message: "Subscription activated" };

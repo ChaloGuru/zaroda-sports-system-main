@@ -4,7 +4,6 @@ import {
   verifyPaystackTransaction,
   kesToKobo,
   generatePaymentReference,
-  computeSubscriptionExpiry,
 } from "@/lib/paystack";
 
 const originalFetch = global.fetch;
@@ -37,16 +36,6 @@ describe("generatePaymentReference", () => {
     const b = generatePaymentReference("sub");
     expect(a).not.toBe(b);
     expect(a.startsWith("sub_")).toBe(true);
-  });
-});
-
-describe("computeSubscriptionExpiry", () => {
-  it("expires exactly one year after the given date", () => {
-    const from = new Date("2026-01-15T00:00:00.000Z");
-    const expiry = computeSubscriptionExpiry(from);
-    expect(expiry.getUTCFullYear()).toBe(2027);
-    expect(expiry.getUTCMonth()).toBe(from.getUTCMonth());
-    expect(expiry.getUTCDate()).toBe(from.getUTCDate());
   });
 });
 
