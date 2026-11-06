@@ -1,6 +1,6 @@
 import type { Role } from "@prisma/client";
 import { prisma } from "./prisma";
-import { canViewChampionshipPrivateData, managedTeamSchoolIds, type AuthContext } from "./authorize";
+import { canViewChampionshipPrivateData, ownSchoolIds, type AuthContext } from "./authorize";
 
 /** Officials who check learners in - they can raise a challenge and confirm documents were seen. */
 export const CALL_ROOM_ROLES: Role[] = [
@@ -19,7 +19,7 @@ export async function canViewLearner(
   learner: { schoolId: string | null; championship: { id: string; tenantId: string } },
 ): Promise<boolean> {
   if (await canViewChampionshipPrivateData(ctx, learner.championship)) return true;
-  return !!ctx && !!learner.schoolId && (await managedTeamSchoolIds(ctx, learner.championship.id)).includes(learner.schoolId);
+  return !!ctx && !!learner.schoolId && (await ownSchoolIds(ctx, learner.championship.id)).includes(learner.schoolId);
 }
 
 /**

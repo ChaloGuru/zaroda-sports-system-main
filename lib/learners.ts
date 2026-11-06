@@ -2,7 +2,8 @@ import type { Gender, Prisma, PrismaClient } from "@prisma/client";
 import { assignNextBibNumber } from "./scoring";
 import { prisma } from "./prisma";
 import { gameSchoolLevelLabel } from "./school-levels";
-import { AuthorizationError, getAuthContext, managedTeamSchoolIds, requireChampionshipAccess, type AuthContext } from "./authorize";
+import { MAX_LEARNERS_PER_SCHOOL } from "./validations";
+import { AuthorizationError, getAuthContext, ownSchoolIds, requireChampionshipAccess, type AuthContext } from "./authorize";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -183,7 +184,7 @@ export async function requireLearnerEditor(learner: { championshipId: string; sc
     return await requireChampionshipAccess(learner.championshipId, ["TOURNAMENT_ADMIN", "SCOREKEEPER"]);
   } catch (error) {
     const ctx = await getAuthContext();
-    if (ctx && learner.schoolId && (await managedTeamSchoolIds(ctx, learner.championshipId)).includes(learner.schoolId)) return ctx;
+    if (ctx && learner.schoolId && (await ownSchoolIds(ctx, learner.championshipId)).includes(learner.schoolId)) return ctx;
     throw error;
   }
 }
@@ -206,6 +207,107 @@ export async function assertRegistrationOpen(championshipId: string): Promise<vo
       `Registration closed on ${closesAt.toLocaleDateString("en-GB", KENYA_DATE)} - only a tournament admin can add or change learners now`,
     );
   }
+}
+
+/** Why an event or team's list can't change any more, or null while it still can. */
+async function entriesLockedReason(target: { gameId?: string; tournamentTeamId?: string | null }): Promise<string | null> {
+  if (target.tournamentTeamId) {
+    const team = await prisma.tournamentTeam.findUnique({
+      where: { id: target.tournamentTeamId },
+      select: { name: true, approvedAt: true },
+    });
+    return team?.approvedAt ? `${team.name} has been vetted and approved, so its list is locked - the approval must be withdrawn to change it` : null;
+  }
+  if (!target.gameId) return null;
+  const seeded = await prisma.heat.findFirst({ where: { gameId: target.gameId }, select: { id: true } });
+  if (seeded) return "This event has been seeded in the call room, so its entries are locked";
+  // Straight finals and field events never get a heat - their first result is the lock.
+  const scored = await prisma.participant.findFirst({
+    where: {
+      gameId: target.gameId,
+      OR: [{ position: { not: null } }, { timeTaken: { not: null } }, { score: { not: null } }],
+    },
+    select: { id: true },
+  });
+  return scored ? "This event has started, so its entries are locked" : null;
+}
+
+/**
+ * Entering learners in events carries on after registration closes, so
+ * teachers can form their lists on the day. An individual event locks once
+ * it's seeded in the call room (or its first result is in), and a team once
+ * it's vetted and approved. Each lock covers that event or team only, so a
+ * learner can still enter others. A tournament admin can still make corrections.
+ */
+export async function assertEntriesOpen(target: {
+  championshipId: string;
+  gameId?: string;
+  tournamentTeamId?: string | null;
+}): Promise<void> {
+  const reason = await entriesLockedReason(target);
+  if (!reason) return;
+  try {
+    await requireChampionshipAccess(target.championshipId, ["TOURNAMENT_ADMIN"]);
+  } catch {
+    throw new AuthorizationError(reason);
+  }
+}
+
+/**
+ * Throws if a school is already at the limit. A Primary/JS championship splits
+ * a school into two entries with the same name, so both count together. The
+ * lock holds until the transaction ends, so two registrations at the same
+ * moment can't both take the last place.
+ */
+export async function assertSchoolHasLearnerPlace(
+  tx: Prisma.TransactionClient,
+  championshipId: string,
+  schoolId: string,
+): Promise<void> {
+  const school = await tx.school.findUnique({ where: { id: schoolId }, select: { name: true } });
+  if (!school) throw new Error("School not found");
+  const key = `learners:${championshipId}:${school.name.trim().toLowerCase()}`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}::text))`;
+  const registered = await tx.learner.count({
+    where: { championshipId, school: { name: { equals: school.name, mode: "insensitive" } } },
+  });
+  if (registered >= MAX_LEARNERS_PER_SCHOOL) {
+    throw new Error(`${school.name} has reached the limit of ${MAX_LEARNERS_PER_SCHOOL} registered learners`);
+  }
+}
+
+/**
+ * Throws if this learner is already registered, by ID number or by name at the
+ * same school. Returns their normalized ID numbers.
+ */
+export async function assertNotAlreadyRegistered(
+  championshipId: string,
+  schoolId: string,
+  label: string,
+  input: LearnerIds & { firstName: string; lastName: string; dateOfBirth?: Date | null },
+) {
+  const ids = normalizeIds(input);
+  const idConflict = await idNumberConflict(prisma, championshipId, ids, null);
+  if (idConflict) throw new Error(`${idConflict} - add them to this event as an existing learner.`);
+  const sameName = await prisma.learner.findFirst({
+    where: {
+      championshipId,
+      schoolId,
+      firstName: { equals: input.firstName.trim(), mode: "insensitive" },
+      lastName: { equals: input.lastName.trim(), mode: "insensitive" },
+    },
+    select: { bibNumber: true, dateOfBirth: true },
+  });
+  // Two learners with one name at one school only when their dates of
+  // birth show they're different people.
+  const provenDifferent =
+    sameName?.dateOfBirth && input.dateOfBirth && sameName.dateOfBirth.getTime() !== input.dateOfBirth.getTime();
+  if (sameName && !provenDifferent) {
+    throw new Error(
+      `${input.firstName} ${input.lastName} is already registered for ${label} (bib ${sameName.bibNumber}) - add them to this event as an existing learner.`,
+    );
+  }
+  return ids;
 }
 
 /** The date ages are worked out on: the championship's age date, or its start date. */

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isInJurisdiction } from "@/lib/jurisdiction";
 import { withAudit } from "@/lib/audit";
 import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { promoteSelectedPlayersSchema } from "@/lib/validations";
@@ -55,6 +56,21 @@ export async function POST(request: Request) {
       include: { learner: true },
     });
     if (picked.length === 0) return NextResponse.json({ error: "None of those players are on this game's teams" }, { status: 400 });
+
+    const target = await prisma.championship.findUnique({
+      where: { id: input.targetChampionshipId },
+      select: { level: true, county: true, jurisdiction: true },
+    });
+    const schoolIds = Array.from(new Set(picked.map((p) => p.learner?.schoolId).filter((id): id is string => !!id)));
+    if (target && schoolIds.length > 0) {
+      const schools = await prisma.school.findMany({
+        where: { id: { in: schoolIds } },
+        select: { zone: true, subcounty: true, county: true, region: true },
+      });
+      if (schools.some((school) => !isInJurisdiction(school, target))) {
+        return NextResponse.json({ error: "That championship is outside this school's jurisdiction" }, { status: 403 });
+      }
+    }
 
     const ageRules = await loadAgeRules(prisma, input.targetChampionshipId);
     const maxAge = ageRules?.maxAgeFor(targetGame.schoolLevel) ?? null;

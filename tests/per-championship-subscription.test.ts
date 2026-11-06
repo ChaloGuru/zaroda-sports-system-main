@@ -32,6 +32,7 @@ function create(level: string) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name: "Kisumu Primary Games",
+        jurisdiction: "Kisumu Central",
         level,
         schoolLevel: "PRIMARY_JS",
         category: "ATHLETICS",

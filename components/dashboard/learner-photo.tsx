@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { apiPost } from "@/lib/api-client";
 import { Camera, FileText, ImageUp, SwitchCamera, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -195,6 +196,20 @@ async function resizeDocument(file: File): Promise<Blob> {
 }
 
 /** Uploads a photo of the learner's birth certificate or KNEC record. */
+/**
+ * Registers a school's learner, then uploads their photo. A learner can't enter
+ * any event without a photo, so entries are only made once this has succeeded.
+ */
+export async function registerLearnerWithPhoto(values: Record<string, unknown>, photo: File): Promise<string> {
+  const { learner } = await apiPost<{ learner: { id: string } }>("/api/learners", values);
+  try {
+    await uploadLearnerPhoto(learner.id, photo);
+  } catch (error) {
+    throw new Error(`Registered, but the photo didn't upload - add it to their record before entering them. ${error instanceof Error ? error.message : ""}`);
+  }
+  return learner.id;
+}
+
 export async function uploadLearnerDocument(learnerId: string, file: File, kind: IdDocumentKind): Promise<void> {
   const form = new FormData();
   form.append("document", await resizeDocument(file), "document.jpg");

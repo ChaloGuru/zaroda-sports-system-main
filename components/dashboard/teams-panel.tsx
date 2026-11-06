@@ -18,8 +18,9 @@ import { TeamRosterDialog } from "@/components/dashboard/team-roster-dialog";
 import { dashboardTournamentTeamSchema, COUNTY_REQUIRED_LEVELS, type TournamentTeamInput } from "@/lib/validations";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
+import type { ScopableGame } from "@/lib/role-scope";
 
-interface GameOption {
+interface GameOption extends ScopableGame {
   id: string;
   name: string;
   gender: string;
@@ -37,6 +38,8 @@ interface TeamRow {
   contactPhone: string | null;
   county: string | null;
   schoolId: string | null;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
 }
 
 function emptyDefaults(championshipId: string, restrictToOrganizationName?: string | null): TournamentTeamInput {
@@ -434,6 +437,9 @@ export function TeamsPanel({
                   gameId={team.gameId}
                   gender={team.gender}
                   schoolId={team.schoolId}
+                  game={games.find((g) => g.id === team.gameId)}
+                  approvedAt={team.approvedAt}
+                  approvedBy={team.approvedBy}
                 />
               )}
               <Button size="icon" variant="ghost" onClick={() => openEdit(team)}>

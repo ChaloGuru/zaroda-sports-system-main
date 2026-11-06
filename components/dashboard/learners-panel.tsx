@@ -59,7 +59,7 @@ export interface LearnerRow {
   /** The photo's face could be matched against other records. */
   faceMatched?: boolean;
   school?: { name: string } | null;
-  participants: { gameId: string; game: { name: string; schoolLevel?: string } }[];
+  participants: { id?: string; gameId: string; game: { name: string; schoolLevel?: string } }[];
   challenges?: ChallengeRow[];
   /** Officials only. */
   identityAlerts?: IdentityAlertRow[];

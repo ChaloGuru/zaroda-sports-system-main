@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Users, Plus, Trash2, FileDown, Pencil } from "lucide-react";
+import { Users, Plus, Trash2, FileDown, Pencil, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,9 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PrintButton } from "@/components/ui/print-button";
 import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
+import { useCanManageGame } from "@/hooks/use-game-access";
+import type { ScopableGame } from "@/lib/role-scope";
 import { downloadTeamRosterPdf } from "@/lib/export-team-roster-pdf";
-import { LearnerPhoto, PhotoPicker, idSearchText, learnerPhotoDataUrl, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
+import { LearnerPhoto, PhotoPicker, idSearchText, learnerPhotoDataUrl, registerLearnerWithPhoto, uploadLearnerPhoto, type LearnerIdentity } from "@/components/dashboard/learner-photo";
 import { EditLearnerDialog, type LearnerRow } from "@/components/dashboard/learners-panel";
 
 interface RosterPlayer {
@@ -34,8 +36,9 @@ const EMPTY_NEW = { firstName: "", lastName: "", gender: "", dateOfBirth: "", bi
  * A team's players. A school team's players are that school's learners -
  * picked from those already registered or registered here with their photo,
  * date of birth and birth certificate number - so the same identity checks,
- * age limits and registration deadline apply as for athletes. Open-tournament
- * teams just list names.
+ * and age limits apply as for athletes. Registered learners can join until an
+ * official vets and approves the team, which locks the list; new learners stop
+ * at the registration deadline. Open-tournament teams just list names.
  */
 export function TeamRosterDialog({
   championshipId,
@@ -45,6 +48,9 @@ export function TeamRosterDialog({
   gameId,
   gender,
   schoolId,
+  game,
+  approvedAt,
+  approvedBy,
 }: {
   championshipId: string;
   championshipName: string;
@@ -54,8 +60,14 @@ export function TeamRosterDialog({
   gender: string;
   /** The school the team represents - null for open-tournament teams. */
   schoolId?: string | null;
+  game?: ScopableGame;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
 }) {
   const queryClient = useQueryClient();
+  const canApprove = useCanManageGame(championshipId, ["TOURNAMENT_ADMIN", "GAME_COORDINATOR"], game);
+  // Officials can still correct an approved list; the API is the real lock.
+  const locked = !!approvedAt && !canApprove;
   const [open, setOpen] = React.useState(false);
   const [downloading, setDownloading] = React.useState(false);
   const [shirt, setShirt] = React.useState({ jerseyNumber: "", playingPosition: "" });
@@ -99,6 +111,23 @@ export function TeamRosterDialog({
       if (isSchoolTeam && mode === "existing") {
         return apiPost("/api/participants", { championshipId, gameId, tournamentTeamId: teamId, learnerId, ...shirtFields });
       }
+      if (isSchoolTeam && photo) {
+        const learnerId = await registerLearnerWithPhoto(
+          {
+            championshipId,
+            schoolId,
+            firstName: newLearner.firstName,
+            lastName: newLearner.lastName,
+            gender: gender === "MIXED" ? newLearner.gender : gender,
+            dateOfBirth: newLearner.dateOfBirth || null,
+            birthCertNumber: newLearner.birthCertNumber.trim() || null,
+            knecAssessmentNumber: newLearner.knecAssessmentNumber.trim() || null,
+            kemisUpi: newLearner.kemisUpi.trim() || null,
+          },
+          photo,
+        );
+        return apiPost("/api/participants", { championshipId, gameId, tournamentTeamId: teamId, learnerId, ...shirtFields });
+      }
       const { participant } = await apiPost<{ participant: { learnerId: string | null } }>("/api/participants", {
         championshipId,
         gameId,
@@ -135,6 +164,15 @@ export function TeamRosterDialog({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to add player"),
   });
 
+  const approval = useMutation({
+    mutationFn: (approved: boolean) => apiPost(`/api/tournament-teams/${teamId}/approval`, { approved }),
+    onSuccess: (_data, approved) => {
+      toast.success(approved ? "Team approved - its list is locked" : "Approval withdrawn");
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", championshipId] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update approval"),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/api/participants/${id}`),
     onSuccess: () => {
@@ -166,7 +204,7 @@ export function TeamRosterDialog({
   const canAdd =
     isSchoolTeam && mode === "existing"
       ? !!learnerId
-      : !!newLearner.firstName && !!newLearner.lastName && (!needsGender || !!newLearner.gender);
+      : !!newLearner.firstName && !!newLearner.lastName && (!needsGender || !!newLearner.gender) && (!isSchoolTeam || !!photo);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -189,7 +227,27 @@ export function TeamRosterDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="no-print space-y-3 rounded-md border border-border p-3">
+          <div className="no-print flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3 text-sm">
+            {approvedAt ? (
+              <p className="flex items-center gap-2 font-medium">
+                <BadgeCheck className="h-4 w-4" /> Vetted and approved by {approvedBy}, {formatDate(approvedAt)} - list locked
+              </p>
+            ) : (
+              <p className="text-muted">Not yet vetted - the list can still change.</p>
+            )}
+            {canApprove && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={approval.isPending || (!approvedAt && players.length === 0)}
+                onClick={() => approval.mutate(!approvedAt)}
+              >
+                {approvedAt ? "Withdraw approval" : "Approve team"}
+              </Button>
+            )}
+          </div>
+
+          {!locked && <div className="no-print space-y-3 rounded-md border border-border p-3">
             {isSchoolTeam && (
               <div className="grid grid-cols-2 gap-1 rounded-md bg-secondary p-1 text-sm">
                 {(
@@ -352,7 +410,7 @@ export function TeamRosterDialog({
                 <Plus className="h-4 w-4" /> Add
               </Button>
             </div>
-          </div>
+          </div>}
 
           {isLoading && <p className="text-sm text-muted">Loading roster...</p>}
           {!isLoading && (
@@ -379,12 +437,12 @@ export function TeamRosterDialog({
                     </TableCell>
                     <TableCell>{p.playingPosition ?? "-"}</TableCell>
                     <TableCell className="no-print text-right">
-                      {p.learner && (
+                      {p.learner && !locked && (
                         <Button size="icon" variant="ghost" onClick={() => setEditing(p)} aria-label="Edit learner">
                           <Pencil className="h-4 w-4" />
                         </Button>
                       )}
-                      <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(p.id)} aria-label="Remove player">
+                      <Button size="icon" variant="ghost" disabled={locked} onClick={() => deleteMutation.mutate(p.id)} aria-label="Remove player">
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </TableCell>

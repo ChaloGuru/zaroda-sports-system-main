@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { requireChampionshipAccess, requireGameAccess, requireTeamAccess, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, managedTeamSchoolIds, requireChampionshipAccess, requireGameAccess, requireTeamAccess, toErrorResponse } from "@/lib/authorize";
 import { participantStatusSchema, timeInputSchema, genderSchema } from "@/lib/validations";
 import { parseTimeToSeconds } from "@/lib/scoring";
-import { assertRegistrationOpen, bibConflict, updateLearner, type LearnerChanges } from "@/lib/learners";
+import { assertEntriesOpen, assertRegistrationOpen, bibConflict, updateLearner, type LearnerChanges } from "@/lib/learners";
 import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +56,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       if (!team) throw accessError;
       ctx = await requireTeamAccess(existing.championshipId, team.name);
       teamAccessOnly = true;
+      await assertEntriesOpen(existing);
     }
 
     const body: unknown = await request.json();
@@ -154,13 +155,21 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
     try {
       ctx = await requireChampionshipAccess(existing.championshipId, ["TOURNAMENT_ADMIN"]);
     } catch (accessError) {
-      if (!existing.tournamentTeamId) throw accessError;
-      const team = await prisma.tournamentTeam.findUnique({
-        where: { id: existing.tournamentTeamId },
-        select: { name: true },
-      });
-      if (!team) throw accessError;
-      ctx = await requireTeamAccess(existing.championshipId, team.name);
+      if (existing.tournamentTeamId) {
+        const team = await prisma.tournamentTeam.findUnique({
+          where: { id: existing.tournamentTeamId },
+          select: { name: true },
+        });
+        if (!team) throw accessError;
+        ctx = await requireTeamAccess(existing.championshipId, team.name);
+      } else {
+        // A teacher takes their own school's learners out of a race.
+        const teacher = await getAuthContext();
+        const managed = teacher ? await managedTeamSchoolIds(teacher, existing.championshipId) : [];
+        if (!teacher || !existing.schoolId || !managed.includes(existing.schoolId)) throw accessError;
+        ctx = teacher;
+      }
+      await assertEntriesOpen(existing);
     }
 
     await withAudit({

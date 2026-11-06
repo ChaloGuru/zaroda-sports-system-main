@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { SchoolEntriesPanel } from "@/components/dashboard/school-entries-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PanelErrorBoundary } from "@/components/error-boundary";
@@ -111,16 +112,23 @@ export function ChampionshipManager({
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{name}</h1>
-          <p className="text-muted">Managing {restrictToOrganizationName}&apos;s team registrations only.</p>
+          <p className="text-muted">Managing {restrictToOrganizationName}&apos;s learners and entries only.</p>
         </div>
-        <PanelErrorBoundary fallbackTitle="Teams panel failed to load">
-          <TeamsPanel
-            championshipId={championshipId}
-            championshipName={name}
-            level={level}
-            restrictToOrganizationName={restrictToOrganizationName}
-          />
-        </PanelErrorBoundary>
+        {!isOpenTournament && (
+          <PanelErrorBoundary fallbackTitle="School panel failed to load">
+            <SchoolEntriesPanel championshipId={championshipId} schoolName={restrictToOrganizationName} />
+          </PanelErrorBoundary>
+        )}
+        {showsTeams && (
+          <PanelErrorBoundary fallbackTitle="Teams panel failed to load">
+            <TeamsPanel
+              championshipId={championshipId}
+              championshipName={name}
+              level={level}
+              restrictToOrganizationName={restrictToOrganizationName}
+            />
+          </PanelErrorBoundary>
+        )}
       </div>
     );
   }

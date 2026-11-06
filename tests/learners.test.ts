@@ -26,7 +26,7 @@ vi.mock("@/lib/authorize", async () => {
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 
-const txClient = { participant: { create: txParticipantCreate }, learner: { create: txLearnerCreate }, auditLog: { create: vi.fn() } };
+const txClient = { $executeRaw: async () => 0, school: { findUnique: async () => ({ name: "Manyonge" }) }, participant: { create: txParticipantCreate }, learner: { count: async () => 0, create: txLearnerCreate }, auditLog: { create: vi.fn() } };
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     game: { findUnique: (...a: unknown[]) => gameFindUnique(...a) },
@@ -45,11 +45,13 @@ vi.mock("@/lib/prisma", () => ({
       findMany: (...a: unknown[]) => participantFindMany(...a),
     },
     learnerChallenge: { findFirst: (...a: unknown[]) => challengeFindFirst(...a) },
+    heat: { findFirst: async () => null },
     $transaction: (fn: (tx: typeof txClient) => Promise<unknown>) => fn(txClient),
   },
 }));
 
 const { POST } = await import("@/app/api/participants/route");
+const { POST: registerLearner } = await import("@/app/api/learners/route");
 const { ageOn, mergeLearners, normalizeIdNumber, overAgeReason, photoContentType, updateLearner } = await import("@/lib/learners");
 
 const CHAMP = "11111111-1111-1111-1111-111111111111";
@@ -92,12 +94,12 @@ beforeEach(() => {
 });
 
 describe("registering a new learner", () => {
-  it("creates the learner and their first entry with the same bib", async () => {
+  it("creates the learner with the next bib, with no event yet", async () => {
     learnerFindMany.mockResolvedValue([{ bibNumber: 100 }, { bibNumber: 101 }]);
-    const res = await POST(newLearner({ birthCertNumber: "ab 12cd3" }));
+    const res = await registerLearner(newLearner({ birthCertNumber: "ab 12cd3" }));
     expect(res.status).toBe(201);
-    expect(txLearnerCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ bibNumber: 102, birthCertNumber: "AB12CD3", schoolId: SCHOOL }) });
-    expect(txParticipantCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ learnerId: "l-new", bibNumber: 102 }) });
+    expect(txLearnerCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ bibNumber: 102, birthCertNumber: "AB12CD3" }) }));
+    expect(txParticipantCreate).not.toHaveBeenCalled();
   });
 
   /** Another learner in the championship already holds this ID number. */
@@ -109,7 +111,7 @@ describe("registering a new learner", () => {
 
   it("refuses a birth certificate entry no. already registered to another learner", async () => {
     heldBy("birthCertNumber", "AB12CD3");
-    const res = await POST(newLearner({ birthCertNumber: "ab 12cd3" }));
+    const res = await registerLearner(newLearner({ birthCertNumber: "ab 12cd3" }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("Birth certificate entry no. AB12CD3 is already registered to Mary Akinyi - add them to this event as an existing learner.");
     expect(txLearnerCreate).not.toHaveBeenCalled();
@@ -117,23 +119,23 @@ describe("registering a new learner", () => {
 
   it("refuses a KNEC assessment no. or KEMIS UPI already registered to another learner", async () => {
     heldBy("knecAssessmentNumber", "20345678");
-    expect((await (await POST(newLearner({ knecAssessmentNumber: "20345678" }))).json()).error).toMatch(/^KNEC assessment no. 20345678 is already registered to Mary Akinyi/);
+    expect((await (await registerLearner(newLearner({ knecAssessmentNumber: "20345678" }))).json()).error).toMatch(/^KNEC assessment no. 20345678 is already registered to Mary Akinyi/);
     heldBy("kemisUpi", "AB1C2D");
-    expect((await (await POST(newLearner({ kemisUpi: "ab1c2d" }))).json()).error).toMatch(/^KEMIS UPI AB1C2D is already registered to Mary Akinyi/);
+    expect((await (await registerLearner(newLearner({ kemisUpi: "ab1c2d" }))).json()).error).toMatch(/^KEMIS UPI AB1C2D is already registered to Mary Akinyi/);
     expect(txLearnerCreate).not.toHaveBeenCalled();
   });
 
   it("saves the optional KNEC and KEMIS numbers, tidied", async () => {
-    const res = await POST(newLearner({ knecAssessmentNumber: " 2034 5678 ", kemisUpi: "ab1c2d", birthCertNumber: "" }));
+    const res = await registerLearner(newLearner({ knecAssessmentNumber: " 2034 5678 ", kemisUpi: "ab1c2d", birthCertNumber: "" }));
     expect(res.status).toBe(201);
-    expect(txLearnerCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ knecAssessmentNumber: "20345678", kemisUpi: "AB1C2D", birthCertNumber: null }),
-    });
+    expect(txLearnerCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ knecAssessmentNumber: "20345678", kemisUpi: "AB1C2D", birthCertNumber: null }) }),
+    );
   });
 
   it("points to the existing learner when the same name is registered again at the school", async () => {
     learnerFindFirst.mockResolvedValue({ bibNumber: 105, dateOfBirth: null });
-    const res = await POST(newLearner());
+    const res = await registerLearner(newLearner());
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/already registered for Manyonge \(Primary\) \(bib 105\) - add them to this event as an existing learner/);
   });
@@ -142,7 +144,7 @@ describe("registering a new learner", () => {
     learnerFindFirst.mockImplementation(async (args: { where: Record<string, unknown> }) =>
       args.where.firstName ? { bibNumber: 105, dateOfBirth: new Date("2013-02-01") } : null,
     );
-    const res = await POST(newLearner({ dateOfBirth: "2014-06-30" }));
+    const res = await registerLearner(newLearner({ dateOfBirth: "2014-06-30" }));
     expect(res.status).toBe(201);
   });
 
@@ -150,14 +152,14 @@ describe("registering a new learner", () => {
     learnerFindFirst.mockImplementation(async (args: { where: Record<string, unknown> }) =>
       args.where.bibNumber === 150 ? { firstName: "Mary", lastName: "Akinyi" } : null,
     );
-    const res = await POST(newLearner({ bibNumber: 150 }));
+    const res = await registerLearner(newLearner({ bibNumber: 150 }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/Bib 150 already belongs to Mary Akinyi/);
   });
 });
 
 describe("entering an existing learner in another event", () => {
-  const learner = {
+  const learner = { photoUpdatedAt: new Date(),
     id: LEARNER,
     championshipId: CHAMP,
     schoolId: SCHOOL,
@@ -324,7 +326,7 @@ describe("age limits and the registration deadline", () => {
 
   it("refuses a learner older than their school level's age limit on the age date", async () => {
     withPrimaryLimit(12);
-    const res = await POST(newLearner({ dateOfBirth: "2012-06-30" }));
+    const res = await registerLearner(newLearner({ dateOfBirth: "2012-06-30" }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("Amina Otieno is 13 on 1 Jan 2026 - Primary events are for learners aged 12 and under");
     expect(txLearnerCreate).not.toHaveBeenCalled();
@@ -332,8 +334,8 @@ describe("age limits and the registration deadline", () => {
 
   it("allows a learner within the limit, and one with no date of birth", async () => {
     withPrimaryLimit(12);
-    expect((await POST(newLearner({ dateOfBirth: "2013-01-02" }))).status).toBe(201);
-    expect((await POST(newLearner({ firstName: "Bella" }))).status).toBe(201);
+    expect((await registerLearner(newLearner({ dateOfBirth: "2013-01-02" }))).status).toBe(201);
+    expect((await registerLearner(newLearner({ firstName: "Bella" }))).status).toBe(201);
   });
 
   it("ignores another level's limit", async () => {
@@ -345,14 +347,14 @@ describe("age limits and the registration deadline", () => {
       registrationClosesAt: null,
       ageLimits: [{ schoolLevel: "JS", maxAge: 10 }],
     });
-    expect((await POST(newLearner({ dateOfBirth: "2012-06-30" }))).status).toBe(201);
+    expect((await registerLearner(newLearner({ dateOfBirth: "2012-06-30" }))).status).toBe(201);
   });
 
   it("refuses new learners from non-admins after registration closes", async () => {
     const { requireChampionshipAccess } = await import("@/lib/authorize");
-    vi.mocked(requireChampionshipAccess).mockRejectedValueOnce(new Error("not an admin"));
+    vi.mocked(requireChampionshipAccess).mockResolvedValueOnce({ userId: "scorer-1" } as never).mockRejectedValueOnce(new Error("not an admin"));
     championshipFindUnique.mockResolvedValue({ level: "NATIONAL", county: "Kisumu", registrationClosesAt: new Date("2026-01-01") });
-    const res = await POST(newLearner());
+    const res = await registerLearner(newLearner());
     expect(res.status).toBe(403);
     expect((await res.json()).error).toBe("Registration closed on 1 Jan 2026 - only a tournament admin can add or change learners now");
     expect(txLearnerCreate).not.toHaveBeenCalled();
@@ -371,22 +373,20 @@ describe("age limits and the registration deadline", () => {
 describe("school team rosters", () => {
   const TEAM = "55555555-5555-5555-5555-555555555555";
 
-  it("registers a new player as a learner of the team's school, keeping the shirt number", async () => {
+  it("won't add a new player until they're registered with a photo", async () => {
     teamFindUnique.mockResolvedValue({ name: "Manyonge Football", championshipId: CHAMP, schoolId: SCHOOL });
-    bibRangeFindUnique.mockResolvedValue(null); // ball-game schools often have no bib range
     const res = await POST(post({ tournamentTeamId: TEAM, firstName: "Brian", lastName: "Ouma", gender: "BOYS", jerseyNumber: 9 }));
-    expect(res.status).toBe(201);
-    expect(txLearnerCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ schoolId: SCHOOL, bibNumber: 1 }) });
-    expect(txParticipantCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ tournamentTeamId: TEAM, learnerId: "l-new", jerseyNumber: 9, schoolId: null }),
-    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Register this learner with their photo first, then enter them");
+    expect(txLearnerCreate).not.toHaveBeenCalled();
+    expect(txParticipantCreate).not.toHaveBeenCalled();
   });
 
   it("adds a registered learner to their school's team", async () => {
     teamFindUnique.mockResolvedValue({ name: "Manyonge Football", championshipId: CHAMP, schoolId: SCHOOL });
     learnerFindUnique.mockResolvedValue({
       id: LEARNER, championshipId: CHAMP, schoolId: SCHOOL, firstName: "Amina", lastName: "Otieno", gender: "GIRLS",
-      dateOfBirth: null, bibNumber: 120, school: { name: "Manyonge", schoolLevel: "PRIMARY" },
+      dateOfBirth: null, bibNumber: 120, photoUpdatedAt: new Date(), school: { name: "Manyonge", schoolLevel: "PRIMARY" },
     });
     const res = await POST(post({ learnerId: LEARNER, tournamentTeamId: TEAM, jerseyNumber: 4 }));
     expect(res.status).toBe(201);
@@ -399,7 +399,7 @@ describe("school team rosters", () => {
     teamFindUnique.mockResolvedValue({ name: "Kisumu Boys Football", championshipId: CHAMP, schoolId: "other-school" });
     learnerFindUnique.mockResolvedValue({
       id: LEARNER, championshipId: CHAMP, schoolId: SCHOOL, firstName: "Amina", lastName: "Otieno", gender: "GIRLS",
-      dateOfBirth: null, bibNumber: 120, school: { name: "Manyonge", schoolLevel: "PRIMARY" },
+      dateOfBirth: null, bibNumber: 120, photoUpdatedAt: new Date(), school: { name: "Manyonge", schoolLevel: "PRIMARY" },
     });
     const res = await POST(post({ learnerId: LEARNER, tournamentTeamId: TEAM }));
     expect(res.status).toBe(400);

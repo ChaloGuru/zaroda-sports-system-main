@@ -158,6 +158,7 @@ model User {
   auditLogs            AuditLog[]
   postedCirculars      ChampionshipCircular[]
   testimonial          Testimonial?
+  schoolAccount        SchoolAccount?
 
   @@map("users")
 }
@@ -242,6 +243,10 @@ model Championship {
   schoolLevel          SchoolLevel
   category             GameCategory
   county               String
+  // The area this championship covers at its level: the Inter School base,
+  // zone, sub-county or region name (see lib/jurisdiction.ts). County level
+  // uses `county`, and National covers everyone.
+  jurisdiction         String?
   location             String
   startDate            DateTime
   endDate              DateTime
@@ -304,17 +309,42 @@ model School {
 // (bib ranges, participants, teams, team-manager roles). A School row can be
 // linked to several championships, e.g. when athletes are promoted from a
 // lower-level championship to the next one.
+// A school that signed itself up. Its KNEC code can only ever be used once.
+model SchoolAccount {
+  id         String   @id @default(uuid())
+  knecCode   String   @unique
+  schoolName String
+  baseName   String
+  zone       String
+  subcounty  String
+  county     String
+  region     String
+  userId     String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries ChampionshipSchool[]
+
+  @@map("school_accounts")
+}
+
 model ChampionshipSchool {
   id             String   @id @default(uuid())
   championshipId String
   schoolId       String
+  // The school's own account, once it has pushed to this championship - it
+  // can register this entry's learners. No account for schools an admin added.
+  schoolAccountId String?
   createdAt      DateTime @default(now())
 
+  schoolAccount SchoolAccount? @relation(fields: [schoolAccountId], references: [id], onDelete: SetNull)
   championship Championship @relation(fields: [championshipId], references: [id], onDelete: Cascade)
   school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([championshipId, schoolId])
   @@index([schoolId])
+  @@index([schoolAccountId])
   @@map("championship_schools")
 }
 
@@ -368,6 +398,11 @@ model TournamentTeam {
   // at the origin TournamentTeam row in the other championship, for
   // traceability beyond just matching on name.
   promotedFromTeamId String?
+  // Set when an official has vetted the team and approved it to play, which
+  // locks its list (see assertEntriesOpen in lib/learners.ts). Withdrawing
+  // the approval clears both.
+  approvedAt         DateTime?
+  approvedBy         String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

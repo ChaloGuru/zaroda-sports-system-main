@@ -116,6 +116,12 @@ export default function LoginPage() {
               Sign up free
             </Link>
           </p>
+          <p className="mt-2 text-center text-sm text-muted">
+            A school joining a championship?{" "}
+            <Link href="/school-signup" className="text-primary underline">
+              Sign up with your KNEC code
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>
