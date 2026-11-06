@@ -58,6 +58,31 @@ export const KENYA_COUNTIES: KenyaCounty[] = [
   { name: "Nairobi", subcounties: ["Westlands", "Dagoretti North", "Dagoretti South", "Langata", "Kibra", "Roysambu", "Kasarani", "Ruaraka", "Embakasi South", "Embakasi North", "Embakasi Central", "Embakasi East", "Embakasi West", "Makadara", "Kamukunji", "Starehe", "Mathare"] },
 ];
 
+/** A county's two-digit code, from its place in the official order above (Mombasa 01 ... Nairobi 47). */
+export function countyCode(countyName: string): string | null {
+  const index = KENYA_COUNTIES.findIndex((c) => c.name === countyName);
+  return index < 0 ? null : String(index + 1).padStart(2, "0");
+}
+
+// The eight regions, each a run of county codes.
+const REGION_RANGES: Array<{ name: string; from: number; to: number }> = [
+  { name: "Coast", from: 1, to: 6 },
+  { name: "North Eastern", from: 7, to: 9 },
+  { name: "Eastern", from: 10, to: 17 },
+  { name: "Central", from: 18, to: 22 },
+  { name: "Rift Valley", from: 23, to: 36 },
+  { name: "Western", from: 37, to: 40 },
+  { name: "Nyanza", from: 41, to: 46 },
+  { name: "Nairobi", from: 47, to: 47 },
+];
+
+export const KENYA_REGIONS = REGION_RANGES.map((r) => r.name);
+
+export function regionOfCounty(countyName: string): string | null {
+  const code = Number(countyCode(countyName));
+  return REGION_RANGES.find((r) => code >= r.from && code <= r.to)?.name ?? null;
+}
+
 export function getSubcounties(countyName: string): string[] {
   return KENYA_COUNTIES.find((c) => c.name === countyName)?.subcounties ?? [];
 }

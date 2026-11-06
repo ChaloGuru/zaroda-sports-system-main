@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, canViewChampionshipPrivateData, managedTeamSchoolIds, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, canViewChampionshipPrivateData, ownSchoolIds, toErrorResponse } from "@/lib/authorize";
 import { MAX_PHOTO_BYTES, assertRegistrationOpen, photoContentType, requireLearnerEditor } from "@/lib/learners";
 import { descriptorToBytes, refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 import { canViewLinkedLearner } from "@/lib/learner-access";
@@ -22,7 +22,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     if (!learner) return NextResponse.json({ error: "Learner not found" }, { status: 404 });
     const ctx = await getAuthContext();
     const isTeamManager =
-      !!ctx && !!learner.schoolId && (await managedTeamSchoolIds(ctx, learner.championship.id)).includes(learner.schoolId);
+      !!ctx && !!learner.schoolId && (await ownSchoolIds(ctx, learner.championship.id)).includes(learner.schoolId);
     if (!isTeamManager && !(await canViewChampionshipPrivateData(ctx, learner.championship)) && !(await canViewLinkedLearner(ctx, params.id))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

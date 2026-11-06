@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TestimonialPrompt } from "@/components/dashboard/testimonial-prompt";
+import { SchoolHome } from "@/components/dashboard/school-home";
 import { getAuthContext } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { formatDate, LEVEL_LABELS } from "@/lib/utils";
@@ -17,6 +18,9 @@ export default async function DashboardOverviewPage() {
   if (isSuperAdmin) redirect("/admin");
 
   if (!ctx.tenantId) {
+    const schoolAccount = await prisma.schoolAccount.findUnique({ where: { userId: ctx.userId }, select: { id: true } });
+    if (schoolAccount) return <SchoolHome />;
+
     // Championship-scoped officials (Scorekeeper, Coordinator, etc.) have no
     // tenant/overview of their own - take them straight to the championship
     // they were assigned to, rather than a dead end.

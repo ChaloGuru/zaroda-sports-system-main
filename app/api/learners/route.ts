@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthContext, canViewChampionshipPrivateData, managedTeamSchoolIds, toErrorResponse } from "@/lib/authorize";
+import { withAudit } from "@/lib/audit";
+import { learnerRegistrationSchema } from "@/lib/validations";
+import { requireChampionshipSchool } from "@/lib/championship-schools";
+import { schoolEntryLabel } from "@/lib/school-levels";
+import { assertNotAlreadyRegistered, assertRegistrationOpen, assertSchoolHasLearnerPlace, assertWithinAgeLimit, bibConflict, nextSchoolBib, requireLearnerEditor } from "@/lib/learners";
+import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
+import { getAuthContext, canViewChampionshipPrivateData, ownSchoolIds, toErrorResponse } from "@/lib/authorize";
 import { ageDateOf } from "@/lib/learners";
 import { identityAlertViews } from "@/lib/identity-checks";
 
@@ -33,7 +39,7 @@ export async function GET(request: Request) {
     const ctx = await getAuthContext();
     const isOfficial = await canViewChampionshipPrivateData(ctx, championship);
     if (!isOfficial) {
-      const managed = ctx ? await managedTeamSchoolIds(ctx, championship.id) : [];
+      const managed = ctx ? await ownSchoolIds(ctx, championship.id) : [];
       if (!schoolId || !managed.includes(schoolId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -57,7 +63,7 @@ export async function GET(request: Request) {
         documentsVerifiedAt: true,
         documentsVerifiedBy: true,
         school: { select: { name: true } },
-        participants: { select: { gameId: true, game: { select: { name: true, schoolLevel: true } } } },
+        participants: { select: { id: true, gameId: true, game: { select: { name: true, schoolLevel: true } } } },
         challenges: {
           orderBy: { createdAt: "desc" },
           select: { id: true, reason: true, status: true, raisedBy: true, resolution: true, resolvedBy: true, resolvedAt: true, createdAt: true },
@@ -83,6 +89,62 @@ export async function GET(request: Request) {
         ageLimits: championship.ageLimits,
       },
     });
+  } catch (error) {
+    const { body, status } = toErrorResponse(error);
+    return NextResponse.json(body, { status });
+  }
+}
+
+/**
+ * A school registers a learner ahead of the day, with no event yet - their
+ * teacher assigns them to races and teams later. The age limit is checked now,
+ * for the level they're registered at: the school's Primary or JS entry, or the
+ * championship's level where schools aren't split. The photo follows straight
+ * after, and a learner can't enter an event without one.
+ */
+export async function POST(request: Request) {
+  try {
+    const input = learnerRegistrationSchema.parse(await request.json());
+    const ctx = await requireLearnerEditor(input);
+    const school = await requireChampionshipSchool(input.championshipId, input.schoolId);
+    await assertRegistrationOpen(input.championshipId);
+    const person = { ...input, dateOfBirth: input.dateOfBirth ?? null };
+    const championship = await prisma.championship.findUnique({ where: { id: input.championshipId }, select: { schoolLevel: true } });
+    const level = school.schoolLevel ?? championship?.schoolLevel;
+    await assertWithinAgeLimit(input.championshipId, person, level ? [level] : []);
+    const label = schoolEntryLabel(school.name, school.schoolLevel);
+    const ids = await assertNotAlreadyRegistered(input.championshipId, input.schoolId, label, person);
+    if (input.bibNumber) {
+      const conflict = await bibConflict(prisma, input.championshipId, input.bibNumber, null);
+      if (conflict) throw new Error(conflict);
+    }
+    const bibNumber = input.bibNumber ?? (await nextSchoolBib(prisma, input.championshipId, input.schoolId));
+
+    const learner = await withAudit({
+      actorId: ctx.userId,
+      operation: "INSERT",
+      tableName: "learners",
+      mutate: async (tx) => {
+        await assertSchoolHasLearnerPlace(tx, input.championshipId, input.schoolId);
+        return tx.learner.create({
+          data: {
+            championshipId: input.championshipId,
+            schoolId: input.schoolId,
+            firstName: input.firstName,
+            lastName: input.lastName,
+            gender: input.gender,
+            dateOfBirth: person.dateOfBirth,
+            ...ids,
+            bibNumber,
+          },
+          select: { id: true, bibNumber: true },
+        });
+      },
+      recordId: (result) => result.id,
+      newData: { ...input, ...ids, bibNumber },
+    });
+    await refreshIdentityAlertsSafely(prisma, learner.id);
+    return NextResponse.json({ learner }, { status: 201 });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

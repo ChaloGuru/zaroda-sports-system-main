@@ -273,20 +273,38 @@ export async function requireTeamAccess(championshipId: string, teamName: string
 }
 
 /**
- * The schools whose teams this user manages in a championship (TEAM_MANAGER
- * roles name the team) - so a school team's manager can see and register
- * that school's learners for their roster.
+ * The schools this user manages in a championship. TEAM_MANAGER roles carry a
+ * name, which matches the school's teams or the school itself - so a teacher
+ * at a school with no teams, as in athletics, can register its learners too.
  */
 export async function managedTeamSchoolIds(ctx: AuthContext, championshipId: string): Promise<string[]> {
   const teamNames = ctx.roles
     .filter((r) => r.championshipId === championshipId && r.role === "TEAM_MANAGER" && r.organizationName)
     .map((r) => r.organizationName!.trim());
   if (teamNames.length === 0 || !(await isChampionshipRoleActive(championshipId))) return [];
-  const teams = await prisma.tournamentTeam.findMany({
-    where: { championshipId, schoolId: { not: null }, OR: teamNames.map((name) => ({ name: { equals: name, mode: "insensitive" as const } })) },
-    select: { schoolId: true },
-  });
-  return Array.from(new Set(teams.map((t) => t.schoolId as string)));
+  const matches = teamNames.map((name) => ({ name: { equals: name, mode: "insensitive" as const } }));
+  const [teams, schools] = await Promise.all([
+    prisma.tournamentTeam.findMany({ where: { championshipId, schoolId: { not: null }, OR: matches }, select: { schoolId: true } }),
+    prisma.championshipSchool.findMany({
+      where: { championshipId, OR: matches.map((school) => ({ school })) },
+      select: { schoolId: true },
+    }),
+  ]);
+  return Array.from(new Set([...teams, ...schools].map((t) => t.schoolId as string)));
+}
+
+/**
+ * The schools whose learners this user can register in a championship: those
+ * they manage as a team manager, and their own school if its account pushed
+ * here. A school account stops there - entering learners in events and teams
+ * takes a team manager the admin signed up.
+ */
+export async function ownSchoolIds(ctx: AuthContext, championshipId: string): Promise<string[]> {
+  const [managed, entries] = await Promise.all([
+    managedTeamSchoolIds(ctx, championshipId),
+    prisma.championshipSchool.findMany({ where: { championshipId, schoolAccount: { userId: ctx.userId } }, select: { schoolId: true } }),
+  ]);
+  return Array.from(new Set([...managed, ...entries.map((e) => e.schoolId)]));
 }
 
 /**

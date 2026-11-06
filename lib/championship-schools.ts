@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import type { Prisma, SchoolLevel } from "@prisma/client";
 import { prisma } from "./prisma";
 
@@ -37,6 +38,33 @@ export async function resolveTeamSchoolId(
   });
   const match = candidates.find((c) => !c.school.schoolLevel || c.school.schoolLevel === gameSchoolLevel);
   return match?.school.id ?? null;
+}
+
+/** Creates school entries and puts them on a championship's list. */
+export async function createSchoolEntries(
+  tx: Prisma.TransactionClient,
+  championshipId: string,
+  entries: Array<{ name: string; schoolLevel: "PRIMARY" | "JS" | null }>,
+  area: { county: string; zone?: string; subcounty?: string; region?: string },
+  schoolAccountId?: string,
+): Promise<number> {
+  // Two batch inserts (ids generated up front) rather than one round trip per
+  // school, so large lists stay well inside the transaction timeout. A school
+  // an admin typed in has only a county; a signed-up school brings its full area.
+  const schools = entries.map((entry) => ({
+    id: randomUUID(),
+    name: entry.name,
+    schoolLevel: entry.schoolLevel,
+    county: area.county,
+    zone: area.zone ?? "",
+    subcounty: area.subcounty ?? "",
+    region: area.region ?? "",
+  }));
+  await tx.school.createMany({ data: schools });
+  await tx.championshipSchool.createMany({
+    data: schools.map((s) => ({ championshipId, schoolId: s.id, ...(schoolAccountId ? { schoolAccountId } : {}) })),
+  });
+  return schools.length;
 }
 
 /** Puts a school on a championship's list if it isn't there already (e.g. when promoting its athletes). */

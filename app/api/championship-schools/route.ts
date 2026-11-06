@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
@@ -11,6 +10,7 @@ import {
   toErrorResponse,
 } from "@/lib/authorize";
 import { championshipSchoolsAddSchema } from "@/lib/validations";
+import { createSchoolEntries } from "@/lib/championship-schools";
 import { schoolEntryLabel, schoolEntryLevels } from "@/lib/school-levels";
 import type { SchoolLevel } from "@prisma/client";
 
@@ -141,26 +141,7 @@ export async function POST(request: Request) {
         actorId: ctx.userId,
         operation: "INSERT",
         tableName: "championship_schools",
-        mutate: async (tx) => {
-          // Two batch inserts (ids generated up front) rather than one round
-          // trip per school, so large lists stay well inside the transaction
-          // timeout. zone/subcounty/region aren't collected here; county is
-          // what geographic-scope checks rely on.
-          const schools = toAdd.map((entry) => ({
-            id: randomUUID(),
-            name: entry.name,
-            schoolLevel: entry.schoolLevel,
-            county,
-            zone: "",
-            subcounty: "",
-            region: "",
-          }));
-          await tx.school.createMany({ data: schools });
-          await tx.championshipSchool.createMany({
-            data: schools.map((s) => ({ championshipId: input.championshipId, schoolId: s.id })),
-          });
-          return schools.length;
-        },
+        mutate: (tx) => createSchoolEntries(tx, input.championshipId, toAdd, { county }),
         recordId: () => input.championshipId,
         newData: { entries: toAdd, county },
       });

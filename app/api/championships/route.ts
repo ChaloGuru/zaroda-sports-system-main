@@ -115,6 +115,7 @@ export async function POST(request: Request) {
             schoolLevel: input.schoolLevel,
             category: input.category,
             county: input.county,
+            jurisdiction: input.jurisdiction?.trim() || null,
             location: input.location,
             startDate: input.startDate,
             endDate: input.endDate,

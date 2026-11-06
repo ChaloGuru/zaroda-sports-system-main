@@ -51,6 +51,27 @@ describe("signupSchema", () => {
   });
 });
 
+describe("championshipCreateSchema jurisdiction", () => {
+  const championship = {
+    name: "Uriri Inter School",
+    schoolLevel: "PRIMARY_JS" as const,
+    category: "ATHLETICS" as const,
+    county: "Migori",
+    location: "Uriri",
+    startDate: "2026-08-01",
+    endDate: "2026-08-03",
+  };
+
+  it("is needed from Inter School to Region, except County", () => {
+    for (const level of ["BASE", "ZONE", "SUB_COUNTY", "REGIONAL"] as const) {
+      expect(championshipCreateSchema.safeParse({ ...championship, level }).success).toBe(false);
+      expect(championshipCreateSchema.safeParse({ ...championship, level, jurisdiction: "Uriri" }).success).toBe(true);
+    }
+    expect(championshipCreateSchema.safeParse({ ...championship, level: "COUNTY" }).success).toBe(true);
+    expect(championshipCreateSchema.safeParse({ ...championship, level: "NATIONAL" }).success).toBe(true);
+  });
+});
+
 describe("championshipCreateSchema", () => {
   const base = {
     name: "Zone Athletics Championship",
@@ -58,6 +79,7 @@ describe("championshipCreateSchema", () => {
     schoolLevel: "SENIOR_SCHOOL" as const,
     category: "ATHLETICS" as const,
     county: "Nairobi",
+    jurisdiction: "Westlands Zone",
     location: "Nairobi Stadium",
     startDate: "2026-08-01",
     endDate: "2026-08-03",

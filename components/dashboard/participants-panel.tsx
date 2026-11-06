@@ -24,6 +24,7 @@ import {
   PhotoPicker,
   idSearchText,
   uploadLearnerDocument,
+  registerLearnerWithPhoto,
   uploadLearnerPhoto,
   type DocumentChoice,
   type LearnerIdentity,
@@ -375,6 +376,38 @@ export function ParticipantsPanel({
 
   const createMutation = useMutation({
     mutationFn: async (values: LearnerEntryCreateInput) => {
+      if (!isOpenTournament && photo) {
+        const learnerId = await registerLearnerWithPhoto(
+          {
+            championshipId,
+            schoolId: values.schoolId,
+            firstName: values.firstName,
+            lastName: values.lastName,
+            gender: values.gender,
+            dateOfBirth: values.dateOfBirth ?? null,
+            bibNumber: values.bibNumber,
+            birthCertNumber: values.birthCertNumber,
+            knecAssessmentNumber: values.knecAssessmentNumber,
+            kemisUpi: values.kemisUpi,
+          },
+          photo,
+        );
+        if (idDocument.file) {
+          try {
+            await uploadLearnerDocument(learnerId, idDocument.file, idDocument.kind);
+          } catch (error) {
+            toast.error(`Registered, but the document didn't upload: ${error instanceof Error ? error.message : "try again"}`);
+          }
+        }
+        await apiPost("/api/participants", {
+          championshipId,
+          gameId: values.gameId,
+          learnerId,
+          personalBest: values.personalBest || null,
+          notes: values.notes || null,
+        });
+        return;
+      }
       const { participant } = await apiPost<{ participant: { learnerId: string | null } }>("/api/participants", values);
       if (photo && participant.learnerId) {
         try {
@@ -621,7 +654,7 @@ export function ParticipantsPanel({
                   </div>
                 )}
 
-                <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+                <Button type="submit" className="w-full" disabled={createMutation.isPending || (!isOpenTournament && !photo)}>
                   {createMutation.isPending ? "Registering..." : "Register participant"}
                 </Button>
               </form>

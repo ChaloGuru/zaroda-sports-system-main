@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { ensureChampionshipSchool } from "@/lib/championship-schools";
+import { isInJurisdiction } from "@/lib/jurisdiction";
 import {
   requireChampionshipAccess,
   isGeographicallyRestricted,
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
         where: { id: participantId },
         include: {
           game: { select: { championshipId: true, category: true, gender: true, schoolLevel: true, isTimed: true, name: true } },
-          school: { select: { id: true, county: true, name: true } },
+          school: { select: { id: true, county: true, name: true, zone: true, subcounty: true, region: true } },
           heatParticipations: {
             where: { heat: { heatType: "final" } },
             select: { timeTaken: true },
@@ -101,6 +102,10 @@ export async function POST(request: Request) {
 
       if (isGeographicallyRestricted(targetChampionship.level)) {
         assertWithinGeographicScope(targetChampionship.county, origin.school?.county);
+      }
+      if (origin.school && !isInJurisdiction(origin.school, targetChampionship)) {
+        promoted.push({ athlete: athleteName, created: false, reason: "outside their school's jurisdiction" });
+        continue;
       }
 
       // A school's learner keeps one learner record (and bib) at the next

@@ -19,6 +19,7 @@ interface ChampionshipDetail {
   name: string;
   category: string;
   county: string;
+  jurisdiction?: string | null;
   location: string;
   startDate: string;
   endDate: string;
@@ -188,6 +189,7 @@ export function ChampionshipSettingsPanel({ championshipId, isSuperAdmin }: { ch
     name: string;
     category: string;
     county: string;
+    jurisdiction: string;
     location: string;
     startDate: string;
     endDate: string;
@@ -200,6 +202,7 @@ export function ChampionshipSettingsPanel({ championshipId, isSuperAdmin }: { ch
         name: c.name,
         category: c.category,
         county: c.county,
+        jurisdiction: c.jurisdiction ?? "",
         location: c.location,
         startDate: toDateInput(c.startDate),
         endDate: toDateInput(c.endDate),
@@ -264,6 +267,10 @@ export function ChampionshipSettingsPanel({ championshipId, isSuperAdmin }: { ch
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="settings-jurisdiction">Area covered (base, zone, sub-county or region)</Label>
+              <Input id="settings-jurisdiction" className="mt-1.5" value={form.jurisdiction} onChange={(e) => setForm({ ...form, jurisdiction: e.target.value })} />
+            </div>
             <div>
               <Label htmlFor="settings-county">County</Label>
               <Input id="settings-county" className="mt-1.5" value={form.county} onChange={(e) => setForm({ ...form, county: e.target.value })} />

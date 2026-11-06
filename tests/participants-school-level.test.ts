@@ -15,7 +15,7 @@ vi.mock("@/lib/authorize", async () => {
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 
-const txClient = { participant: { create: txParticipantCreate }, learner: { create: txLearnerCreate }, auditLog: { create: vi.fn() } };
+const txClient = { $executeRaw: async () => 0, school: { findUnique: async () => ({ name: "Manyonge" }) }, participant: { create: txParticipantCreate }, learner: { count: async () => 0, create: txLearnerCreate }, auditLog: { create: vi.fn() } };
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     game: { findUnique: (...a: unknown[]) => gameFindUnique(...a) },
@@ -24,6 +24,7 @@ vi.mock("@/lib/prisma", () => ({
     schoolBibRange: { findUnique: (...a: unknown[]) => bibRangeFindUnique(...a) },
     participant: { findMany: (...a: unknown[]) => participantFindMany(...a), findFirst: async () => null },
     learner: { findUnique: async () => null, findFirst: async () => null, findMany: async () => [] },
+    heat: { findFirst: async () => null },
     $transaction: (fn: (tx: typeof txClient) => Promise<unknown>) => fn(txClient),
   },
 }));
@@ -61,18 +62,17 @@ describe("POST /api/participants - Primary/JS school entries", () => {
     expect(txParticipantCreate).not.toHaveBeenCalled();
   });
 
-  it("accepts the matching Primary entry and assigns a bib from its range", async () => {
+  it("passes the matching Primary entry on to registration", async () => {
     championshipSchoolFindUnique.mockResolvedValue({ school: { name: "Manyonge", county: "Kisumu", schoolLevel: "PRIMARY" } });
     const res = await POST(post({}));
-    expect(res.status).toBe(201);
-    expect(txParticipantCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ schoolId: SCHOOL, bibNumber: 100 }) });
+    expect((await res.json()).error).toBe("Register this learner with their photo first, then enter them");
   });
 
-  it("accepts an unsplit (Senior School) school in any event", async () => {
+  it("passes an unsplit (Senior School) school on to registration in any event", async () => {
     gameFindUnique.mockResolvedValue({ championshipId: CHAMP, schoolLevel: "SENIOR_SCHOOL" });
     championshipSchoolFindUnique.mockResolvedValue({ school: { name: "Kisumu Boys", county: "Kisumu", schoolLevel: null } });
     const res = await POST(post({}));
-    expect(res.status).toBe(201);
+    expect((await res.json()).error).toBe("Register this learner with their photo first, then enter them");
   });
 
   it("refuses a game from a different championship", async () => {

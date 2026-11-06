@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { countyCode } from "./kenya-counties";
+import { needsJurisdiction } from "./jurisdiction";
 
 // z.string().email().optional() still runs the email-format check against an
 // empty string (forms submit "" for a blank field, not undefined), making an
@@ -45,6 +47,33 @@ export const signupSchema = z
   });
 export type SignupInput = z.infer<typeof signupSchema>;
 
+/** A school's own signup. The KNEC code is what makes the account unique. */
+export const schoolSignupSchema = z
+  .object({
+    knecCode: z.string().trim().regex(/^\d{6,10}$/, "Enter the school's KNEC code, numbers only"),
+    schoolName: z.string().trim().min(2, "School name is required").max(200),
+    baseName: z.string().trim().min(2, "Enter your Inter School base").max(200),
+    zone: z.string().trim().min(2, "Enter your zone").max(200),
+    county: z.string().min(1, "Select a county"),
+    subcounty: z.string().min(1, "Select a sub-county"),
+    contactName: z.string().min(2, "Teacher's name is required").max(200),
+    email: z.string().email("Enter a valid email"),
+    phone: z.string().min(7, "Enter a valid phone number").max(20),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  })
+  .superRefine((data, ctx) => {
+    const code = countyCode(data.county);
+    if (code && !data.knecCode.startsWith(code)) {
+      ctx.addIssue({ code: "custom", path: ["knecCode"], message: `A ${data.county} school's KNEC code starts with ${code}` });
+    }
+  });
+export type SchoolSignupInput = z.infer<typeof schoolSignupSchema>;
+
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1, "Password is required"),
@@ -69,15 +98,18 @@ const championshipFieldsSchema = z.object({
   schoolLevel: schoolLevelSchema,
   category: gameCategorySchema,
   county: z.string().min(1),
+  jurisdiction: z.string().trim().max(200).nullable().optional(),
   location: z.string().min(1),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   isPublished: z.boolean().default(false),
 });
-export const championshipCreateSchema = championshipFieldsSchema.refine(
-  (data) => data.endDate >= data.startDate,
-  { message: "End date must be after start date", path: ["endDate"] },
-);
+export const championshipCreateSchema = championshipFieldsSchema
+  .refine((data) => data.endDate >= data.startDate, { message: "End date must be after start date", path: ["endDate"] })
+  .refine((data) => !needsJurisdiction(data.level) || !!data.jurisdiction?.trim(), {
+    message: "Enter the area this championship covers",
+    path: ["jurisdiction"],
+  });
 export type ChampionshipCreateInput = z.infer<typeof championshipCreateSchema>;
 
 // Used for PATCH: all fields optional, without the cross-field refine (partial
@@ -188,6 +220,21 @@ const learnerIdsSchema = {
   kemisUpi: idNumberSchema("KEMIS UPI"),
 };
 
+/** The most learners one school can register in a championship. */
+export const MAX_LEARNERS_PER_SCHOOL = 200;
+
+/** A learner registered by their school ahead of the day, with no event yet. */
+export const learnerRegistrationSchema = z.object({
+  championshipId: z.string().uuid(),
+  schoolId: z.string().uuid(),
+  bibNumber: z.number().int().positive().optional(),
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  gender: z.enum(["BOYS", "GIRLS"]),
+  dateOfBirth: z.coerce.date().nullable().optional(),
+  ...learnerIdsSchema,
+});
+
 /** A new learner, entered in their first event. */
 export const learnerEntryCreateSchema = participantCreateSchema.extend(learnerIdsSchema);
 export type LearnerEntryCreateInput = z.infer<typeof learnerEntryCreateSchema>;
@@ -198,6 +245,7 @@ export const learnerEntrySchema = z.object({
   gameId: z.string().uuid(),
   learnerId: z.string().uuid(),
   personalBest: z.string().max(20).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
   // A school team's roster: the learner joins the team with a shirt number.
   tournamentTeamId: z.string().uuid().nullable().optional(),
   jerseyNumber: z.number().int().positive().nullable().optional(),

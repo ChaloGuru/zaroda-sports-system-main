@@ -6,6 +6,8 @@ const participantFindMany = vi.fn();
 const championshipFindUnique = vi.fn();
 const learnerFindMany = vi.fn();
 const teamFindMany = vi.fn();
+const championshipSchoolFindMany = vi.fn().mockResolvedValue([]);
+const schoolFindMany = vi.fn().mockResolvedValue([]);
 const txTeamFindFirst = vi.fn();
 const txTeamCreate = vi.fn();
 const txLearnerFindFirst = vi.fn();
@@ -38,6 +40,8 @@ vi.mock("@/lib/prisma", () => ({
     championship: { findUnique: (...a: unknown[]) => championshipFindUnique(...a) },
     learner: { findMany: (...a: unknown[]) => learnerFindMany(...a), findFirst: async () => null },
     tournamentTeam: { findMany: (...a: unknown[]) => teamFindMany(...a) },
+    championshipSchool: { findMany: (...a: unknown[]) => championshipSchoolFindMany(...a) },
+    school: { findMany: (...a: unknown[]) => schoolFindMany(...a) },
     learnerIdentityAlert: { findMany: async () => [] },
     $transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
   },
@@ -78,6 +82,16 @@ describe("Primary ball games: picking the team that goes up", () => {
     txLearnerFindFirst.mockResolvedValue(null);
     txLearnerCreate.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: `t-${String(data.firstName)}`, ...data }));
     txParticipantFindFirst.mockResolvedValue(null);
+  });
+
+  it("refuses to send a school outside its jurisdiction", async () => {
+    championshipFindUnique.mockResolvedValueOnce({ level: "ZONE", county: "Migori", jurisdiction: "Awendo Zone" });
+    schoolFindMany.mockResolvedValueOnce([{ zone: "Uriri Zone", subcounty: "Uriri", county: "Migori", region: "Nyanza" }]);
+    participantFindMany.mockResolvedValue([player(P1, "2013-05-01", "school-a")]);
+    const res = await promoteSelection(selection());
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("That championship is outside this school's jurisdiction");
+    expect(txTeamCreate).not.toHaveBeenCalled();
   });
 
   it("sends the picked players from different schools up as one team, leaving off anyone over age", async () => {
@@ -125,6 +139,15 @@ describe("team managers and their school's learners", () => {
     // Within the championship's dates, so the manager's role is active.
     getAuthContext.mockResolvedValue({ userId: "tm-1", roles: [{ role: "TEAM_MANAGER", championshipId: CHAMP, organizationName: "Manyonge Football" }] });
     teamFindMany.mockResolvedValue([{ schoolId: "manyonge" }]);
+  });
+
+  it("lets a teacher at a school with no teams list its learners, as in athletics", async () => {
+    teamFindMany.mockResolvedValueOnce([]);
+    championshipSchoolFindMany.mockResolvedValueOnce([{ schoolId: "manyonge" }]);
+    championshipFindUnique.mockResolvedValueOnce({
+      id: CHAMP, tenantId: "tenant", registrationClosesAt: null, ageCutoffDate: null, startDate: new Date("2026-06-01"), ageLimits: [],
+    }).mockResolvedValueOnce({ endDate: new Date("2999-01-01") });
+    expect((await list("manyonge")).status).toBe(200);
   });
 
   it("lets a team manager list their own school's learners", async () => {

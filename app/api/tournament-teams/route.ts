@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       teams: visible.map((team) => {
         if (isStaff || own.has(team.id)) return team;
-        const { contactName: _n, contactEmail: _e, contactPhone: _p, notes: _notes, ...rest } = team;
+        const { contactName: _n, contactEmail: _e, contactPhone: _p, notes: _notes, approvedBy: _a, ...rest } = team;
         return rest;
       }),
     });

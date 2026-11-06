@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireTeamAccess, isSuperAdmin, hasRole, toErrorResponse } from "@/lib/authorize";
 import { tournamentTeamSchema } from "@/lib/validations";
+import { assertEntriesOpen } from "@/lib/learners";
 import { resolveTeamSchoolId } from "@/lib/championship-schools";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (!existing) return NextResponse.json({ error: "Team not found" }, { status: 404 });
 
     const ctx = await requireTeamAccess(existing.championshipId, existing.name);
+    await assertEntriesOpen({ championshipId: existing.championshipId, tournamentTeamId: existing.id });
 
     const body: unknown = await request.json();
     const input = tournamentTeamUpdateSchema.parse(body);
@@ -93,6 +95,7 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
     if (!existing) return NextResponse.json({ error: "Team not found" }, { status: 404 });
 
     const ctx = await requireTeamAccess(existing.championshipId, existing.name);
+    await assertEntriesOpen({ championshipId: existing.championshipId, tournamentTeamId: existing.id });
 
     await withAudit({
       actorId: ctx.userId,

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { JURISDICTION_LABELS, needsJurisdiction } from "@/lib/jurisdiction";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
@@ -199,6 +200,15 @@ export default function NewChampionshipPage() {
                 {errors.location && <p className="mt-1 text-sm text-red-400">{errors.location.message}</p>}
               </div>
             </div>
+
+            {needsJurisdiction(level) && (
+              <div>
+                <Label htmlFor="jurisdiction">{JURISDICTION_LABELS[level]} this championship covers</Label>
+                <Input id="jurisdiction" className="mt-1.5" {...register("jurisdiction")} />
+                <p className="mt-1 text-xs text-muted">Only schools in this area can take part, so spell it the way schools do.</p>
+                {errors.jurisdiction && <p className="mt-1 text-sm text-red-400">{errors.jurisdiction.message}</p>}
+              </div>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>

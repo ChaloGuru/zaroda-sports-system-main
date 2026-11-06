@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isInJurisdiction } from "@/lib/jurisdiction";
 import { withAudit } from "@/lib/audit";
 import { resolveTeamSchoolId } from "@/lib/championship-schools";
 import {
@@ -90,6 +91,14 @@ export async function POST(request: Request) {
     for (const row of promotees) {
       const originTeam = await prisma.tournamentTeam.findUnique({ where: { id: row.teamId } });
       if (!originTeam) continue;
+
+      const school = originTeam.schoolId
+        ? await prisma.school.findUnique({ where: { id: originTeam.schoolId }, select: { zone: true, subcounty: true, county: true, region: true } })
+        : null;
+      if (school && !isInJurisdiction(school, targetChampionship)) {
+        promoted.push({ team: originTeam.name, created: false, rosterCopied: 0 });
+        continue;
+      }
 
       const already = await prisma.tournamentTeam.findFirst({
         where: { championshipId: input.targetChampionshipId, promotedFromTeamId: originTeam.id },
