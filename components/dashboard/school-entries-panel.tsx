@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQueries, useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, UserPlus } from "lucide-react";
+import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -218,7 +218,7 @@ export function SchoolEntriesPanel({
           {everyone.map(({ learner: l, entry: s }) => (
             <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-2 text-sm">
               <span className="flex items-center gap-2">
-                <LearnerPhoto learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} />
+                <LearnerPhoto zoomable learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} />
                 <span>
                   <span className="font-medium text-foreground">{l.firstName} {l.lastName}</span> - bib {l.bibNumber}
                   {entries.length > 1 && ` - ${s.schoolLevel === "JS" ? "JS" : "Primary"}`}
@@ -230,10 +230,10 @@ export function SchoolEntriesPanel({
                   )}
                 </span>
               </span>
-              {!l.photoUpdatedAt && <Button size="sm" variant="outline" onClick={() => setEditing(l)}>Add photo</Button>}
-              {l.photoUpdatedAt && l.faceMatched === false && (
-                <Button size="sm" variant="outline" onClick={() => setEditing(l)}>Retake photo</Button>
-              )}
+              <Button size="sm" variant="outline" onClick={() => setEditing(l)}>
+                <Pencil className="h-4 w-4" />
+                {!l.photoUpdatedAt ? "Add photo" : l.faceMatched === false ? "Retake photo" : "Edit / change photo"}
+              </Button>
             </div>
           ))}
         </CardContent>
@@ -333,7 +333,7 @@ export function SchoolEntriesPanel({
                   {available.map((l) => (
                     <div key={l.id} className="flex items-center justify-between gap-2 rounded-md border border-border p-2 text-sm">
                       <span className="flex items-center gap-2">
-                        <LearnerPhoto learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} />
+                        <LearnerPhoto zoomable learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} />
                         {l.firstName} {l.lastName} - bib {l.bibNumber}
                       </span>
                       {l.photoUpdatedAt ? (

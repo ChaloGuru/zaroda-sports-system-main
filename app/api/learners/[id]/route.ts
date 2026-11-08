@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { toErrorResponse } from "@/lib/authorize";
 import { learnerUpdateSchema } from "@/lib/validations";
-import { LEARNER_FIELDS, assertRegistrationOpen, assertWithinAgeLimit, requireLearnerEditor, updateLearner } from "@/lib/learners";
-import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
+import { LEARNER_FIELDS, assertRegistrationOpen, assertWithinAgeLimit, isTournamentAdmin, requireLearnerEditor, updateLearner } from "@/lib/learners";
+import { findSameFaceInChampionship, refreshIdentityAlertsSafely, sameFaceMessage } from "@/lib/identity-checks";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,30 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const body: unknown = await request.json();
     const input = learnerUpdateSchema.parse(body);
     await assertRegistrationOpen(existing.championshipId);
+
+    // New details mustn't turn this face into a second identity of another
+    // learner in the championship - the rule the photo upload applies. Only
+    // checked when who they are changes, so fixing a bib isn't held up.
+    const pick = <K extends keyof typeof existing>(key: K) => (key in input ? (input as Record<string, unknown>)[key] : existing[key]) as (typeof existing)[K];
+    const identityKeys = ["firstName", "lastName", "gender", "dateOfBirth", "birthCertNumber", "knecAssessmentNumber", "kemisUpi"] as const;
+    const identityChanged = identityKeys.some((key) => String(pick(key) ?? "") !== String(existing[key] ?? ""));
+    const { faceDescriptor } = identityChanged
+      ? ((await prisma.learner.findUnique({ where: { id: existing.id }, select: { faceDescriptor: true } })) ?? {})
+      : {};
+    if (faceDescriptor) {
+      const match = await findSameFaceInChampionship(prisma, existing.championshipId, Buffer.from(faceDescriptor), {
+        firstName: pick("firstName"),
+        lastName: pick("lastName"),
+        gender: pick("gender"),
+        dateOfBirth: pick("dateOfBirth"),
+        birthCertNumber: pick("birthCertNumber"),
+        knecAssessmentNumber: pick("knecAssessmentNumber"),
+        kemisUpi: pick("kemisUpi"),
+      }, existing.id);
+      if (match && !(await isTournamentAdmin(existing.championshipId))) {
+        return NextResponse.json({ error: sameFaceMessage(match.bibNumber), matchedBibNumber: match.bibNumber }, { status: 409 });
+      }
+    }
 
     // A corrected date of birth must still fit every event they're entered in.
     if (input.dateOfBirth) {

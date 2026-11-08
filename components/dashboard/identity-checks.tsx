@@ -284,7 +284,7 @@ function RecordSide({
 }) {
   return (
     <div className="flex flex-1 items-start gap-3 rounded-md border border-border bg-surface p-3">
-      <LearnerPhoto learnerId={photo.learnerId} photoUpdatedAt={photo.photoUpdatedAt} name={name} className="h-20 w-20" />
+      <LearnerPhoto zoomable learnerId={photo.learnerId} photoUpdatedAt={photo.photoUpdatedAt} name={name} className="h-20 w-20" />
       <div className="min-w-0 text-xs text-muted">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</p>
         <p className="text-sm font-medium text-foreground">{name}</p>

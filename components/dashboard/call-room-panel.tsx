@@ -296,7 +296,7 @@ function ParticipantRowEditor({ participant, gameId, canManage }: { participant:
       <div className="flex items-center gap-3">
         {/* Compare this photo with the learner standing in front of you. */}
         {learner && (
-          <LearnerPhoto
+          <LearnerPhoto zoomable
             learnerId={learner.id}
             photoUpdatedAt={learner.photoUpdatedAt}
             name={`${participant.firstName} ${participant.lastName}`}

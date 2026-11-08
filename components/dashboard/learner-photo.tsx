@@ -54,12 +54,16 @@ export function LearnerPhoto({
   photoUpdatedAt,
   name,
   className,
+  zoomable = false,
 }: {
   learnerId: string | null | undefined;
   photoUpdatedAt: string | null | undefined;
   name: string;
   className?: string;
+  /** Click to open the photo full size. Off where the photo sits inside another button. */
+  zoomable?: boolean;
 }) {
+  const [open, setOpen] = React.useState(false);
   const frame = cn("shrink-0 overflow-hidden rounded-md border border-border bg-secondary", className ?? "h-10 w-10");
   if (!learnerId || !photoUpdatedAt) {
     return (
@@ -68,12 +72,29 @@ export function LearnerPhoto({
       </div>
     );
   }
+  const src = `/api/learners/${learnerId}/photo?v=${encodeURIComponent(photoUpdatedAt)}`;
+  const image = <img src={src} alt={`Photo of ${name}`} className={cn(frame, "object-cover")} />;
+  if (!zoomable) return image;
   return (
-    <img
-      src={`/api/learners/${learnerId}/photo?v=${encodeURIComponent(photoUpdatedAt)}`}
-      alt={`Photo of ${name}`}
-      className={cn(frame, "object-cover")}
-    />
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="shrink-0 cursor-zoom-in rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-label={`Enlarge ${name}'s photo`}
+        title="Click to enlarge"
+      >
+        {image}
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{name}</DialogTitle>
+          </DialogHeader>
+          <img src={src} alt={`Photo of ${name}`} className="mx-auto aspect-square w-full max-w-sm rounded-md border border-border object-cover" />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

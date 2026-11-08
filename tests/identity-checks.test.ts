@@ -60,6 +60,7 @@ const {
   refreshIdentityAlerts,
 } = await import("@/lib/identity-checks");
 const { PUT: putPhoto } = await import("@/app/api/learners/[id]/photo/route");
+const { PATCH: patchLearner } = await import("@/app/api/learners/[id]/route");
 const { POST: raiseChallenge } = await import("@/app/api/learners/[id]/challenges/route");
 const { PATCH: resolveChallenge } = await import("@/app/api/learner-challenges/[id]/route");
 const { PATCH: patchParticipant } = await import("@/app/api/participants/[id]/route");
@@ -206,6 +207,23 @@ describe("the same face registered twice in one championship", () => {
       expect(res.status).toBe(409);
       expect((await res.json()).matchedBibNumber).toBe(101);
       expect(txLearnerUpdate).not.toHaveBeenCalled();
+    });
+
+    it("refuses a school editing a learner's details into another identity of a matching face", async () => {
+      requireChampionshipAccess.mockImplementation(async (_c: string, roles: string[]) => {
+        if (roles.length === 1) throw new Error("not an admin");
+        return { userId: "scorer-1" };
+      });
+      learnerFindUnique.mockResolvedValue({ id: LEARNER, championshipId: "c1", schoolId: "s1", bibNumber: 2, ...details, faceDescriptor: face(3, 0.05) });
+      const res = await patchLearner(json({ firstName: "Janet" }, "PATCH"), params);
+      expect(res.status).toBe(409);
+      expect((await res.json()).matchedBibNumber).toBe(101);
+    });
+
+    it("doesn't hold up a bib change over the face", async () => {
+      learnerFindUnique.mockResolvedValue({ id: LEARNER, championshipId: "c1", schoolId: "s1", bibNumber: 2, ...details, faceDescriptor: face(3, 0.05) });
+      await patchLearner(json({ bibNumber: 7 }, "PATCH"), params);
+      expect(learnerFindMany).not.toHaveBeenCalled();
     });
 
     it("lets a tournament admin save it, for twins", async () => {

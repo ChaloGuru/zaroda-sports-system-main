@@ -127,6 +127,8 @@ export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: Lear
   async function save() {
     setSaving(true);
     try {
+      // A new photo goes first: the details are then checked against the new face, not the old one.
+      if (photo) await uploadLearnerPhoto(learner.id, photo);
       await apiPatch(`/api/learners/${learner.id}`, {
         firstName: form.firstName,
         lastName: form.lastName,
@@ -137,7 +139,6 @@ export function EditLearnerDialog({ learner, onClose, onSaved }: { learner: Lear
         knecAssessmentNumber: form.knecAssessmentNumber.trim() || null,
         kemisUpi: form.kemisUpi.trim() || null,
       });
-      if (photo) await uploadLearnerPhoto(learner.id, photo);
       if (idDocument.file) await uploadLearnerDocument(learner.id, idDocument.file, idDocument.kind);
       toast.success("Learner updated");
       onSaved();
@@ -271,7 +272,7 @@ function MergeDialog({ learners, onClose, onMerged }: { learners: [LearnerRow, L
               className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${keepId === l.id ? "border-primary bg-secondary" : "border-border"}`}
             >
               <input type="radio" name="keep" checked={keepId === l.id} onChange={() => setKeepId(l.id)} />
-              <LearnerPhoto learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} className="h-12 w-12" />
+              <LearnerPhoto zoomable learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} className="h-12 w-12" />
               <span className="flex-1">
                 <span className="font-medium text-foreground">
                   {l.firstName} {l.lastName} - bib {l.bibNumber}
@@ -486,7 +487,7 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
               </p>
               {openChallenges.map(({ learner: l, challenge }) => (
                 <div key={challenge.id} className="flex flex-wrap items-center gap-3 text-sm">
-                  <LearnerPhoto learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} className="h-12 w-12" />
+                  <LearnerPhoto zoomable learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} className="h-12 w-12" />
                   <span className="min-w-0 flex-1">
                     <span className="font-medium text-foreground">
                       {l.firstName} {l.lastName} (bib {l.bibNumber}, {schoolName(l.schoolId)})
@@ -563,7 +564,7 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <LearnerPhoto learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} />
+                        <LearnerPhoto zoomable learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} />
                         <span>
                           {l.firstName} {l.lastName}
                           <span className="block text-xs text-muted">{l.gender === "BOYS" ? "Boy" : l.gender === "GIRLS" ? "Girl" : "Mixed"}</span>
