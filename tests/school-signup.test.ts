@@ -5,6 +5,7 @@ import { countyCode, regionOfCounty } from "@/lib/kenya-counties";
 import { isInJurisdiction, isOpenToSchool, sameArea } from "@/lib/jurisdiction";
 
 const accountFindUnique = vi.fn();
+const accountFindMany = vi.fn();
 const userFindUnique = vi.fn();
 const championshipFindUnique = vi.fn();
 const championshipFindMany = vi.fn();
@@ -39,7 +40,7 @@ const tx = {
 };
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    schoolAccount: { findUnique: (...a: unknown[]) => accountFindUnique(...a) },
+    schoolAccount: { findUnique: (...a: unknown[]) => accountFindUnique(...a), findMany: (...a: unknown[]) => accountFindMany(...a) },
     user: { findUnique: (...a: unknown[]) => userFindUnique(...a) },
     championship: { findUnique: (...a: unknown[]) => championshipFindUnique(...a), findMany: (...a: unknown[]) => championshipFindMany(...a) },
     championshipSchool: { findMany: (...a: unknown[]) => schoolListFindMany(...a) },
@@ -49,7 +50,7 @@ vi.mock("@/lib/prisma", () => ({
 
 const { POST: signup } = await import("@/app/api/school-signup/route");
 const { GET: listChampionships, POST: push } = await import("@/app/api/school-account/championships/route");
-const { GET: listBases } = await import("@/app/api/school-signup/bases/route");
+const { GET: listAreas } = await import("@/app/api/school-signup/areas/route");
 
 const CHAMP = "11111111-1111-1111-1111-111111111111";
 
@@ -98,6 +99,7 @@ const openChampionship = {
 beforeEach(() => {
   vi.clearAllMocks();
   accountFindUnique.mockResolvedValue(null);
+  accountFindMany.mockResolvedValue([]);
   userFindUnique.mockResolvedValue(null);
   txUserCreate.mockResolvedValue({ id: "teacher-1" });
   txAccountCreate.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: "acc-1", ...data }));
@@ -181,6 +183,45 @@ describe("signing up a school", () => {
   it("refuses an email that's already in use", async () => {
     userFindUnique.mockResolvedValue({ id: "other" });
     expect((await signUp()).status).toBe(409);
+  });
+
+  it("needs a sub-county inside its county", async () => {
+    expect((await signUp({ subcounty: "Kondele" })).status).toBe(400);
+    expect((await signUp({ county: "Atlantis" })).status).toBe(400);
+    expect(txUserCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a known base placed in another zone", async () => {
+    accountFindMany.mockResolvedValue([{ baseName: "URIRI BASE", zone: "Oruba Zone", subcounty: "Uriri" }]);
+    const res = await signUp();
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'The base "URIRI BASE" is in the zone "Oruba Zone" - check your zone and base',
+      field: "zone",
+    });
+    expect(txUserCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a known zone placed in another sub-county", async () => {
+    accountFindMany.mockResolvedValue([{ baseName: "Kamagambo Base", zone: "uriri", subcounty: "Rongo" }]);
+    const res = await signUp();
+    expect(res.status).toBe(400);
+    expect((await res.json()).field).toBe("subcounty");
+    expect(txUserCreate).not.toHaveBeenCalled();
+  });
+
+  it("accepts a chain that matches, however it was typed, and a new base in a known zone", async () => {
+    accountFindMany.mockResolvedValue([
+      { baseName: "uriri", zone: "URIRI ZONE", subcounty: "Uriri" },
+      { baseName: "Kamagambo Base", zone: "Uriri Zone", subcounty: "Uriri" },
+    ]);
+    expect((await signUp()).status).toBe(201);
+    expect((await signUp({ knecCode: "44700124", email: "b@school.ke", baseName: "Oruba Base" })).status).toBe(201);
+  });
+
+  it("only compares the chain with schools in its own county", async () => {
+    await signUp();
+    expect(accountFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { county: "Migori" } }));
   });
 
   it("treats a code with spaces as the same code", () => {
@@ -337,15 +378,25 @@ describe("pushing to a championship", () => {
     expect(championships.map((c: { id: string }) => c.id)).toEqual(["a", "b"]);
   });
 
-  it("offers a county's bases once each as a school signs up", async () => {
+  it("offers a county's zones and bases once each, with where schools placed them", async () => {
+    accountFindMany.mockResolvedValue([{ baseName: "Oruba Base", zone: "Uriri Zone", subcounty: "Uriri" }]);
     championshipFindMany.mockResolvedValue([
-      { county: "Migori", jurisdiction: "Oruba Base" },
-      { county: "MIGORI COUNTY", jurisdiction: "oruba" },
-      { county: "Migori", jurisdiction: "Awendo Base" },
-      { county: "Kisumu", jurisdiction: "Kondele Base" },
+      { level: "BASE", county: "MIGORI COUNTY", jurisdiction: "oruba" },
+      { level: "BASE", county: "Migori", jurisdiction: "Awendo Base" },
+      { level: "BASE", county: "Kisumu", jurisdiction: "Kondele Base" },
+      { level: "ZONE", county: "Migori", jurisdiction: "Rongo Zone" },
     ]);
-    const res = await listBases(new Request("http://localhost/api/school-signup/bases?county=Migori"));
-    expect((await res.json()).bases).toEqual(["Awendo Base", "Oruba Base"]);
+    const res = await listAreas(new Request("http://localhost/api/school-signup/areas?county=Migori"));
+    expect(await res.json()).toEqual({
+      zones: [
+        { name: "Rongo Zone", subcounty: null },
+        { name: "Uriri Zone", subcounty: "Uriri" },
+      ],
+      bases: [
+        { name: "Awendo Base", zone: null },
+        { name: "Oruba Base", zone: "Uriri Zone" },
+      ],
+    });
   });
 
   it("lists the school's championships, marking those it has pushed to", async () => {

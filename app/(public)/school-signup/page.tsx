@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { schoolSignupSchema, type SchoolSignupInput } from "@/lib/validations";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { KENYA_COUNTIES, countyCode, getSubcounties, regionOfCounty } from "@/lib/kenya-counties";
+import { sameArea } from "@/lib/jurisdiction";
+import type { SignupAreas } from "@/app/api/school-signup/areas/route";
 
 export default function SchoolSignupPage() {
   const router = useRouter();
@@ -35,11 +37,17 @@ export default function SchoolSignupPage() {
 
   const county = watch("county");
   const subcounties = getSubcounties(county);
-  const { data: bases } = useQuery({
-    queryKey: ["school-signup-bases", county],
-    queryFn: () => apiGet<{ bases: string[] }>(`/api/school-signup/bases?county=${encodeURIComponent(county)}`),
+  const subcounty = watch("subcounty");
+  const zone = watch("zone");
+  const { data: areas } = useQuery({
+    queryKey: ["school-signup-areas", county],
+    queryFn: () => apiGet<SignupAreas>(`/api/school-signup/areas?county=${encodeURIComponent(county)}`),
     enabled: !!county,
   });
+  // Each level offers only what sits inside the one above it; a name no school
+  // has placed yet (only a championship names it) is offered everywhere.
+  const zoneOptions = (areas?.zones ?? []).filter((z) => !z.subcounty || !subcounty || sameArea(z.subcounty, subcounty));
+  const baseOptions = (areas?.bases ?? []).filter((b) => !b.zone || !zone?.trim() || sameArea(b.zone, zone));
 
   async function onSubmit(values: SchoolSignupInput) {
     setSubmitting(true);
@@ -86,6 +94,8 @@ export default function SchoolSignupPage() {
                 onValueChange={(value) => {
                   setValue("county", value, { shouldValidate: true });
                   setValue("subcounty", "");
+                  setValue("zone", "");
+                  setValue("baseName", "");
                 }}
               >
                 <SelectTrigger id="county"><SelectValue placeholder="Select a county" /></SelectTrigger>
@@ -109,19 +119,31 @@ export default function SchoolSignupPage() {
                 Region: {regionOfCounty(county)} - KNEC codes here start with {countyCode(county)}
               </p>
             )}
-            {field("knecCode", "School KNEC code", <Input id="knecCode" inputMode="numeric" {...register("knecCode")} />)}
-            {field("zone", "Zone", <Input id="zone" {...register("zone")} />)}
+            {field(
+              "zone",
+              "Zone",
+              <>
+                <Input id="zone" list="zone-options" autoComplete="off" {...register("zone")} />
+                <datalist id="zone-options">
+                  {zoneOptions.map((z) => <option key={z.name} value={z.name} />)}
+                </datalist>
+              </>,
+            )}
             {field(
               "baseName",
               "Inter School base",
               <>
                 <Input id="baseName" list="base-options" autoComplete="off" {...register("baseName")} />
                 <datalist id="base-options">
-                  {bases?.bases.map((base) => <option key={base} value={base} />)}
+                  {baseOptions.map((b) => <option key={b.name} value={b.name} />)}
                 </datalist>
-                <p className="mt-1 text-xs text-muted">Pick your base from the list if it&apos;s there, so your school finds its championship.</p>
+                <p className="mt-1 text-xs text-muted">
+                  Pick your zone and base from the lists if they&apos;re there. A base belongs to one zone and a zone to one
+                  sub-county, so they must match the schools already signed up.
+                </p>
               </>,
             )}
+            {field("knecCode", "School KNEC code", <Input id="knecCode" inputMode="numeric" {...register("knecCode")} />)}
             {field("contactName", "Teacher's name", <Input id="contactName" {...register("contactName")} />)}
             {field("email", "Email", <Input id="email" type="email" {...register("email")} />)}
             {field("phone", "Phone", <Input id="phone" {...register("phone")} />)}

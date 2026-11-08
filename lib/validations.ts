@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { countyCode } from "./kenya-counties";
+import { countyCode, getSubcounties } from "./kenya-counties";
 import { needsJurisdiction } from "./jurisdiction";
 
 // z.string().email().optional() still runs the email-format check against an
@@ -68,7 +68,14 @@ export const schoolSignupSchema = z
   })
   .superRefine((data, ctx) => {
     const code = countyCode(data.county);
-    if (code && !data.knecCode.startsWith(code)) {
+    if (!code) {
+      ctx.addIssue({ code: "custom", path: ["county"], message: "Select a county" });
+      return;
+    }
+    if (!getSubcounties(data.county).includes(data.subcounty)) {
+      ctx.addIssue({ code: "custom", path: ["subcounty"], message: `Select a sub-county in ${data.county}` });
+    }
+    if (!data.knecCode.startsWith(code)) {
       ctx.addIssue({ code: "custom", path: ["knecCode"], message: `A ${data.county} school's KNEC code starts with ${code}` });
     }
   });

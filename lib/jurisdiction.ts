@@ -64,6 +64,31 @@ export function isInJurisdiction(school: SchoolArea, championship: ChampionshipA
   return sameArea(own, target);
 }
 
+export interface AreaChain {
+  baseName: string;
+  zone: string;
+  subcounty: string;
+}
+
+/**
+ * Where a signing-up school's chain breaks against schools already signed up in
+ * its county: a base sits in one zone, and a zone in one sub-county. Null when
+ * it fits, or nobody has signed up there yet.
+ */
+export function findChainConflict(school: AreaChain, known: AreaChain[]): { field: "zone" | "subcounty"; message: string } | null {
+  for (const other of known) {
+    if (sameArea(other.baseName, school.baseName) && !sameArea(other.zone, school.zone)) {
+      return { field: "zone", message: `The base "${other.baseName}" is in the zone "${other.zone}" - check your zone and base` };
+    }
+  }
+  for (const other of known) {
+    if (sameArea(other.zone, school.zone) && !sameArea(other.subcounty, school.subcounty)) {
+      return { field: "subcounty", message: `The zone "${other.zone}" is in ${other.subcounty} sub-county - check your sub-county and zone` };
+    }
+  }
+  return null;
+}
+
 /** Whether a school can push to an Inter School championship: same county, and its base when one is set. */
 export function isOpenToSchool(school: SchoolArea & { county: string }, championship: ChampionshipArea): boolean {
   return championship.level === "BASE" && sameArea(school.county, championship.county) && isInJurisdiction(school, championship);

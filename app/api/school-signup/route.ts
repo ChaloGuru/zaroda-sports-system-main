@@ -6,6 +6,7 @@ import { schoolSignupSchema } from "@/lib/validations";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { toErrorResponse } from "@/lib/authorize";
 import { regionOfCounty } from "@/lib/kenya-counties";
+import { findChainConflict } from "@/lib/jurisdiction";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,18 @@ export async function POST(request: Request) {
     const input = schoolSignupSchema.parse(await request.json());
     const email = input.email.toLowerCase().trim();
 
-    const [codeTaken, emailTaken] = await Promise.all([
+    const [codeTaken, emailTaken, neighbours] = await Promise.all([
       prisma.schoolAccount.findUnique({ where: { knecCode: input.knecCode }, select: { id: true } }),
       prisma.user.findUnique({ where: { email }, select: { id: true } }),
+      // The county comes from a fixed list, so it can be matched exactly.
+      prisma.schoolAccount.findMany({ where: { county: input.county }, select: { baseName: true, zone: true, subcounty: true } }),
     ]);
     if (codeTaken) return NextResponse.json({ error: CODE_TAKEN }, { status: 409 });
     if (emailTaken) return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+
+    // Base inside zone inside sub-county: the schools already signed up here set the chain.
+    const conflict = findChainConflict(input, neighbours);
+    if (conflict) return NextResponse.json({ error: conflict.message, field: conflict.field }, { status: 400 });
 
     const passwordHash = await bcrypt.hash(input.password, 12);
 

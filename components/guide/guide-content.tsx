@@ -30,7 +30,8 @@ const SECTIONS: GuideSection[] = [
     title: "3. Signing up as a school",
     body: [
       "Schools joining a championship sign up with their KNEC code from the \"Sign up with your KNEC code\" link on the Log in or Sign up page. The KNEC code must start with your county's code and can only be used by one school.",
-      "Enter your county, sub-county, zone, and Inter School base. Once you pick a county, the base field suggests the bases of that county's running Inter School championships - pick yours from the list if it's there.",
+      "Fill in your school's place from the top down: county (which sets your region), sub-county, zone, then Inter School base. The sub-county must be one in your county. The zone field suggests the zones already known in your sub-county, and the base field the bases known in your zone - pick yours from the list if it's there.",
+      "Each base belongs to one zone and each zone to one sub-county. Once a school has signed up, its base and zone set that chain for the county: if you put a known base in a different zone, or a known zone in a different sub-county, signup is refused and tells you where it belongs.",
       "Names don't have to be typed exactly the same: \"Oruba\", \"Oruba Base\" and \"ORUBA INTER SCHOOL BASE\" are treated as the same base, and capitals, spacing and punctuation are ignored. The same goes for county names.",
       "Your dashboard lists the Inter School championships open to your school - those in your county for your base, or with no base set. Choose \"Push school\" to join one, then \"Register learners\".",
       "A school can register up to 200 learners, counting Primary and Junior School together. Every learner needs a photo, and age limits are checked against the learner's level when they are registered.",
