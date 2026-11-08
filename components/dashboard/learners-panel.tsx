@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileDown, Merge, Pencil, Printer, Search, ShieldAlert } from "lucide-react";
+import { FileDown, Merge, Pencil, Printer, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
 import { gameSchoolLevelLabel } from "@/lib/school-levels";
 import { useChampionshipSchools } from "@/components/dashboard/schools-panel";
@@ -102,6 +102,27 @@ function IdentityBadges({ learner }: { learner: LearnerRow }) {
       )}
     </span>
   );
+}
+
+/**
+ * Asks, then deletes a learner and their entries. Returns whether they were
+ * deleted - the server refuses a locked entry or a challenged learner.
+ */
+export async function confirmAndDeleteLearner(learner: LearnerRow): Promise<boolean> {
+  const name = `${learner.firstName} ${learner.lastName}`;
+  const entries = learner.participants.length;
+  const message = `Delete ${name} (bib ${learner.bibNumber})?${
+    entries > 0 ? ` They will also be removed from ${entries === 1 ? "their activity" : `their ${entries} activities`}: ${learner.participants.map((p) => p.game.name).join(", ")}.` : ""
+  } This can't be undone.`;
+  if (!window.confirm(message)) return false;
+  try {
+    await apiDelete(`/api/learners/${learner.id}`);
+    toast.success(`${name} deleted`);
+    return true;
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Failed to delete learner");
+    return false;
+  }
 }
 
 /** Edits who a learner is - every event they're entered in follows. */
@@ -595,6 +616,16 @@ export function LearnersPanel({ championshipId, championshipName }: { championsh
                     <TableCell className="whitespace-nowrap text-right">
                       <Button size="icon" variant="ghost" onClick={() => setEditing(l)} aria-label="Edit learner">
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={async () => { if (await confirmAndDeleteLearner(l)) refresh(); }}
+                        aria-label={`Delete ${l.firstName} ${l.lastName}`}
+                        title="Delete learner"
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                       <Button
                         size="icon"

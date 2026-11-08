@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiDelete, apiGet, apiPost } from "@/lib/api-client";
 import { MAX_LEARNERS_PER_SCHOOL } from "@/lib/validations";
 import { LearnerPhoto, PhotoPicker, idSearchText, registerLearnerWithPhoto } from "@/components/dashboard/learner-photo";
-import { EditLearnerDialog, type LearnerRow } from "@/components/dashboard/learners-panel";
+import { EditLearnerDialog, confirmAndDeleteLearner, type LearnerRow } from "@/components/dashboard/learners-panel";
 import { TeamRosterDialog } from "@/components/dashboard/team-roster-dialog";
 
 interface SchoolEntry {
@@ -230,10 +230,21 @@ export function SchoolEntriesPanel({
                   )}
                 </span>
               </span>
-              <Button size="sm" variant="outline" onClick={() => setEditing(l)}>
-                <Pencil className="h-4 w-4" />
-                {!l.photoUpdatedAt ? "Add photo" : l.faceMatched === false ? "Retake photo" : "Edit / change photo"}
-              </Button>
+              <span className="flex items-center gap-1">
+                <Button size="sm" variant="outline" onClick={() => setEditing(l)}>
+                  <Pencil className="h-4 w-4" />
+                  {!l.photoUpdatedAt ? "Add photo" : l.faceMatched === false ? "Retake photo" : "Edit / change photo"}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={async () => { if (await confirmAndDeleteLearner(l)) refresh(); }}
+                  aria-label={`Delete ${l.firstName} ${l.lastName}`}
+                  title="Delete learner"
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </span>
             </div>
           ))}
         </CardContent>

@@ -3,10 +3,68 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { toErrorResponse } from "@/lib/authorize";
 import { learnerUpdateSchema } from "@/lib/validations";
-import { LEARNER_FIELDS, assertRegistrationOpen, assertWithinAgeLimit, isTournamentAdmin, requireLearnerEditor, updateLearner } from "@/lib/learners";
+import { LEARNER_FIELDS, assertEntriesOpen, assertRegistrationOpen, assertWithinAgeLimit, isTournamentAdmin, requireLearnerEditor, updateLearner } from "@/lib/learners";
 import { findSameFaceInChampionship, refreshIdentityAlertsSafely, sameFaceMessage } from "@/lib/identity-checks";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Deletes a learner registered by mistake, with their entries - by whoever
+ * may edit them, and after the registration deadline only a tournament admin.
+ * An entry in a locked event or approved team holds them (a tournament admin
+ * can still go ahead), and a challenged or disqualified learner is never
+ * deleted, so a disqualification can't be wiped and the child registered again.
+ */
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  try {
+    const existing = await prisma.learner.findUnique({ where: { id: params.id }, select: LEARNER_FIELDS });
+    if (!existing) return NextResponse.json({ error: "Learner not found" }, { status: 404 });
+    const ctx = await requireLearnerEditor(existing);
+    await assertRegistrationOpen(existing.championshipId);
+
+    const name = `${existing.firstName} ${existing.lastName}`;
+    const challenged = await prisma.learnerChallenge.findFirst({
+      where: { learnerId: existing.id, status: { in: ["OPEN", "UPHELD"] } },
+      select: { status: true },
+    });
+    if (challenged) {
+      return NextResponse.json(
+        {
+          error:
+            challenged.status === "UPHELD"
+              ? `${name} was disqualified after a challenge, so their record is kept`
+              : `${name} has an open challenge - a tournament admin must decide it before they can be deleted`,
+        },
+        { status: 409 },
+      );
+    }
+
+    const entries = await prisma.participant.findMany({
+      where: { learnerId: existing.id },
+      select: { id: true, gameId: true, tournamentTeamId: true },
+    });
+    for (const entry of entries) {
+      await assertEntriesOpen({ championshipId: existing.championshipId, gameId: entry.gameId, tournamentTeamId: entry.tournamentTeamId });
+    }
+
+    await withAudit({
+      actorId: ctx.userId,
+      operation: "DELETE",
+      tableName: "learners",
+      oldData: { ...existing, entries: entries.length },
+      mutate: async (tx) => {
+        await tx.participant.deleteMany({ where: { learnerId: existing.id } });
+        return tx.learner.delete({ where: { id: existing.id }, select: { id: true } });
+      },
+      recordId: () => existing.id,
+    });
+    return NextResponse.json({ deleted: true, entriesRemoved: entries.length });
+  } catch (error) {
+    const { body, status } = toErrorResponse(error);
+    return NextResponse.json(body, { status });
+  }
+}
 
 /** Corrects a learner's details; every event they're entered in follows. */
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
