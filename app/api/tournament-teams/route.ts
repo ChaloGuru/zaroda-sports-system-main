@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
-import { getAuthContext, requireAuth, canViewChampionshipPrivateData, managesTeam, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
+import { getAuthContext, requireAuth, canViewChampionshipPrivateData, managesTeam, pushedSchoolName, requireTeamAccess, isGeographicallyRestricted, assertWithinGeographicScope, toErrorResponse } from "@/lib/authorize";
 import { dashboardTournamentTeamSchema } from "@/lib/validations";
 import { resolveTeamSchoolId } from "@/lib/championship-schools";
 import type { SchoolLevel } from "@prisma/client";
@@ -33,7 +33,15 @@ export async function GET(request: Request) {
     // officials and the team's own manager.
     const own = new Set<string>();
     if (!isStaff && ctx) {
-      for (const team of all) if (await managesTeam(ctx, championshipId, team.name)) own.add(team.id);
+      // Only teams named after the caller's team-manager roles or own school can be theirs.
+      const names = new Set(
+        ctx.roles.filter((r) => r.championshipId === championshipId && r.role === "TEAM_MANAGER" && r.organizationName).map((r) => r.organizationName!.trim().toLowerCase()),
+      );
+      const school = await pushedSchoolName(ctx, championshipId);
+      if (school) names.add(school.trim().toLowerCase());
+      for (const team of all) {
+        if (names.has(team.name.trim().toLowerCase()) && (await managesTeam(ctx, championshipId, team.name))) own.add(team.id);
+      }
     }
     const visible = isStaff || championship.isPublished ? all : all.filter((team) => own.has(team.id));
     return NextResponse.json({

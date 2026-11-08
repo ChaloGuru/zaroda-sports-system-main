@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const findFirstMock = vi.fn();
+const pushedEntryMock = vi.fn().mockResolvedValue(null);
 const championshipFindUniqueMock = vi.fn();
 const getServerSessionMock = vi.fn();
 
@@ -9,6 +10,7 @@ vi.mock("@/lib/prisma", () => ({
     championshipSubscription: {
       findFirst: (...args: unknown[]) => findFirstMock(...args),
     },
+    championshipSchool: { findFirst: (...args: unknown[]) => pushedEntryMock(...args) },
     championship: {
       findUnique: (...args: unknown[]) => championshipFindUniqueMock(...args),
     },
@@ -112,6 +114,36 @@ describe("requireTeamAccess (Team Manager scoping)", () => {
     championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() + 86_400_000) });
 
     await expect(requireTeamAccess("champ-1", "Any Team Name")).resolves.toMatchObject({ userId: "user-1" });
+  });
+
+  describe("a school account that pushed to the championship", () => {
+    beforeEach(() => {
+      mockSession([]);
+      championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() + 86_400_000) });
+      pushedEntryMock.mockResolvedValue({ schoolAccount: { schoolName: "Manyonge Primary" } });
+    });
+    afterEach(() => pushedEntryMock.mockResolvedValue(null));
+
+    it("manages its own school's team, however the name is cased", async () => {
+      await expect(requireTeamAccess("champ-1", " manyonge primary")).resolves.toMatchObject({ userId: "user-1" });
+      expect(pushedEntryMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { championshipId: "champ-1", schoolAccount: { userId: "user-1" } } }),
+      );
+    });
+
+    it("can't touch another school's team", async () => {
+      await expect(requireTeamAccess("champ-1", "Oruba Primary")).rejects.toThrow(AuthorizationError);
+    });
+
+    it("loses access once the championship has ended", async () => {
+      championshipFindUniqueMock.mockResolvedValue({ endDate: new Date(Date.now() - 3 * 86_400_000) });
+      await expect(requireTeamAccess("champ-1", "Manyonge Primary")).rejects.toThrow(AuthorizationError);
+    });
+
+    it("has no team access in a championship it hasn't pushed to", async () => {
+      pushedEntryMock.mockResolvedValue(null);
+      await expect(requireTeamAccess("champ-2", "Manyonge Primary")).rejects.toThrow(AuthorizationError);
+    });
   });
 });
 

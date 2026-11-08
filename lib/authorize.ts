@@ -150,7 +150,23 @@ export async function managesTeam(ctx: AuthContext | null, championshipId: strin
   const role = ctx.roles.some(
     (r) => r.championshipId === championshipId && r.role === "TEAM_MANAGER" && r.organizationName?.trim().toLowerCase() === name,
   );
-  return role && (await isChampionshipRoleActive(championshipId));
+  if (role) return isChampionshipRoleActive(championshipId);
+  const school = await pushedSchoolName(ctx, championshipId);
+  return school?.trim().toLowerCase() === name && (await isChampionshipRoleActive(championshipId));
+}
+
+/**
+ * The name of the user's own school when its school account pushed to this
+ * championship. That school account manages its own school there as a team
+ * manager would: its teams (named after the school), and its learners' races
+ * and team lists - with the same deadline, locks and approval.
+ */
+export async function pushedSchoolName(ctx: AuthContext, championshipId: string): Promise<string | null> {
+  const entry = await prisma.championshipSchool.findFirst({
+    where: { championshipId, schoolAccount: { userId: ctx.userId } },
+    select: { schoolAccount: { select: { schoolName: true } } },
+  });
+  return entry?.schoolAccount?.schoolName ?? null;
 }
 
 /** Championship-scoped roles expire once the event ends, with a one-day grace period. */
@@ -270,6 +286,8 @@ export async function requireTeamAccess(championshipId: string, teamName: string
     if (championship?.tenantId === ctx.tenantId) return ctx;
   }
 
+  if (!scopedRole && (await managesTeam(ctx, championshipId, teamName))) return ctx;
+
   throw new AuthorizationError("You do not have access to manage this team");
 }
 
@@ -282,6 +300,8 @@ export async function managedTeamSchoolIds(ctx: AuthContext, championshipId: str
   const teamNames = ctx.roles
     .filter((r) => r.championshipId === championshipId && r.role === "TEAM_MANAGER" && r.organizationName)
     .map((r) => r.organizationName!.trim());
+  const ownSchool = await pushedSchoolName(ctx, championshipId);
+  if (ownSchool) teamNames.push(ownSchool.trim());
   if (teamNames.length === 0 || !(await isChampionshipRoleActive(championshipId))) return [];
   const matches = teamNames.map((name) => ({ name: { equals: name, mode: "insensitive" as const } }));
   const [teams, schools] = await Promise.all([
@@ -297,8 +317,7 @@ export async function managedTeamSchoolIds(ctx: AuthContext, championshipId: str
 /**
  * The schools whose learners this user can register in a championship: those
  * they manage as a team manager, and their own school if its account pushed
- * here. A school account stops there - entering learners in events and teams
- * takes a team manager the admin signed up.
+ * here (see pushedSchoolName).
  */
 export async function ownSchoolIds(ctx: AuthContext, championshipId: string): Promise<string[]> {
   const [managed, entries] = await Promise.all([

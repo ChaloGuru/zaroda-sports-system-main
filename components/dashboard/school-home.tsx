@@ -34,7 +34,7 @@ export function SchoolHome() {
   const join = useMutation({
     mutationFn: (championshipId: string) => apiPost("/api/school-account/championships", { championshipId }),
     onSuccess: (_data, championshipId) => {
-      toast.success("Pushed - you can now register learners");
+      toast.success("Pushed - now register your learners and enter them in activities");
       queryClient.invalidateQueries({ queryKey: ["school-championships"] });
       router.push(`/dashboard/school/${championshipId}`);
     },
@@ -65,7 +65,7 @@ export function SchoolHome() {
           {c.joined ? (
             <div className="flex items-center gap-2">
               <Badge variant="success">Pushed</Badge>
-              <Button asChild size="sm" variant="outline"><Link href={`/dashboard/school/${c.id}`}>Register learners</Link></Button>
+              <Button asChild size="sm" variant="outline"><Link href={`/dashboard/school/${c.id}`}>Learners &amp; activities</Link></Button>
             </div>
           ) : (
             <Button size="sm" disabled={join.isPending} onClick={() => join.mutate(c.id)}>Push school</Button>

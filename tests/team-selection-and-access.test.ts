@@ -40,7 +40,7 @@ vi.mock("@/lib/prisma", () => ({
     championship: { findUnique: (...a: unknown[]) => championshipFindUnique(...a) },
     learner: { findMany: (...a: unknown[]) => learnerFindMany(...a), findFirst: async () => null },
     tournamentTeam: { findMany: (...a: unknown[]) => teamFindMany(...a) },
-    championshipSchool: { findMany: (...a: unknown[]) => championshipSchoolFindMany(...a) },
+    championshipSchool: { findMany: (...a: unknown[]) => championshipSchoolFindMany(...a), findFirst: async () => null },
     school: { findMany: (...a: unknown[]) => schoolFindMany(...a) },
     learnerIdentityAlert: { findMany: async () => [] },
     $transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),

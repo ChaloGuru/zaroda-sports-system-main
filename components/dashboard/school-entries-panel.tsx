@@ -13,12 +13,14 @@ import { apiDelete, apiGet, apiPost } from "@/lib/api-client";
 import { MAX_LEARNERS_PER_SCHOOL } from "@/lib/validations";
 import { LearnerPhoto, PhotoPicker, idSearchText, registerLearnerWithPhoto } from "@/components/dashboard/learner-photo";
 import { EditLearnerDialog, type LearnerRow } from "@/components/dashboard/learners-panel";
+import { TeamRosterDialog } from "@/components/dashboard/team-roster-dialog";
 
 interface SchoolEntry {
   schoolId: string;
   name: string;
   label: string;
   schoolLevel: string | null;
+  county: string;
 }
 
 interface RaceOption {
@@ -27,24 +29,39 @@ interface RaceOption {
   category: string;
   gender: string;
   schoolLevel: string;
+  sport: string | null;
+  isTimed: boolean;
+}
+
+interface TeamRow {
+  id: string;
+  name: string;
+  gameId: string | null;
+  gender: string;
+  schoolId: string | null;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
 }
 
 const EMPTY_FORM = { firstName: "", lastName: "", gender: "", dateOfBirth: "", birthCertNumber: "", knecAssessmentNumber: "", kemisUpi: "" };
 
 /**
- * One school's learners. A school account registers them ahead of the day; a
- * team manager the admin signed up can also assign them to races, and forms
- * ball-game lists on each team's roster. The API enforces the deadline, the
- * locks and the learner limit.
+ * One school's learners: registering them, seeing who is entered in what, and
+ * entering them in races. A school account or its team manager does this; with
+ * `manageTeams` (the school's own page) it also enters the school's ball-game
+ * teams and forms their lists. The API enforces the deadline, the locks, team
+ * approval and the learner limit.
  */
 export function SchoolEntriesPanel({
   championshipId,
+  championshipName = "",
   schoolName,
-  assignRaces = true,
+  manageTeams = false,
 }: {
   championshipId: string;
+  championshipName?: string;
   schoolName: string;
-  assignRaces?: boolean;
+  manageTeams?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = React.useState("");
@@ -72,6 +89,7 @@ export function SchoolEntriesPanel({
   });
   const registered = learnerQueries.reduce((total, q) => total + (q.data?.learners.length ?? 0), 0);
   const learners = learnerQueries[entries.indexOf(entry as SchoolEntry)]?.data?.learners ?? [];
+  const everyone = entries.flatMap((s, i) => (learnerQueries[i]?.data?.learners ?? []).map((learner) => ({ learner, entry: s })));
 
   const { data: gamesData } = useQuery({
     queryKey: ["games", championshipId],
@@ -146,8 +164,64 @@ export function SchoolEntriesPanel({
   const set = (key: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value });
   const canRegister = !!form.firstName.trim() && !!form.lastName.trim() && !!form.gender && !!entry && !!photo;
 
+  const hasTeamGames = manageTeams && (gamesData?.games ?? []).some((g) => g.category === "BALL_GAMES");
+
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>How to assign learners to activities</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
+            <li>
+              <span className="text-foreground">Register each learner</span> under &quot;Register learners&quot;
+              {entries.length > 1 && ", choosing Primary or JS"} - a photo is required.
+            </li>
+            {races.length > 0 && (
+              <li>
+                <span className="text-foreground">Races and field events:</span> under &quot;Enter learners in races&quot;, choose
+                the event, add a personal best if you have one, then press Enter next to each learner.
+              </li>
+            )}
+            {hasTeamGames && (
+              <li>
+                <span className="text-foreground">Ball games:</span> under &quot;Ball game teams&quot;, press Enter team for the
+                game, then open the team&apos;s list and add your registered learners.
+              </li>
+            )}
+            <li>
+              Only learners of the event&apos;s gender are offered{entries.length > 1 && ", from the level chosen under Register learners"}.
+              An event locks once it is seeded, and a team&apos;s list once an official approves it - ask the tournament admin to change a locked entry.
+            </li>
+          </ol>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Registered learners ({everyone.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {everyone.length === 0 && <p className="text-sm text-muted">No learners registered yet - register them below.</p>}
+          {everyone.map(({ learner: l, entry: s }) => (
+            <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-2 text-sm">
+              <span className="flex items-center gap-2">
+                <LearnerPhoto learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} />
+                <span>
+                  <span className="font-medium text-foreground">{l.firstName} {l.lastName}</span> - bib {l.bibNumber}
+                  {entries.length > 1 && ` - ${s.schoolLevel === "JS" ? "JS" : "Primary"}`}
+                  <span className="block text-xs text-muted">
+                    {l.participants.length > 0 ? l.participants.map((p) => p.game.name).join(", ") : "Not entered in any activity yet"}
+                  </span>
+                </span>
+              </span>
+              {!l.photoUpdatedAt && <Button size="sm" variant="outline" onClick={() => setEditing(l)}>Add photo</Button>}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <CardTitle>Register learners</CardTitle>
@@ -213,29 +287,10 @@ export function SchoolEntriesPanel({
         </CardContent>
       </Card>
 
-      {!assignRaces && learners.length > 0 && (
+      {races.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Registered learners</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {learners.map((l) => (
-              <div key={l.id} className="flex items-center justify-between gap-2 rounded-md border border-border p-2 text-sm">
-                <span className="flex items-center gap-2">
-                  <LearnerPhoto learnerId={l.id} photoUpdatedAt={l.photoUpdatedAt} name={`${l.firstName} ${l.lastName}`} />
-                  {l.firstName} {l.lastName} - bib {l.bibNumber}
-                </span>
-                {!l.photoUpdatedAt && <Button size="sm" variant="outline" onClick={() => setEditing(l)}>Add photo</Button>}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {assignRaces && races.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Assign learners to races</CardTitle>
+            <CardTitle>Enter learners in races{entries.length > 1 && entry ? ` - ${entry.label}` : ""}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Select value={gameId} onValueChange={setGameId}>
@@ -303,7 +358,91 @@ export function SchoolEntriesPanel({
         </Card>
       )}
 
+      {manageTeams && entry && (
+        <SchoolTeamsCard
+          championshipId={championshipId}
+          championshipName={championshipName}
+          schoolName={schoolName}
+          entry={entry}
+          games={(gamesData?.games ?? []).filter((g) => g.category === "BALL_GAMES" && (!entry.schoolLevel || g.schoolLevel === entry.schoolLevel))}
+        />
+      )}
+
       {editing && <EditLearnerDialog learner={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
     </div>
+  );
+}
+
+/** The school's team in each ball game at its level: entering it, and opening its list of learners. */
+function SchoolTeamsCard({
+  championshipId,
+  championshipName,
+  schoolName,
+  entry,
+  games,
+}: {
+  championshipId: string;
+  championshipName: string;
+  schoolName: string;
+  entry: SchoolEntry;
+  games: RaceOption[];
+}) {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["tournament-teams", championshipId],
+    queryFn: () => apiGet<{ teams: TeamRow[] }>(`/api/tournament-teams?championshipId=${championshipId}`),
+    enabled: games.length > 0,
+  });
+  const ours = (data?.teams ?? []).filter((t) => t.name.trim().toLowerCase() === schoolName.trim().toLowerCase());
+
+  const enterTeam = useMutation({
+    mutationFn: (gameId: string) =>
+      apiPost("/api/tournament-teams", { championshipId, gameId, name: schoolName, county: entry.county }),
+    onSuccess: () => {
+      toast.success("Team entered - now add its learners");
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", championshipId] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to enter team"),
+  });
+
+  if (games.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Ball game teams{entry.schoolLevel ? ` - ${entry.label}` : ""}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {games.map((game) => {
+          const team = ours.find((t) => t.gameId === game.id);
+          return (
+            <div key={game.id} className="flex items-center justify-between gap-2 rounded-md border border-border p-2 text-sm">
+              <span>{game.name}</span>
+              {team ? (
+                <span className="flex items-center gap-2">
+                  {team.approvedAt && <span className="text-xs text-muted">Approved - list locked</span>}
+                  <TeamRosterDialog
+                    championshipId={championshipId}
+                    championshipName={championshipName}
+                    teamId={team.id}
+                    teamName={team.name}
+                    gameId={game.id}
+                    gender={team.gender}
+                    schoolId={team.schoolId}
+                    game={game}
+                    approvedAt={team.approvedAt}
+                    approvedBy={team.approvedBy}
+                  />
+                </span>
+              ) : (
+                <Button size="sm" variant="outline" disabled={enterTeam.isPending} onClick={() => enterTeam.mutate(game.id)}>
+                  <Plus className="h-4 w-4" /> Enter team
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }

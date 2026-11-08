@@ -20,6 +20,7 @@ vi.mock("@/lib/prisma", () => ({
     tournamentTeam: { findMany: (...a: unknown[]) => teamFindMany(...a), findUnique: (...a: unknown[]) => teamFindUnique(...a) },
     participant: { findMany: (...a: unknown[]) => participantFindMany(...a) },
     game: { findMany: (...a: unknown[]) => gameFindMany(...a) },
+    championshipSchool: { findFirst: async () => null },
   },
 }));
 
