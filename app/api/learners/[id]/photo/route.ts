@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { getAuthContext, canViewChampionshipPrivateData, ownSchoolIds, toErrorResponse } from "@/lib/authorize";
-import { MAX_PHOTO_BYTES, assertRegistrationOpen, photoContentType, requireLearnerEditor } from "@/lib/learners";
-import { descriptorToBytes, refreshIdentityAlertsSafely } from "@/lib/identity-checks";
+import { MAX_PHOTO_BYTES, assertRegistrationOpen, isTournamentAdmin, photoContentType, requireLearnerEditor } from "@/lib/learners";
+import { descriptorToBytes, findSameFaceInChampionship, refreshIdentityAlertsSafely, sameFaceMessage } from "@/lib/identity-checks";
 import { canViewLinkedLearner } from "@/lib/learner-access";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +50,13 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
 export async function PUT(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
-    const learner = await prisma.learner.findUnique({ where: { id: params.id }, select: { id: true, championshipId: true, schoolId: true } });
+    const learner = await prisma.learner.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true, championshipId: true, schoolId: true,
+        firstName: true, lastName: true, gender: true, dateOfBirth: true, birthCertNumber: true, knecAssessmentNumber: true, kemisUpi: true,
+      },
+    });
     if (!learner) return NextResponse.json({ error: "Learner not found" }, { status: 404 });
     const ctx = await requireLearnerEditor(learner);
     await assertRegistrationOpen(learner.championshipId);
@@ -77,6 +83,16 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
         faceDescriptor = descriptorToBytes(JSON.parse(descriptorField));
       } catch {
         faceDescriptor = null;
+      }
+    }
+
+    // The same face under someone else's details in this championship is
+    // refused; only a tournament admin can save it (twins).
+    if (faceDescriptor) {
+      const { id: _id, championshipId, schoolId: _school, ...details } = learner;
+      const match = await findSameFaceInChampionship(prisma, championshipId, faceDescriptor, details, learner.id);
+      if (match && !(await isTournamentAdmin(championshipId))) {
+        return NextResponse.json({ error: sameFaceMessage(match.bibNumber), matchedBibNumber: match.bibNumber }, { status: 409 });
       }
     }
 

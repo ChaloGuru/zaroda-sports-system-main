@@ -230,8 +230,18 @@ async function resizeDocument(file: File): Promise<Blob> {
  * any event without a photo, so entries are only made once this has succeeded.
  */
 export async function registerLearnerWithPhoto(values: Record<string, unknown>, photo: File): Promise<string> {
-  // The photo is checked first, so a photo that will be refused never leaves a learner registered without one.
+  // The photo is checked first - its quality, then whether the face is already
+  // registered in this championship as someone else - so a photo that will be
+  // refused never leaves a learner registered without one.
   const prepared = await prepareLearnerPhoto(photo);
+  if (prepared.descriptor) {
+    const check = await apiPost<{ match: { bibNumber: number } | null; allowed?: boolean; error?: string | null }>("/api/learners/face-check", {
+      ...values,
+      faceDescriptor: prepared.descriptor,
+    });
+    if (check.match && !check.allowed) throw new Error(check.error ?? "This face is already registered in this championship.");
+    if (check.match) toast.warning(`This face matches bib ${check.match.bibNumber}, registered under different details. Saved because you are a tournament admin - only do this for twins.`);
+  }
   const { learner } = await apiPost<{ learner: { id: string } }>("/api/learners", values);
   try {
     await putLearnerPhoto(learner.id, prepared);

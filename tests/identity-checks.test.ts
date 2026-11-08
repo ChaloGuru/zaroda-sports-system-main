@@ -14,6 +14,8 @@ const txParticipantUpdateMany = vi.fn();
 const txChallengeCreate = vi.fn();
 const txChallengeUpdate = vi.fn();
 const requireChampionshipAccess = vi.fn();
+const championshipFindUnique = vi.fn();
+const txLearnerUpdate = vi.fn().mockResolvedValue({ id: "learner" });
 
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
@@ -28,6 +30,7 @@ vi.mock("@/lib/authorize", async () => {
 const tx = {
   participant: { updateMany: (...a: unknown[]) => txParticipantUpdateMany(...a), update: vi.fn() },
   learnerChallenge: { create: (...a: unknown[]) => txChallengeCreate(...a), update: (...a: unknown[]) => txChallengeUpdate(...a) },
+  learner: { update: (...a: unknown[]) => txLearnerUpdate(...a) },
   auditLog: { create: vi.fn() },
 };
 vi.mock("@/lib/prisma", () => ({
@@ -42,17 +45,21 @@ vi.mock("@/lib/prisma", () => ({
     learnerChallenge: { findFirst: (...a: unknown[]) => challengeFindFirst(...a), findUnique: (...a: unknown[]) => challengeFindUnique(...a) },
     participant: { findUnique: (...a: unknown[]) => participantFindUnique(...a) },
     user: { findUnique: (...a: unknown[]) => userFindUnique(...a) },
+    championship: { findUnique: (...a: unknown[]) => championshipFindUnique(...a) },
     $transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
   },
 }));
 
 const {
+  bytesToDescriptor,
   compareIdentities,
   descriptorToBytes,
   findIdentityAlerts,
+  findSameFaceInChampionship,
   namesAgree,
   refreshIdentityAlerts,
 } = await import("@/lib/identity-checks");
+const { PUT: putPhoto } = await import("@/app/api/learners/[id]/photo/route");
 const { POST: raiseChallenge } = await import("@/app/api/learners/[id]/challenges/route");
 const { PATCH: resolveChallenge } = await import("@/app/api/learner-challenges/[id]/route");
 const { PATCH: patchParticipant } = await import("@/app/api/participants/[id]/route");
@@ -145,6 +152,66 @@ describe("refreshing a learner's identity alerts", () => {
     expect(alertDelete).toHaveBeenCalledWith({ where: { id: "gone" } });
     expect(alertCreate).toHaveBeenCalledWith({
       data: { learnerAId: "m", learnerBId: "z", kind: "ID_MISMATCH", details: { shared: ["birthCertNumber"], differences: ["dateOfBirth"] } },
+    });
+  });
+});
+
+describe("the same face registered twice in one championship", () => {
+  const db = (others: unknown[]) => ({ learner: { findMany: vi.fn().mockResolvedValue(others) } }) as never;
+  const details = { firstName: "Jane", lastName: "Adongo", gender: "GIRLS", dateOfBirth: new Date("2012-01-01"), birthCertNumber: "000", knecAssessmentNumber: null, kemisUpi: null };
+
+  it("finds the learner whose face matches under other details", async () => {
+    const kondele = { ...record({ id: "k", faceDescriptor: face(3) }), bibNumber: 101 };
+    await expect(findSameFaceInChampionship(db([kondele]), "c1", face(3, 0.05), details, "j")).resolves.toEqual({ id: "k", bibNumber: 101 });
+  });
+
+  it("ignores a different face, and the same child's own record", async () => {
+    const other = { ...record({ id: "o", faceDescriptor: face(7) }), bibNumber: 102 };
+    const sameChild = { ...record({ id: "s", faceDescriptor: face(3), firstName: "Jane", lastName: "Adongo", gender: "GIRLS", dateOfBirth: new Date("2012-01-01"), birthCertNumber: "000" }), bibNumber: 103 };
+    await expect(findSameFaceInChampionship(db([other, sameChild]), "c1", face(3), details, "j")).resolves.toBeNull();
+  });
+
+  it("only looks in this championship, leaving out the learner being edited", async () => {
+    const lookup = db([]);
+    await findSameFaceInChampionship(lookup, "c1", face(3), details, "j");
+    expect((lookup as unknown as { learner: { findMany: ReturnType<typeof vi.fn> } }).learner.findMany.mock.calls[0]![0].where).toEqual({
+      championshipId: "c1",
+      faceDescriptor: { not: null },
+      id: { not: "j" },
+    });
+  });
+
+  describe("uploading the photo", () => {
+    const upload = () => {
+      const form = new FormData();
+      // The smallest JPEG header the route recognises.
+      form.append("photo", new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10])], "photo.jpg", { type: "image/jpeg" }));
+      form.append("faceDescriptor", JSON.stringify(Array.from(bytesToDescriptor(face(3, 0.05))!)));
+      return putPhoto(new Request("http://localhost/x", { method: "PUT", body: form }), params);
+    };
+
+    beforeEach(() => {
+      learnerFindUnique.mockResolvedValue({ id: LEARNER, championshipId: "c1", schoolId: "s1", ...details });
+      learnerFindMany.mockResolvedValue([{ ...record({ id: "k", faceDescriptor: face(3) }), bibNumber: 101 }]);
+      championshipFindUnique.mockResolvedValue({ registrationClosesAt: null });
+    });
+
+    it("refuses a school, naming the bib it matches", async () => {
+      // A scorekeeper may edit learners, but isn't a tournament admin.
+      requireChampionshipAccess.mockImplementation(async (_c: string, roles: string[]) => {
+        if (roles.length === 1) throw new Error("not an admin");
+        return { userId: "scorer-1" };
+      });
+      const res = await upload();
+      expect(res.status).toBe(409);
+      expect((await res.json()).matchedBibNumber).toBe(101);
+      expect(txLearnerUpdate).not.toHaveBeenCalled();
+    });
+
+    it("lets a tournament admin save it, for twins", async () => {
+      const res = await upload();
+      expect(res.status).toBe(200);
+      expect(txLearnerUpdate).toHaveBeenCalled();
     });
   });
 });

@@ -189,7 +189,17 @@ export async function requireLearnerEditor(learner: { championshipId: string; sc
   }
 }
 
-const KENYA_DATE: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Nairobi" };
+/** Whether the caller runs this championship: its tournament admin, the organizer or a super admin. */
+export async function isTournamentAdmin(championshipId: string): Promise<boolean> {
+  try {
+    await requireChampionshipAccess(championshipId, ["TOURNAMENT_ADMIN"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const KENYA_DATE: Intl.DateTimeFormatOptions ={ day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Nairobi" };
 
 /**
  * After a championship's registration deadline only its tournament admins

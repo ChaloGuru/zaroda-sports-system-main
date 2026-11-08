@@ -36,6 +36,7 @@ const SECTIONS: GuideSection[] = [
       "Your dashboard lists the Inter School championships open to your school - those in your county for your base, or with no base set. Choose \"Push school\" to join one, then \"Register learners\".",
       "On the championship's page, \"Registered learners\" lists every learner you have registered and the activities each is entered in. To assign them: under \"Enter learners in races\", choose an event and press Add next to each learner - each is saved straight away; for ball games, under \"Ball game teams\", press \"Enter team\" for the game, then open the team's list and add your learners. Learners need a photo first, and each event offers only learners of its gender and level (Primary or JS).",
       "A school can register up to 200 learners, counting Primary and Junior School together. Every learner needs a photo, and age limits are checked against the learner's level when they are registered.",
+      "Each learner's face is checked against the learners already registered in the championship. A photo whose face matches another learner registered under different details is refused, with the bib it matches - a learner can only be registered once. For twins, ask the tournament admin to register the second one. If the face in a photo can't be read, retake it closer and in good light.",
     ],
   },
   {

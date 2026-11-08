@@ -194,6 +194,45 @@ export async function refreshIdentityAlerts(db: Db, learnerId: string): Promise<
   }
 }
 
+/** A learner's details as they are being registered or edited - everything but the face. */
+export type IdentityDetails = Omit<IdentityRecord, "id" | "faceDescriptor">;
+
+/**
+ * The learner already in this championship whose face matches, under
+ * different details - the same child registered twice as two people, e.g.
+ * the same photo with a sibling's certificate. Within one championship that
+ * is refused outright (see the photo route); across championships it stays an
+ * alert for officials, since children change and records are older.
+ */
+export async function findSameFaceInChampionship(
+  db: Db,
+  championshipId: string,
+  faceDescriptor: Buffer,
+  details: IdentityDetails,
+  excludeLearnerId?: string,
+): Promise<{ id: string; bibNumber: number } | null> {
+  const face = bytesToDescriptor(faceDescriptor);
+  if (!face) return null;
+  const others = await db.learner.findMany({
+    where: { championshipId, faceDescriptor: { not: null }, ...(excludeLearnerId ? { id: { not: excludeLearnerId } } : {}) },
+    select: { ...IDENTITY_SELECT, bibNumber: true },
+  });
+  const me: IdentityRecord = { ...details, id: excludeLearnerId ?? "new", faceDescriptor };
+  let best: { id: string; bibNumber: number; distance: number } | null = null;
+  for (const other of others) {
+    const theirs = bytesToDescriptor(other.faceDescriptor);
+    if (!theirs) continue;
+    const distance = faceDistance(face, theirs);
+    if (distance >= SAME_FACE_DISTANCE || (best && distance >= best.distance)) continue;
+    if (findIdentityAlerts(me, other).some((a) => a.kind === "SAME_FACE")) best = { id: other.id, bibNumber: other.bibNumber, distance };
+  }
+  return best && { id: best.id, bibNumber: best.bibNumber };
+}
+
+export function sameFaceMessage(bibNumber: number): string {
+  return `This face matches a learner already registered in this championship (bib ${bibNumber}) under different details. A learner can only be registered once - if they are twins, ask the tournament admin to register the second one.`;
+}
+
 /** refreshIdentityAlerts after a learner is saved - a failed check is logged, never undoes the save. */
 export async function refreshIdentityAlertsSafely(db: Db, learnerIds: string | string[]): Promise<void> {
   for (const id of Array.isArray(learnerIds) ? learnerIds : [learnerIds]) {
