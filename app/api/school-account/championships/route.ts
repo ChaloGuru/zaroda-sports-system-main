@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { AuthorizationError, assertWithinGeographicScope, isGeographicallyRestricted, requireAuth, toErrorResponse } from "@/lib/authorize";
 import { createSchoolEntries } from "@/lib/championship-schools";
-import { isInJurisdiction } from "@/lib/jurisdiction";
+import { isInJurisdiction, isOpenToSchool } from "@/lib/jurisdiction";
 import { schoolEntryLevels } from "@/lib/school-levels";
 
 export const dynamic = "force-dynamic";
@@ -27,27 +27,23 @@ export async function GET() {
     const links = await prisma.championshipSchool.findMany({ where: { schoolAccountId: account.id }, select: { championshipId: true } });
     const pushed = new Set(links.map((l) => l.championshipId));
 
+    // Counties and bases are typed by hand, so the area is matched here rather
+    // than in the query - see sameArea. Only running championships are read.
     const championships = await prisma.championship.findMany({
       where: {
         isPublished: true,
         endDate: { gte: new Date() },
-        OR: [
-          {
-            level: "BASE",
-            county: nameIs(account.county),
-            OR: [{ jurisdiction: null }, { jurisdiction: nameIs(account.baseName) }],
-          },
-          { id: { in: Array.from(pushed) } },
-        ],
+        OR: [{ level: "BASE" }, { id: { in: Array.from(pushed) } }],
       },
       orderBy: { startDate: "asc" },
-      take: 200,
-      select: { id: true, name: true, level: true, category: true, county: true, startDate: true, registrationClosesAt: true },
+      select: { id: true, name: true, level: true, category: true, county: true, jurisdiction: true, startDate: true, registrationClosesAt: true },
     });
 
     return NextResponse.json({
       school: { name: account.schoolName, knecCode: account.knecCode, baseName: account.baseName, county: account.county },
-      championships: championships.map((c) => ({ ...c, joined: pushed.has(c.id) })),
+      championships: championships
+        .filter((c) => pushed.has(c.id) || isOpenToSchool(account, c))
+        .map(({ jurisdiction: _jurisdiction, ...c }) => ({ ...c, joined: pushed.has(c.id) })),
     });
   } catch (error) {
     const { body, status } = toErrorResponse(error);

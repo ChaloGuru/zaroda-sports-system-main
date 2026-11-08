@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
@@ -14,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { schoolSignupSchema, type SchoolSignupInput } from "@/lib/validations";
-import { apiPost } from "@/lib/api-client";
+import { apiGet, apiPost } from "@/lib/api-client";
 import { KENYA_COUNTIES, countyCode, getSubcounties, regionOfCounty } from "@/lib/kenya-counties";
 
 export default function SchoolSignupPage() {
@@ -34,6 +35,11 @@ export default function SchoolSignupPage() {
 
   const county = watch("county");
   const subcounties = getSubcounties(county);
+  const { data: bases } = useQuery({
+    queryKey: ["school-signup-bases", county],
+    queryFn: () => apiGet<{ bases: string[] }>(`/api/school-signup/bases?county=${encodeURIComponent(county)}`),
+    enabled: !!county,
+  });
 
   async function onSubmit(values: SchoolSignupInput) {
     setSubmitting(true);
@@ -105,7 +111,17 @@ export default function SchoolSignupPage() {
             )}
             {field("knecCode", "School KNEC code", <Input id="knecCode" inputMode="numeric" {...register("knecCode")} />)}
             {field("zone", "Zone", <Input id="zone" {...register("zone")} />)}
-            {field("baseName", "Inter School base", <Input id="baseName" {...register("baseName")} />)}
+            {field(
+              "baseName",
+              "Inter School base",
+              <>
+                <Input id="baseName" list="base-options" autoComplete="off" {...register("baseName")} />
+                <datalist id="base-options">
+                  {bases?.bases.map((base) => <option key={base} value={base} />)}
+                </datalist>
+                <p className="mt-1 text-xs text-muted">Pick your base from the list if it&apos;s there, so your school finds its championship.</p>
+              </>,
+            )}
             {field("contactName", "Teacher's name", <Input id="contactName" {...register("contactName")} />)}
             {field("email", "Email", <Input id="email" type="email" {...register("email")} />)}
             {field("phone", "Phone", <Input id="phone" {...register("phone")} />)}

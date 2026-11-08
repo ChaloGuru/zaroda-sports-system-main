@@ -5,6 +5,7 @@ import { authOptions, type SessionRole } from "./auth";
 import { prisma } from "./prisma";
 import { LEVEL_LABELS } from "./utils";
 import { roleMatchesGameScope } from "./role-scope";
+import { sameArea } from "./jurisdiction";
 
 export class AuthorizationError extends Error {
   status: number;
@@ -355,7 +356,7 @@ export function isGeographicallyRestricted(level: Level): boolean {
   return GEOGRAPHICALLY_RESTRICTED_LEVELS.includes(level);
 }
 
-/** Throws unless `entityCounty` matches the championship's county (case/whitespace-insensitive). */
+/** Throws unless `entityCounty` is the championship's county, however it was typed (see sameArea). */
 export function assertWithinGeographicScope(championshipCounty: string, entityCounty: string | null | undefined): void {
   if (!entityCounty || !entityCounty.trim()) {
     throw new AuthorizationError(
@@ -363,7 +364,7 @@ export function assertWithinGeographicScope(championshipCounty: string, entityCo
       400,
     );
   }
-  if (entityCounty.trim().toLowerCase() !== championshipCounty.trim().toLowerCase()) {
+  if (!sameArea(entityCounty, championshipCounty)) {
     throw new AuthorizationError(
       `This championship is scoped to ${championshipCounty} County. Registering an institution from another county requires upgrading the championship to REGIONAL or NATIONAL level.`,
       403,

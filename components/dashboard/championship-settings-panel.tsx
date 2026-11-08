@@ -270,6 +270,10 @@ export function ChampionshipSettingsPanel({ championshipId, isSuperAdmin }: { ch
             <div>
               <Label htmlFor="settings-jurisdiction">Area covered (base, zone, sub-county or region)</Label>
               <Input id="settings-jurisdiction" className="mt-1.5" value={form.jurisdiction} onChange={(e) => setForm({ ...form, jurisdiction: e.target.value })} />
+              <p className="mt-1.5 text-xs text-muted">
+                Links this championship to its area - changing it keeps all the data here. For an Inter School
+                championship, enter the base name; left blank, every school in the county can join.
+              </p>
             </div>
             <div>
               <Label htmlFor="settings-county">County</Label>

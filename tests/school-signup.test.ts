@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Prisma } from "@prisma/client";
 import { schoolSignupSchema } from "@/lib/validations";
 import { countyCode, regionOfCounty } from "@/lib/kenya-counties";
-import { isInJurisdiction } from "@/lib/jurisdiction";
+import { isInJurisdiction, isOpenToSchool, sameArea } from "@/lib/jurisdiction";
 
 const accountFindUnique = vi.fn();
 const userFindUnique = vi.fn();
@@ -49,6 +49,7 @@ vi.mock("@/lib/prisma", () => ({
 
 const { POST: signup } = await import("@/app/api/school-signup/route");
 const { GET: listChampionships, POST: push } = await import("@/app/api/school-account/championships/route");
+const { GET: listBases } = await import("@/app/api/school-signup/bases/route");
 
 const CHAMP = "11111111-1111-1111-1111-111111111111";
 
@@ -207,12 +208,47 @@ describe("a school's jurisdiction", () => {
     expect(isInJurisdiction(school, at("REGIONAL", "Coast"))).toBe(false);
   });
 
+  it("treats the different ways of writing an area as one place", () => {
+    expect(sameArea("Oruba", "ORUBA  BASE")).toBe(true);
+    expect(sameArea("Oruba Base", "oruba inter school base")).toBe(true);
+    expect(sameArea("Migori", "Migori County")).toBe(true);
+    expect(sameArea("Uriri", "Uriri Sub-County")).toBe(true);
+    expect(sameArea("Murang'a", "Muranga")).toBe(true);
+    expect(sameArea("Oruba", "Awendo")).toBe(false);
+    expect(sameArea("South Base", "North Base")).toBe(false);
+  });
+
+  it("keeps an area that is nothing but one of those words", () => {
+    expect(sameArea("Base", "base")).toBe(true);
+    expect(sameArea("Base", "Oruba")).toBe(false);
+  });
+
   it("is open at national level", () => {
     expect(isInJurisdiction(school, at("NATIONAL", null, "Nairobi"))).toBe(true);
   });
 
   it("doesn't block a school an admin typed in with only a name", () => {
     expect(isInJurisdiction({ county: "Migori" }, at("ZONE", "Uriri Zone"))).toBe(true);
+  });
+});
+
+describe("which Inter School championships a school can push to", () => {
+  const school = { baseName: "Oruba Base", county: "Migori" };
+  const base = (county: string, jurisdiction: string | null) => ({ level: "BASE", county, jurisdiction });
+
+  it("matches a championship however its area was typed", () => {
+    expect(isOpenToSchool(school, base("MIGORI County", "oruba"))).toBe(true);
+  });
+
+  it("leaves a championship with no area open to its county, even one saved blank", () => {
+    expect(isOpenToSchool(school, base("Migori", null))).toBe(true);
+    expect(isOpenToSchool(school, base("Migori", ""))).toBe(true);
+    expect(isOpenToSchool(school, base("Kisumu", null))).toBe(false);
+  });
+
+  it("refuses another base, and other levels", () => {
+    expect(isOpenToSchool(school, base("Migori", "Awendo Base"))).toBe(false);
+    expect(isOpenToSchool(school, { level: "ZONE", county: "Migori", jurisdiction: null })).toBe(false);
   });
 });
 
@@ -289,6 +325,27 @@ describe("pushing to a championship", () => {
     schoolListFindMany.mockResolvedValue([{ id: "link-1", schoolId: "s1", schoolAccountId: "acc-1", school: { schoolLevel: "PRIMARY" } }]);
     expect((await pushSchool()).status).toBe(200);
     expect(txSchoolCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("lists an older championship typed differently, and hides another base's", async () => {
+    championshipFindMany.mockResolvedValue([
+      { id: "a", name: "Uriri", level: "BASE", county: "MIGORI COUNTY", jurisdiction: "uriri" },
+      { id: "b", name: "Older", level: "BASE", county: "Migori", jurisdiction: "" },
+      { id: "c", name: "Awendo", level: "BASE", county: "Migori", jurisdiction: "Awendo Base" },
+    ]);
+    const { championships } = await (await listChampionships()).json();
+    expect(championships.map((c: { id: string }) => c.id)).toEqual(["a", "b"]);
+  });
+
+  it("offers a county's bases once each as a school signs up", async () => {
+    championshipFindMany.mockResolvedValue([
+      { county: "Migori", jurisdiction: "Oruba Base" },
+      { county: "MIGORI COUNTY", jurisdiction: "oruba" },
+      { county: "Migori", jurisdiction: "Awendo Base" },
+      { county: "Kisumu", jurisdiction: "Kondele Base" },
+    ]);
+    const res = await listBases(new Request("http://localhost/api/school-signup/bases?county=Migori"));
+    expect((await res.json()).bases).toEqual(["Awendo Base", "Oruba Base"]);
   });
 
   it("lists the school's championships, marking those it has pushed to", async () => {

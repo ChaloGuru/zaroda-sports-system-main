@@ -83,6 +83,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       input.name = withLevelInName(input.name, existing.level);
     }
 
+    // A cleared area is no area, so the championship stays open to its county.
+    if (input.jurisdiction !== undefined) input.jurisdiction = input.jurisdiction?.trim() || null;
+
     const { ageLimits, ...data } = input;
     const updated = await withAudit({
       actorId: ctx.userId,
