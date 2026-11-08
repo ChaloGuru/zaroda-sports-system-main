@@ -225,9 +225,15 @@ export function SchoolEntriesPanel({
                   <span className="block text-xs text-muted">
                     {l.participants.length > 0 ? l.participants.map((p) => p.game.name).join(", ") : "Not entered in any activity yet"}
                   </span>
+                  {l.photoUpdatedAt && l.faceMatched === false && (
+                    <span className="block text-xs text-destructive">Face not matched - retake the photo so it can be checked against other learners</span>
+                  )}
                 </span>
               </span>
               {!l.photoUpdatedAt && <Button size="sm" variant="outline" onClick={() => setEditing(l)}>Add photo</Button>}
+              {l.photoUpdatedAt && l.faceMatched === false && (
+                <Button size="sm" variant="outline" onClick={() => setEditing(l)}>Retake photo</Button>
+              )}
             </div>
           ))}
         </CardContent>

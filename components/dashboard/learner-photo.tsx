@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { toast } from "sonner";
 import { apiPost } from "@/lib/api-client";
 import { Camera, FileText, ImageUp, SwitchCamera, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -152,22 +153,50 @@ export async function resizePhoto(file: File, maxSide = 320, crop?: { x: number;
   throw new Error("That photo is too large even after shrinking - try another one.");
 }
 
+/** A photo checked, cropped around the face and described, ready to upload. */
+export interface PreparedPhoto {
+  photo: Blob;
+  /** Null only when face matching couldn't run on this device. */
+  descriptor: number[] | null;
+}
+
 /**
- * Checks, crops around the face, resizes and uploads a learner's photo,
- * with the face's descriptor for matching it against other records.
+ * Checks a learner's photo, crops it around the face and reads the face for
+ * matching against other records (the same face under another identity is
+ * flagged). A photo whose face can't be read is refused like a blurry one, so
+ * no learner skips that check unnoticed; only a device that can't run face
+ * matching at all lets a photo through without it, with a warning.
  */
-export async function uploadLearnerPhoto(learnerId: string, file: File): Promise<void> {
+export async function prepareLearnerPhoto(file: File): Promise<PreparedPhoto> {
   const check = await checkLearnerPhoto(file);
   if (check.ok === false) throw new Error(check.problems.join(" "));
+  const crop = check.ok === true ? check.crop : undefined;
+  const photo = await resizePhoto(file, 320, crop);
+  const face = await faceDescriptorOf(file, crop);
+  if (face.ok) return { photo, descriptor: face.descriptor };
+  if (face.reason === "no-face") {
+    throw new Error(
+      "The face in this photo couldn't be read for identity matching. Take a closer photo of the learner looking straight at the camera, in good light.",
+    );
+  }
+  toast.warning("Face matching isn't working on this device, so this photo wasn't checked against other learners. Officials will see it marked \"Face not matched\".");
+  return { photo, descriptor: null };
+}
+
+async function putLearnerPhoto(learnerId: string, prepared: PreparedPhoto): Promise<void> {
   const form = new FormData();
-  form.append("photo", await resizePhoto(file, 320, check.ok === true ? check.crop : undefined), "photo.jpg");
-  const descriptor = await faceDescriptorOf(file);
-  if (descriptor) form.append("faceDescriptor", JSON.stringify(descriptor));
+  form.append("photo", prepared.photo, "photo.jpg");
+  if (prepared.descriptor) form.append("faceDescriptor", JSON.stringify(prepared.descriptor));
   const res = await fetch(`/api/learners/${learnerId}/photo`, { method: "PUT", body: form });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error ?? "Photo upload failed");
   }
+}
+
+/** Checks, crops, describes and uploads a learner's photo (see prepareLearnerPhoto). */
+export async function uploadLearnerPhoto(learnerId: string, file: File): Promise<void> {
+  await putLearnerPhoto(learnerId, await prepareLearnerPhoto(file));
 }
 
 /** Shrinks a photo of a document to at most 1600px - still readable - and under the upload limit. */
@@ -201,9 +230,11 @@ async function resizeDocument(file: File): Promise<Blob> {
  * any event without a photo, so entries are only made once this has succeeded.
  */
 export async function registerLearnerWithPhoto(values: Record<string, unknown>, photo: File): Promise<string> {
+  // The photo is checked first, so a photo that will be refused never leaves a learner registered without one.
+  const prepared = await prepareLearnerPhoto(photo);
   const { learner } = await apiPost<{ learner: { id: string } }>("/api/learners", values);
   try {
-    await uploadLearnerPhoto(learner.id, photo);
+    await putLearnerPhoto(learner.id, prepared);
   } catch (error) {
     throw new Error(`Registered, but the photo didn't upload - add it to their record before entering them. ${error instanceof Error ? error.message : ""}`);
   }
