@@ -88,25 +88,36 @@ export function SchoolEntriesPanel({
     })),
   });
   const registered = learnerQueries.reduce((total, q) => total + (q.data?.learners.length ?? 0), 0);
-  const learners = learnerQueries[entries.indexOf(entry as SchoolEntry)]?.data?.learners ?? [];
   const everyone = entries.flatMap((s, i) => (learnerQueries[i]?.data?.learners ?? []).map((learner) => ({ learner, entry: s })));
 
   const { data: gamesData } = useQuery({
     queryKey: ["games", championshipId],
     queryFn: () => apiGet<{ games: RaceOption[] }>(`/api/games?championshipId=${championshipId}`),
   });
-  const races = (gamesData?.games ?? []).filter(
-    (g) => g.category === "ATHLETICS" && (!entry?.schoolLevel || g.schoolLevel === entry.schoolLevel),
-  );
+  const races = (gamesData?.games ?? []).filter((g) => g.category === "ATHLETICS");
   const race = races.find((g) => g.id === gameId);
 
-  const entered = race ? learners.filter((l) => l.participants.some((p) => p.gameId === race.id)) : [];
-  const available = race
-    ? learners
-        .filter((l) => !l.participants.some((p) => p.gameId === race.id))
-        .filter((l) => race.gender === "MIXED" || l.gender === race.gender)
-        .filter((l) => !search || `${l.firstName} ${l.lastName} ${l.bibNumber} ${idSearchText(l)}`.toLowerCase().includes(search.toLowerCase()))
-    : [];
+  // A race takes the learners registered at its own level (Primary or JS),
+  // whatever level the registration form above is set to.
+  const raceEntry = race ? entryForLevel(entries, race.schoolLevel) : undefined;
+  const raceLearners = raceEntry ? (learnerQueries[entries.indexOf(raceEntry)]?.data?.learners ?? []) : [];
+  const entered = race ? raceLearners.filter((l) => l.participants.some((p) => p.gameId === race.id)) : [];
+  const notEntered = race ? raceLearners.filter((l) => !l.participants.some((p) => p.gameId === race.id)) : [];
+  const rightGender = race ? notEntered.filter((l) => race.gender === "MIXED" || l.gender === race.gender) : [];
+  const available = rightGender.filter(
+    (l) => !search.trim() || `${l.firstName} ${l.lastName} ${l.bibNumber} ${idSearchText(l)}`.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+  const levelLabel = raceEntry?.schoolLevel === "JS" ? "JS" : raceEntry?.schoolLevel === "PRIMARY" ? "Primary" : "";
+  const genderLabel = race?.gender === "GIRLS" ? "girls" : race?.gender === "BOYS" ? "boys" : "";
+  const emptyMessage = !raceEntry
+    ? "Your school has no entry at this event's level."
+    : raceLearners.length === 0
+      ? `No ${levelLabel} learners registered yet - register them above${entries.length > 1 ? `, choosing ${levelLabel}` : ""}.`
+      : notEntered.length === 0
+        ? "All your learners at this level are entered."
+        : rightGender.length === 0
+          ? `None of your ${levelLabel} learners left to enter are ${genderLabel}.`
+          : `No learner matches "${search.trim()}".`;
 
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ["learners", championshipId] });
@@ -181,7 +192,7 @@ export function SchoolEntriesPanel({
             {races.length > 0 && (
               <li>
                 <span className="text-foreground">Races and field events:</span> under &quot;Enter learners in races&quot;, choose
-                the event, add a personal best if you have one, then press Enter next to each learner.
+                the event, add a personal best if you have one, then press Add next to each learner - it saves straight away.
               </li>
             )}
             {hasTeamGames && (
@@ -191,7 +202,7 @@ export function SchoolEntriesPanel({
               </li>
             )}
             <li>
-              Only learners of the event&apos;s gender are offered{entries.length > 1 && ", from the level chosen under Register learners"}.
+              Each event offers your learners of its gender{entries.length > 1 && " and level (Primary or JS)"}.
               An event locks once it is seeded, and a team&apos;s list once an official approves it - ask the tournament admin to change a locked entry.
             </li>
           </ol>
@@ -233,7 +244,7 @@ export function SchoolEntriesPanel({
           {entries.length > 1 && (
             <div>
               <Label>Level (sets the age limit)</Label>
-              <Select value={entry?.schoolId} onValueChange={(v) => { setSelectedId(v); setGameId(""); }}>
+              <Select value={entry?.schoolId} onValueChange={setSelectedId}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Primary or JS" /></SelectTrigger>
                 <SelectContent>
                   {entries.map((s) => <SelectItem key={s.schoolId} value={s.schoolId}>{s.label}</SelectItem>)}
@@ -290,10 +301,14 @@ export function SchoolEntriesPanel({
       {races.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Enter learners in races{entries.length > 1 && entry ? ` - ${entry.label}` : ""}</CardTitle>
+            <CardTitle>Enter learners in races</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Select value={gameId} onValueChange={setGameId}>
+            <p className="text-sm text-muted">
+              Choose an event, then press Add next to each learner - each one is saved as soon as you press it. Remove a learner with
+              the bin on the right.
+            </p>
+            <Select value={gameId} onValueChange={(v) => { setGameId(v); setSearch(""); }}>
               <SelectTrigger><SelectValue placeholder="Select a race" /></SelectTrigger>
               <SelectContent>
                 {races.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
@@ -303,8 +318,12 @@ export function SchoolEntriesPanel({
             {race && (
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Registered learners</p>
-                  <Input placeholder="Search name, bib or ID no..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                  <p className="text-sm font-medium">
+                    {levelLabel ? `${levelLabel} learners` : "Learners"} who can enter ({rightGender.length})
+                  </p>
+                  {rightGender.length > 0 && (
+                    <Input placeholder="Search name, bib or ID no..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                  )}
                   {available.map((l) => (
                     <div key={l.id} className="flex items-center justify-between gap-2 rounded-md border border-border p-2 text-sm">
                       <span className="flex items-center gap-2">
@@ -320,8 +339,8 @@ export function SchoolEntriesPanel({
                             value={personalBests[l.id] ?? ""}
                             onChange={(e) => setPersonalBests({ ...personalBests, [l.id]: e.target.value })}
                           />
-                          <Button size="sm" variant="outline" disabled={enter.isPending} onClick={() => enter.mutate(l.id)}>
-                            <Plus className="h-4 w-4" /> Enter
+                          <Button size="sm" disabled={enter.isPending} onClick={() => enter.mutate(l.id)}>
+                            <Plus className="h-4 w-4" /> Add
                           </Button>
                         </span>
                       ) : (
@@ -329,7 +348,7 @@ export function SchoolEntriesPanel({
                       )}
                     </div>
                   ))}
-                  {available.length === 0 && <p className="text-sm text-muted">No more learners to enter.</p>}
+                  {available.length === 0 && <p className="text-sm text-muted">{emptyMessage}</p>}
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Entered in {race.name} ({entered.length})</p>
@@ -358,13 +377,13 @@ export function SchoolEntriesPanel({
         </Card>
       )}
 
-      {manageTeams && entry && (
+      {manageTeams && (
         <SchoolTeamsCard
           championshipId={championshipId}
           championshipName={championshipName}
           schoolName={schoolName}
-          entry={entry}
-          games={(gamesData?.games ?? []).filter((g) => g.category === "BALL_GAMES" && (!entry.schoolLevel || g.schoolLevel === entry.schoolLevel))}
+          entries={entries}
+          games={(gamesData?.games ?? []).filter((g) => g.category === "BALL_GAMES" && !!entryForLevel(entries, g.schoolLevel))}
         />
       )}
 
@@ -373,18 +392,23 @@ export function SchoolEntriesPanel({
   );
 }
 
-/** The school's team in each ball game at its level: entering it, and opening its list of learners. */
+/** The school's entry for an event's level: its Primary or JS half, or its only entry when it isn't split. */
+function entryForLevel(entries: SchoolEntry[], level: string): SchoolEntry | undefined {
+  return entries.find((s) => !s.schoolLevel || s.schoolLevel === level);
+}
+
+/** The school's team in each ball game: entering it, and opening its list of learners. */
 function SchoolTeamsCard({
   championshipId,
   championshipName,
   schoolName,
-  entry,
+  entries,
   games,
 }: {
   championshipId: string;
   championshipName: string;
   schoolName: string;
-  entry: SchoolEntry;
+  entries: SchoolEntry[];
   games: RaceOption[];
 }) {
   const queryClient = useQueryClient();
@@ -397,7 +421,7 @@ function SchoolTeamsCard({
 
   const enterTeam = useMutation({
     mutationFn: (gameId: string) =>
-      apiPost("/api/tournament-teams", { championshipId, gameId, name: schoolName, county: entry.county }),
+      apiPost("/api/tournament-teams", { championshipId, gameId, name: schoolName, county: entries[0]?.county }),
     onSuccess: () => {
       toast.success("Team entered - now add its learners");
       queryClient.invalidateQueries({ queryKey: ["tournament-teams", championshipId] });
@@ -410,9 +434,12 @@ function SchoolTeamsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ball game teams{entry.schoolLevel ? ` - ${entry.label}` : ""}</CardTitle>
+        <CardTitle>Ball game teams</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
+        <p className="text-sm text-muted">
+          Press Enter team for a game, then open the team&apos;s list to add your learners - each is saved as you add them.
+        </p>
         {games.map((game) => {
           const team = ours.find((t) => t.gameId === game.id);
           return (
