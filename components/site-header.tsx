@@ -37,7 +37,7 @@ export function SiteHeader() {
 
   return (
     // A navy ribbon with a gold edge, matching the footer - the same in light and dark mode.
-    <header className="no-print sticky top-0 z-40 border-b-[3px] border-gold bg-navy text-white shadow-[0_2px_12px_rgba(5,12,35,0.35)]">
+    <header className="no-print sticky top-0 z-40 border-b-[2px] border-gold bg-navy text-white shadow-[0_2px_12px_rgba(5,12,35,0.35)]">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center">
           <Image src="/images/logo.png" alt="Zaroda Sports Management System" width={144} height={96} className="h-12 w-auto" priority />
