@@ -15,6 +15,7 @@ export interface EmailResult {
 }
 
 let client: Resend | null = null;
+const REPLY_TO = process.env.EMAIL_REPLY_TO || "info@zarodasolutions.app";
 
 export function isEmailConfigured(): boolean {
   return !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
@@ -30,7 +31,7 @@ export async function sendEmail(message: { to: string; subject: string; html: st
       subject: message.subject,
       html: message.html,
       text: message.text,
-      ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+      replyTo: message.replyTo ?? REPLY_TO,
     });
     if (error) {
       console.error("Resend rejected an email:", error.name, error.message);
@@ -67,7 +68,7 @@ export async function sendEmailBatch(messages: BatchEmail[]): Promise<EmailResul
   for (let i = 0; i < messages.length; i += 100) {
     const chunk = messages.slice(i, i + 100);
     try {
-      const { error } = await client.batch.send(chunk.map((m) => ({ from: process.env.EMAIL_FROM!, ...m })));
+      const { error } = await client.batch.send(chunk.map((m) => ({ from: process.env.EMAIL_FROM!, replyTo: REPLY_TO, ...m })));
       if (error) {
         console.error("Resend rejected an email batch:", error.name, error.message);
         results.push(...chunk.map(() => ({ sent: false, error: error.message })));
