@@ -69,19 +69,23 @@ export async function POST(request: Request) {
       );
     }
 
+    const roundName = nextRoundName(input.roundName, winners.length);
+    // Only a match already in the NEXT round counts as done (pressing the
+    // button twice). Teams that met in the pools must still meet here.
     const existing = await prisma.matchPool.findMany({
-      where: { gameId: input.gameId },
+      where: { gameId: input.gameId, poolId: null, roundName },
       select: { teamAId: true, teamBId: true },
     });
     const existingPairs = new Set(existing.map((mp) => [mp.teamAId, mp.teamBId].sort().join("::")));
 
-    const roundName = nextRoundName(input.roundName, winners.length);
-    const rowsToCreate: { gameId: string; poolId: null; roundName: string; teamAId: string; teamBId: string }[] = [];
+    // Explicit, increasing createdAt keeps bracket order for the round after this one.
+    const base = Date.now();
+    const rowsToCreate: { gameId: string; poolId: null; roundName: string; teamAId: string; teamBId: string; createdAt: Date }[] = [];
     for (let i = 0; i < winners.length; i += 2) {
       const teamAId = winners[i] as string;
       const teamBId = winners[i + 1] as string;
       if (existingPairs.has([teamAId, teamBId].sort().join("::"))) continue;
-      rowsToCreate.push({ gameId: input.gameId, poolId: null, roundName, teamAId, teamBId });
+      rowsToCreate.push({ gameId: input.gameId, poolId: null, roundName, teamAId, teamBId, createdAt: new Date(base + i) });
     }
 
     if (rowsToCreate.length === 0) {

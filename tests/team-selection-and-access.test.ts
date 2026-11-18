@@ -74,9 +74,9 @@ function player(id: string, dateOfBirth: string, school: string) {
 describe("Primary ball games: picking the team that goes up", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    gameFindUnique.mockResolvedValue({ id: ORIGIN_GAME, championshipId: "origin", category: "BALL_GAMES", gender: "BOYS", schoolLevel: "PRIMARY", sport: "FOOTBALL", isTimed: false, name: "Football Boys" });
+    gameFindUnique.mockResolvedValue({ id: ORIGIN_GAME, championshipId: "origin", category: "BALL_GAMES", gender: "BOYS", schoolLevel: "PRIMARY", sport: "FOOTBALL", isTimed: false, name: "Football Boys", championship: { level: "BASE" } });
     gameFindFirst.mockResolvedValue({ id: "target-game", schoolLevel: "PRIMARY" });
-    championshipFindUnique.mockResolvedValue({ startDate: new Date("2026-06-01"), ageCutoffDate: new Date("2026-01-01"), ageLimits: [{ schoolLevel: "PRIMARY", maxAge: 13 }] });
+    championshipFindUnique.mockResolvedValue({ level: "ZONE", startDate: new Date("2026-06-01"), ageCutoffDate: new Date("2026-01-01"), ageLimits: [{ schoolLevel: "PRIMARY", maxAge: 13 }] });
     txTeamFindFirst.mockResolvedValue(null);
     txTeamCreate.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({ id: "new-team", ...data }));
     txLearnerFindFirst.mockResolvedValue(null);
@@ -105,6 +105,15 @@ describe("Primary ball games: picking the team that goes up", () => {
     expect(txParticipantCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ tournamentTeamId: "new-team", learnerId: `t-${P1}`, jerseyNumber: 7 }),
     });
+  });
+
+  it("refuses to pick a team up out of an open tournament", async () => {
+    gameFindUnique.mockResolvedValue({ id: ORIGIN_GAME, championshipId: "origin", category: "BALL_GAMES", gender: "BOYS", schoolLevel: "PRIMARY", sport: "FOOTBALL", isTimed: false, name: "Football Boys", championship: { level: "OPEN_TOURNAMENT" } });
+    participantFindMany.mockResolvedValue([player(P1, "2013-05-01", "school-a")]);
+    const res = await promoteSelection(selection({ participantIds: [P1] }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Open tournaments/);
+    expect(txTeamCreate).not.toHaveBeenCalled();
   });
 
   it("adds to the team when it's already at the next level", async () => {

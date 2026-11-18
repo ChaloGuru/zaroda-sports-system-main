@@ -173,7 +173,7 @@ export function ChampionshipManager({
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="call-room">Call Room</TabsTrigger>
           <TabsTrigger value="results">Results</TabsTrigger>
-          {category === "ATHLETICS" && <TabsTrigger value="promotions">Promotions</TabsTrigger>}
+          {category === "ATHLETICS" && level !== "OPEN_TOURNAMENT" && <TabsTrigger value="promotions">Promotions</TabsTrigger>}
           <TabsTrigger value="bib-ranges">Bib Ranges</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -257,7 +257,7 @@ export function ChampionshipManager({
           </PanelErrorBoundary>
         </TabsContent>
 
-        {category === "ATHLETICS" && (
+        {category === "ATHLETICS" && level !== "OPEN_TOURNAMENT" && (
           <TabsContent value="promotions">
             <PanelErrorBoundary fallbackTitle="Promotions panel failed to load">
               <PromotionsPanel championshipId={championshipId} currentLevel={level as Level} />

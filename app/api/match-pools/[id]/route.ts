@@ -28,6 +28,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     const body: unknown = await request.json();
     const input = matchPoolUpdateSchema.parse(body);
+    if (existing.isBye && (input.teamAScore != null || input.teamBScore != null || input.isWalkover !== undefined)) {
+      return NextResponse.json({ error: "This is a bye - the team goes through without playing, so there is no result to enter" }, { status: 400 });
+    }
 
     let isWalkover = existing.isWalkover;
     let winnerId: string | null = existing.winnerId;

@@ -78,7 +78,7 @@ function originGame(schoolLevel = "JS") {
     schoolLevel,
     isTimed: false,
     sport: "FOOTBALL",
-    championship: { id: "origin-champ-1", name: "Oruba Base" },
+    championship: { id: "origin-champ-1", name: "Oruba Base", level: "BASE" },
   };
 }
 
@@ -213,6 +213,23 @@ describe("POST /api/tournament-teams/promote", () => {
     const response = await POST(req({ gameId: GAME_ID, targetChampionshipId: TARGET_CHAMP_ID, topN: 1 }));
 
     expect(response.status).toBe(404);
+  });
+
+  it("refuses to promote out of an open tournament", async () => {
+    gameFindUnique.mockResolvedValue({ ...originGame("JS"), championship: { id: "origin-champ-1", name: "Kisumu Open", level: "OPEN_TOURNAMENT" } });
+
+    const response = await POST(req({ gameId: GAME_ID, targetChampionshipId: TARGET_CHAMP_ID, topN: 1 }));
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/Open tournaments/);
+  });
+
+  it("refuses to promote to a lower or equal level", async () => {
+    gameFindUnique.mockResolvedValue({ ...originGame("JS"), championship: { id: "origin-champ-1", name: "Kisumu County", level: "COUNTY" } });
+
+    const response = await POST(req({ gameId: GAME_ID, targetChampionshipId: TARGET_CHAMP_ID, topN: 1 }));
+
+    expect(response.status).toBe(400);
   });
 
   it("returns 404 when the target championship doesn't exist", async () => {

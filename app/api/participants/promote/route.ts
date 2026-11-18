@@ -12,6 +12,7 @@ import {
 import { promoteAthletesSchema } from "@/lib/validations";
 import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 import { createPromotedLearner, findPromotedLearner, highestBib, loadAgeRules, nextSchoolBib, overAgeReason } from "@/lib/learners";
+import { promotionBlockReason } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,9 @@ export async function POST(request: Request) {
 
       const ctx = await requireChampionshipAccess(origin.game.championshipId, ["TOURNAMENT_ADMIN"]);
       await requireChampionshipAccess(input.targetChampionshipId, ["TOURNAMENT_ADMIN"]);
+      const originLevel = (await prisma.championship.findUnique({ where: { id: origin.game.championshipId }, select: { level: true } }))?.level;
+      const blocked = originLevel ? promotionBlockReason(originLevel, targetChampionship.level) : "Championship not found";
+      if (blocked) return NextResponse.json({ error: blocked }, { status: 400 });
 
       if (origin.game.category !== "ATHLETICS") {
         promoted.push({ athlete: athleteName, created: false, reason: "not a Track & Field event" });

@@ -217,10 +217,14 @@ export default async function GameDetailPage(props: { params: Promise<{ gameId: 
                         <TableCell className="text-muted">{mp.matchDate ? formatDate(mp.matchDate) : "TBC"}</TableCell>
                       )}
                       <TableCell>
-                        {teamNames.get(mp.teamAId) ?? "Unknown team"} vs {teamNames.get(mp.teamBId) ?? "Unknown team"}
+                        {mp.isBye
+                          ? teamNames.get(mp.teamAId) ?? "Unknown team"
+                          : `${teamNames.get(mp.teamAId) ?? "Unknown team"} vs ${teamNames.get(mp.teamBId) ?? "Unknown team"}`}
                       </TableCell>
                       <TableCell className="font-mono tabular-nums">
-                        {mp.isWalkover
+                        {mp.isBye
+                          ? "Bye - through to the next round"
+                          : mp.isWalkover
                           ? `W/O - ${teamNames.get(mp.winnerId ?? "") ?? "Unknown team"} awarded the win`
                           : `${mp.teamAScore ?? "-"} : ${mp.teamBScore ?? "-"}`}
                       </TableCell>

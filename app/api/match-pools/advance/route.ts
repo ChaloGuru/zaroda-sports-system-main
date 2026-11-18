@@ -3,18 +3,20 @@ import { prisma } from "@/lib/prisma";
 import { withAudit } from "@/lib/audit";
 import { requireGameAccess, toErrorResponse } from "@/lib/authorize";
 import { advanceTopTeamsSchema } from "@/lib/validations";
-import { computeStandings, generateRoundRobinSchedule, type MatchResult, type WalkoverResult } from "@/lib/scoring";
+import { computeStandings, type MatchResult, type WalkoverResult } from "@/lib/scoring";
 import { distributeMatchDatesFromEnd } from "@/lib/match-day";
+import { buildBracket, firstRoundName, nextPowerOfTwo, seedQualifiers } from "@/lib/bracket";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Automatic pool -> knockout progression. For every pool in the game, ranks
- * its teams by the same standings computation used everywhere else
- * (lib/scoring.ts's computeStandings - points, then head-to-head/goal
- * difference tiebreakers), takes the top `topPerPool` teams from each pool,
- * and schedules a knockout-stage round robin among just the advancers -
- * removing the need to manually pick and pair teams once pool play ends.
+ * Automatic pool -> knockout progression. Ranks every pool by the same
+ * standings used everywhere else (lib/scoring.ts computeStandings), takes the
+ * top `topPerPool` from each, and draws a seeded single-elimination bracket
+ * (lib/bracket.ts): pool winners meet other pools' runners-up, the top seeds
+ * get byes when the count is not a power of two, and pool-mates are kept apart
+ * in round one. Later rounds come from "Advance winners" (./advance-round),
+ * which pairs winners in the order these fixtures are created.
  */
 export async function POST(request: Request) {
   try {
@@ -33,21 +35,32 @@ export async function POST(request: Request) {
     const pools = await prisma.pool.findMany({
       where: { gameId: input.gameId },
       include: { teams: { select: { id: true } } },
+      orderBy: { name: "asc" },
     });
     if (pools.length === 0) {
       return NextResponse.json({ error: "This game has no pools to advance teams from" }, { status: 400 });
     }
 
     const allMatchPools = await prisma.matchPool.findMany({
-      where: { gameId: input.gameId, poolId: { not: null } },
+      where: { gameId: input.gameId },
       select: { poolId: true, teamAId: true, teamBId: true, teamAScore: true, teamBScore: true, isWalkover: true, winnerId: true },
     });
+    if (allMatchPools.some((mp) => mp.poolId === null)) {
+      return NextResponse.json(
+        { error: "This game already has matches outside the pools (a knockout drawn earlier, or added by hand). Delete them first if you want to draw the knockout from the pool standings." },
+        { status: 409 },
+      );
+    }
+    const unplayed = allMatchPools.filter((mp) => !mp.isWalkover && (mp.teamAScore === null || mp.teamBScore === null)).length;
+    if (unplayed > 0) {
+      return NextResponse.json(
+        { error: `${unplayed} pool match${unplayed === 1 ? " still has" : "es still have"} no result. Enter every pool result (or a walkover) before drawing the knockout.` },
+        { status: 400 },
+      );
+    }
 
-    const advancingTeamIds: string[] = [];
-    for (const pool of pools) {
+    const poolStandings = pools.map((pool) => {
       const teamIds = pool.teams.map((t) => t.id);
-      if (teamIds.length === 0) continue;
-
       const poolMatchPools = allMatchPools.filter((mp) => mp.poolId === pool.id);
       const results: MatchResult[] = poolMatchPools
         .filter((mp) => !mp.isWalkover && mp.teamAScore !== null && mp.teamBScore !== null)
@@ -55,39 +68,32 @@ export async function POST(request: Request) {
       const walkovers: WalkoverResult[] = poolMatchPools
         .filter((mp) => mp.isWalkover && mp.winnerId !== null)
         .map((mp) => ({ teamAId: mp.teamAId, teamBId: mp.teamBId, winnerId: mp.winnerId as string }));
-
-      const standings = computeStandings(teamIds, results, game.sport, walkovers);
-      advancingTeamIds.push(...standings.slice(0, input.topPerPool).map((row) => row.teamId));
-    }
-
-    if (advancingTeamIds.length < 2) {
-      return NextResponse.json({ error: "Not enough advancing teams to schedule a knockout round" }, { status: 400 });
-    }
-
-    const existing = await prisma.matchPool.findMany({
-      where: { gameId: input.gameId },
-      select: { teamAId: true, teamBId: true },
+      return teamIds.length ? computeStandings(teamIds, results, game.sport!, walkovers).map((row) => row.teamId) : [];
     });
-    const existingPairs = new Set(existing.map((mp) => [mp.teamAId, mp.teamBId].sort().join("::")));
 
-    const schedule = generateRoundRobinSchedule(advancingTeamIds);
-    const matchDates = distributeMatchDatesFromEnd(game.championship.startDate, game.championship.endDate, schedule.length);
-    const rowsToCreate = schedule.flatMap((round) =>
-      round.pairs
-        .filter(([a, b]) => !existingPairs.has([a, b].sort().join("::")))
-        .map(([teamAId, teamBId]) => ({
-          gameId: input.gameId,
-          poolId: null,
-          roundName: `Knockout Stage - Round ${round.round}`,
-          matchDate: matchDates[round.round - 1] ?? null,
-          teamAId,
-          teamBId,
-        })),
-    );
-
-    if (rowsToCreate.length === 0) {
-      return NextResponse.json({ created: 0, advanced: advancingTeamIds.length });
+    const seeds = seedQualifiers(poolStandings, input.topPerPool);
+    if (seeds.length < 2) {
+      return NextResponse.json({ error: "Not enough advancing teams to draw a knockout" }, { status: 400 });
     }
+    const bracket = buildBracket(seeds);
+    const size = nextPowerOfTwo(seeds.length);
+    const roundName = firstRoundName(size);
+    const roundCount = Math.log2(size);
+    const matchDate = distributeMatchDatesFromEnd(game.championship.startDate, game.championship.endDate, roundCount)[0] ?? null;
+
+    // Explicit, increasing createdAt keeps bracket order: "Advance winners" pairs winners in creation order.
+    const base = Date.now();
+    const rowsToCreate = bracket.map((m, i) => ({
+      gameId: input.gameId,
+      poolId: null,
+      roundName,
+      matchDate,
+      teamAId: m.teamA.teamId,
+      teamBId: m.teamB?.teamId ?? m.teamA.teamId,
+      isBye: !m.teamB,
+      winnerId: m.teamB ? null : m.teamA.teamId,
+      createdAt: new Date(base + i),
+    }));
 
     const result = await withAudit({
       actorId: ctx.userId,
@@ -95,10 +101,15 @@ export async function POST(request: Request) {
       tableName: "match_pools",
       mutate: (tx) => tx.matchPool.createMany({ data: rowsToCreate }),
       recordId: () => input.gameId,
-      newData: { advancingTeamIds, topPerPool: input.topPerPool, createdCount: rowsToCreate.length },
+      newData: { seeds: seeds.map((s) => s.teamId), topPerPool: input.topPerPool, roundName, createdCount: rowsToCreate.length },
     });
 
-    return NextResponse.json({ created: result.count, advanced: advancingTeamIds.length });
+    return NextResponse.json({
+      created: result.count,
+      advanced: seeds.length,
+      roundName,
+      byes: rowsToCreate.filter((r) => r.isBye).length,
+    });
   } catch (error) {
     const { body, status } = toErrorResponse(error);
     return NextResponse.json(body, { status });

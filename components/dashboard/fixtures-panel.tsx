@@ -60,6 +60,7 @@ interface MatchPoolRow {
   teamBScore: number | null;
   winnerId: string | null;
   isWalkover: boolean;
+  isBye?: boolean;
 }
 
 /** Splits fixtures into normal MatchResults + WalkoverResults for computeStandings. */
@@ -151,6 +152,23 @@ function FixtureRow({ fixture, onChanged, showMatchDay, canManage }: { fixture: 
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to remove fixture");
     }
+  }
+
+  if (fixture.isBye) {
+    return (
+      <TableRow>
+        <TableCell className="text-muted">{fixture.roundName}</TableCell>
+        {showMatchDay && <TableCell />}
+        <TableCell className="font-semibold text-primary">{fixture.teamAName}</TableCell>
+        <TableCell colSpan={4} className="text-center text-sm text-muted">Bye - goes straight through to the next round</TableCell>
+        <TableCell />
+        <TableCell className="text-right">
+          <Button size="icon" variant="ghost" disabled={!canManage} onClick={remove} className="ml-2">
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    );
   }
 
   return (
@@ -1033,15 +1051,13 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
 
   const advanceMutation = useMutation({
     mutationFn: () =>
-      apiPost<{ created: number; advanced: number }>("/api/match-pools/advance", {
+      apiPost<{ created: number; advanced: number; roundName: string; byes: number }>("/api/match-pools/advance", {
         gameId,
         topPerPool: Number(topPerPool),
       }),
     onSuccess: (result) => {
       toast.success(
-        result.created > 0
-          ? `Advanced ${result.advanced} team${result.advanced === 1 ? "" : "s"} - ${result.created} knockout fixture${result.created === 1 ? "" : "s"} scheduled`
-          : "Knockout fixtures for these advancers already exist",
+        `Knockout drawn: ${result.advanced} teams, ${result.roundName} first${result.byes > 0 ? ` (${result.byes} top seed${result.byes === 1 ? "" : "s"} with a bye)` : ""}`,
       );
       refetchAll();
     },
@@ -1062,7 +1078,8 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
   const [semifinalRules, setSemifinalRules] = React.useState<SemifinalRule[]>([]);
   const generateFromRulesMutation = useMutation({
     mutationFn: async () => {
-      const existingPairs = new Set(fixtures.map((f) => [f.teamAId, f.teamBId].sort().join("::")));
+      // Only the same match in the same round counts as already made: teams that met in the pools still meet in the knockout.
+      const existingPairs = new Set(fixtures.filter((f) => f.poolId === null).map((f) => `${f.roundName}::${[f.teamAId, f.teamBId].sort().join("::")}`));
       let created = 0;
       let skipped = 0;
       for (const rule of semifinalRules) {
@@ -1072,7 +1089,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
           skipped++;
           continue;
         }
-        const pairKey = [teamA.teamId, teamB.teamId].sort().join("::");
+        const pairKey = `${rule.roundName}::${[teamA.teamId, teamB.teamId].sort().join("::")}`;
         if (existingPairs.has(pairKey)) {
           skipped++;
           continue;
@@ -1181,10 +1198,10 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
             <CardDescription>Select a ball game/team event to manage its pools, fixtures, scores, and live standings.</CardDescription>
           </div>
           <div className="no-print flex flex-wrap items-center gap-2">
-            {gameId && selectedGame?.schoolLevel === "PRIMARY" && (
+            {gameId && championshipLevel !== "OPEN_TOURNAMENT" && selectedGame?.schoolLevel === "PRIMARY" && (
               <PromoteSelectedPlayersDialog gameId={gameId} currentLevel={championshipLevel} championshipName={championshipName} />
             )}
-            {gameId && selectedGame && selectedGame.schoolLevel !== "PRIMARY" && (
+            {gameId && championshipLevel !== "OPEN_TOURNAMENT" && selectedGame && selectedGame.schoolLevel !== "PRIMARY" && (
               <PromoteTeamsDialog gameId={gameId} currentLevel={championshipLevel} />
             )}
             <PrintButton />
@@ -1252,8 +1269,8 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
           <CardHeader>
             <CardTitle>Pools</CardTitle>
             <CardDescription>
-              Group teams into pools, generate a bye-aware round robin within each, then manually add knockout fixtures
-              (semis, final) once pool play settles who advances.
+              Group teams into pools and generate a round robin within each. When every pool result is in, &quot;Draw knockout&quot;
+              (below) seeds the top teams of each pool into a bracket.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -1366,7 +1383,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
               <CardTitle>{pools.length > 0 ? "Knockout Stage" : "Fixtures"}</CardTitle>
               <CardDescription>
                 {pools.length > 0
-                  ? "Teams progress from pool play automatically - or pair them manually for extra playoffs."
+                  ? "\"Draw knockout\" seeds the top teams of each pool into a bracket: pool winners meet other pools' runners-up, teams from the same pool are kept apart in the first round, and the best seeds get a bye when the numbers are uneven."
                   : "Add fixtures manually, or generate a full round robin below."}
                 {" "}Once every match in a round has a winner, use "Advance winners" to auto-create the next round's pairings.
               </CardDescription>
@@ -1383,7 +1400,7 @@ export function FixturesPanel({ championshipId, championshipName }: { championsh
                     </SelectContent>
                   </Select>
                   <Button size="sm" onClick={() => advanceMutation.mutate()} disabled={!canManage || advanceMutation.isPending}>
-                    <ArrowUpRight className="h-4 w-4" /> {advanceMutation.isPending ? "Advancing..." : "Advance to knockout"}
+                    <ArrowUpRight className="h-4 w-4" /> {advanceMutation.isPending ? "Drawing..." : "Draw knockout"}
                   </Button>
                 </>
               )}

@@ -6,6 +6,7 @@ import { requireChampionshipAccess, toErrorResponse } from "@/lib/authorize";
 import { promoteSelectedPlayersSchema } from "@/lib/validations";
 import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 import { createPromotedLearner, findPromotedLearner, highestBib, loadAgeRules, overAgeReason } from "@/lib/learners";
+import { promotionBlockReason } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   try {
     const input = promoteSelectedPlayersSchema.parse(await request.json());
 
-    const originGame = await prisma.game.findUnique({ where: { id: input.gameId } });
+    const originGame = await prisma.game.findUnique({ where: { id: input.gameId }, include: { championship: { select: { level: true } } } });
     if (!originGame) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     if (originGame.isTimed || !originGame.sport) {
       return NextResponse.json({ error: "Only ball-game team events can be promoted" }, { status: 400 });
@@ -61,6 +62,9 @@ export async function POST(request: Request) {
       where: { id: input.targetChampionshipId },
       select: { level: true, county: true, jurisdiction: true },
     });
+    if (!target) return NextResponse.json({ error: "Target championship not found" }, { status: 404 });
+    const blocked = promotionBlockReason(originGame.championship.level, target.level);
+    if (blocked) return NextResponse.json({ error: blocked }, { status: 400 });
     const schoolIds = Array.from(new Set(picked.map((p) => p.learner?.schoolId).filter((id): id is string => !!id)));
     if (target && schoolIds.length > 0) {
       const schools = await prisma.school.findMany({
