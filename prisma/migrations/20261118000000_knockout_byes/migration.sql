@@ -1,0 +1,1 @@
+ALTER TABLE "match_pools" ADD COLUMN "isBye" BOOLEAN NOT NULL DEFAULT false;

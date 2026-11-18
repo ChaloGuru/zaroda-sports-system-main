@@ -32,8 +32,19 @@ export function withLevelInName(name: string, level: Level): string {
 /** Ladder order from lowest to highest competition level. */
 export const LEVEL_ORDER: Level[] = ["BASE", "ZONE", "SUB_COUNTY", "COUNTY", "REGIONAL", "NATIONAL"];
 
+/** True only on the school ladder: an Open Tournament is never higher or lower than anything. */
 export function isHigherLevel(candidate: Level, than: Level): boolean {
-  return LEVEL_ORDER.indexOf(candidate) > LEVEL_ORDER.indexOf(than);
+  const c = LEVEL_ORDER.indexOf(candidate);
+  const t = LEVEL_ORDER.indexOf(than);
+  return c >= 0 && t >= 0 && c > t;
+}
+
+/** Why teams cannot be sent from one championship level to another, or null when they can. */
+export function promotionBlockReason(from: Level, to: Level): string | null {
+  if (from === "OPEN_TOURNAMENT" || to === "OPEN_TOURNAMENT")
+    return "Open tournaments stand alone: their teams are not promoted to other championships, and no championship promotes into one.";
+  if (!isHigherLevel(to, from)) return "Teams can only be promoted to a higher-level championship.";
+  return null;
 }
 
 export function formatKes(amountKes: number): string {

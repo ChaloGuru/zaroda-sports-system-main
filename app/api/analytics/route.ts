@@ -56,7 +56,8 @@ export async function GET(request: Request) {
         select: { amountKes: true, status: true, team: { select: { gender: true, game: { select: { schoolLevel: true } } } } },
       }),
       prisma.matchPool.findMany({
-        where: { game: { championshipId } },
+        // byes are not matches: nothing to play or score
+        where: { game: { championshipId }, isBye: false },
         select: { gameId: true, roundName: true, teamAScore: true, teamBScore: true, isWalkover: true },
       }),
       prisma.heat.findMany({

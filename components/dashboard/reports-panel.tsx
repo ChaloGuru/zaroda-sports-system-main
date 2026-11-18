@@ -62,6 +62,7 @@ interface KnockoutFixtureRow {
   teamAScore: number | null;
   teamBScore: number | null;
   isWalkover: boolean;
+  isBye?: boolean;
   winnerId: string | null;
 }
 
@@ -170,6 +171,7 @@ export function ReportsPanel({ championshipId, championshipName }: { championshi
             body: game.knockout.map((f) => {
               const decided = f.isWalkover || (f.teamAScore !== null && f.teamBScore !== null);
               const winnerName = f.winnerId === f.teamAId ? f.teamAName : f.winnerId === f.teamBId ? f.teamBName : null;
+              if (f.isBye) return [f.roundName, f.teamAName, "Bye", "-", "Through to the next round"];
               return [
                 f.roundName,
                 f.teamAName,

@@ -13,6 +13,7 @@ import { promoteTeamsSchema } from "@/lib/validations";
 import { refreshIdentityAlertsSafely } from "@/lib/identity-checks";
 import { createPromotedLearner, findPromotedLearner, highestBib, loadAgeRules, overAgeReason } from "@/lib/learners";
 import { computeSingleGameStandings } from "@/lib/team-standings";
+import { promotionBlockReason } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
 
     const originGame = await prisma.game.findUnique({
       where: { id: input.gameId },
-      include: { championship: { select: { id: true, name: true } } },
+      include: { championship: { select: { id: true, name: true, level: true } } },
     });
     if (!originGame) return NextResponse.json({ error: "Game not found" }, { status: 404 });
     if (originGame.isTimed || !originGame.sport) {
@@ -49,6 +50,8 @@ export async function POST(request: Request) {
 
     const targetChampionship = await prisma.championship.findUnique({ where: { id: input.targetChampionshipId } });
     if (!targetChampionship) return NextResponse.json({ error: "Target championship not found" }, { status: 404 });
+    const blocked = promotionBlockReason(originGame.championship.level, targetChampionship.level);
+    if (blocked) return NextResponse.json({ error: blocked }, { status: 400 });
 
     const ctx = await requireChampionshipAccess(originGame.championshipId, ["TOURNAMENT_ADMIN"]);
     await requireChampionshipAccess(input.targetChampionshipId, ["TOURNAMENT_ADMIN"]);

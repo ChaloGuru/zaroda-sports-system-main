@@ -121,6 +121,18 @@ describe("POST /api/match-pools/advance-round", () => {
     expect(matchPoolCreateMany).not.toHaveBeenCalled();
   });
 
+  it("only checks the next round for an existing match, so teams that met in the pools still meet", async () => {
+    matchPoolFindMany
+      .mockResolvedValueOnce([fixture("f1", T1, T2, T1), fixture("f2", T3, T4, T4)])
+      .mockResolvedValueOnce([]);
+
+    const response = await POST(req({ gameId: GAME_ID, roundName: "Round 1" }));
+
+    expect(response.status).toBe(200);
+    expect(matchPoolFindMany.mock.calls[1]?.[0]).toMatchObject({ where: { gameId: GAME_ID, poolId: null, roundName: "Final" } });
+    expect(matchPoolCreateMany).toHaveBeenCalled();
+  });
+
   it("does not recreate a pairing that already exists", async () => {
     matchPoolFindMany
       .mockResolvedValueOnce([fixture("f1", T1, T2, T1), fixture("f2", T3, T4, T4)])

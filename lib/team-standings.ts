@@ -23,6 +23,8 @@ export interface KnockoutFixtureRow {
   teamAScore: number | null;
   teamBScore: number | null;
   isWalkover: boolean;
+  /** A top seed going straight through this round with no opponent. */
+  isBye: boolean;
   winnerId: string | null;
 }
 
@@ -88,6 +90,7 @@ export async function computeChampionshipTeamStandings(
           teamAScore: mp.teamAScore,
           teamBScore: mp.teamBScore,
           isWalkover: mp.isWalkover,
+          isBye: mp.isBye,
           winnerId: mp.winnerId,
         }));
 

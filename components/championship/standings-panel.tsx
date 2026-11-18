@@ -59,6 +59,7 @@ interface KnockoutFixtureRow {
   teamAScore: number | null;
   teamBScore: number | null;
   isWalkover: boolean;
+  isBye?: boolean;
   winnerId: string | null;
   teamAId: string;
   teamBId: string;
@@ -209,6 +210,15 @@ function KnockoutResultsTable({ fixtures }: { fixtures: KnockoutFixtureRow[] }) 
           {fixtures.map((f) => {
             const decided = f.isWalkover || (f.teamAScore !== null && f.teamBScore !== null);
             const winnerName = f.winnerId === f.teamAId ? f.teamAName : f.winnerId === f.teamBId ? f.teamBName : null;
+            if (f.isBye) {
+              return (
+                <TableRow key={f.matchId}>
+                  <TableCell className="font-medium">{f.roundName}</TableCell>
+                  <TableCell className="font-semibold text-foreground">{f.teamAName}</TableCell>
+                  <TableCell colSpan={3} className="text-sm text-muted">Bye - through to the next round</TableCell>
+                </TableRow>
+              );
+            }
             return (
               <TableRow key={f.matchId}>
                 <TableCell className="font-medium">{f.roundName}</TableCell>
