@@ -1,163 +1,92 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const createPaystackSubaccountMock = vi.fn();
+const checkCredentials = vi.fn();
 const requireAuthMock = vi.fn();
 const tenantFindUnique = vi.fn();
 const tenantUpdate = vi.fn();
 
-vi.mock("@/lib/paystack", () => ({
-  createPaystackSubaccount: (...args: unknown[]) => createPaystackSubaccountMock(...args),
-}));
+process.env.NEXTAUTH_SECRET = "test-secret";
 
+vi.mock("@/lib/tuma", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/tuma")>("@/lib/tuma");
+  return { ...actual, checkTumaCredentials: (...a: unknown[]) => checkCredentials(...a) };
+});
 vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    tenant: {
-      findUnique: (...args: unknown[]) => tenantFindUnique(...args),
-      update: (...args: unknown[]) => tenantUpdate(...args),
-    },
-  },
+  prisma: { tenant: { findUnique: (...a: unknown[]) => tenantFindUnique(...a), update: (...a: unknown[]) => tenantUpdate(...a) } },
 }));
-
 vi.mock("@/lib/authorize", async () => {
   const actual = await vi.importActual<typeof import("@/lib/authorize")>("@/lib/authorize");
-  return {
-    ...actual,
-    requireAuth: (...args: unknown[]) => requireAuthMock(...args),
-  };
+  return { ...actual, requireAuth: (...a: unknown[]) => requireAuthMock(...a) };
 });
 
-const { POST } = await import("@/app/api/tenant/payout-account/route");
+const { POST, GET, DELETE } = await import("@/app/api/tenant/payout-account/route");
+const { decryptSecret } = await import("@/lib/secret-box");
 
-function req(body: unknown): Request {
-  return new Request("http://localhost/api/tenant/payout-account", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
+const post = (body: unknown) =>
+  POST(new Request("http://localhost/api/tenant/payout-account", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
 
-const TENANT_OWNER_CTX = {
-  userId: "user-1",
-  email: "owner@example.com",
-  tenantId: "tenant-1",
-  roles: [{ role: "TENANT_OWNER", championshipId: null }],
-};
+const OWNER = { userId: "user-1", email: "owner@example.com", tenantId: "tenant-1", roles: [{ role: "TENANT_OWNER", championshipId: null }] };
+const SUPER = { userId: "admin-1", email: "admin@example.com", tenantId: null, roles: [{ role: "SUPER_ADMIN", championshipId: null }] };
+const BODY = { tumaEmail: "Jane@Example.com", tumaApiKey: "tuma-secret-key" };
 
-describe("POST /api/tenant/payout-account", () => {
+describe("/api/tenant/payout-account (TUMA)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireAuthMock.mockResolvedValue(TENANT_OWNER_CTX);
-    tenantFindUnique.mockResolvedValue({ id: "tenant-1", organizationName: "Jane's Open Tournament" });
-    tenantUpdate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
-      subaccountStatus: data.subaccountStatus ?? "PENDING",
-      settlementBankName: data.settlementBankName ?? "Equity Bank",
-      settlementBankCode: data.settlementBankCode ?? "068",
-      settlementAccountNumber: data.settlementAccountNumber ?? "1234567890",
-      settlementAccountName: data.settlementAccountName ?? null,
-    }));
+    requireAuthMock.mockResolvedValue(OWNER);
+    tenantFindUnique.mockResolvedValue({ id: "tenant-1" });
+    tenantUpdate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ subaccountStatus: data.subaccountStatus, tumaEmail: data.tumaEmail }));
+    checkCredentials.mockResolvedValue(undefined);
   });
 
-  it("creates a subaccount with percentage_charge:0 and marks the tenant ACTIVE on success", async () => {
-    createPaystackSubaccountMock.mockResolvedValue({
-      status: true,
-      message: "ok",
-      data: {
-        subaccount_code: "ACCT_123",
-        account_number: "1234567890",
-        account_name: "Jane's Open Tournament",
-        settlement_bank: "068",
-        percentage_charge: 0,
-      },
-    });
-
-    const res = await POST(
-      req({ settlementBankCode: "068", settlementBankName: "Equity Bank", accountNumber: "1234567890" }),
-    );
-    const json = await res.json();
-
+  it("checks the details with TUMA, stores the key encrypted and marks the account connected", async () => {
+    const res = await post(BODY);
     expect(res.status).toBe(201);
-    expect(createPaystackSubaccountMock).toHaveBeenCalledWith({
-      businessName: "Jane's Open Tournament",
-      settlementBankCode: "068",
-      accountNumber: "1234567890",
-    });
-    expect(json.payoutAccount.subaccountStatus).toBe("ACTIVE");
-    expect(json.payoutAccount.settlementAccountName).toBe("Jane's Open Tournament");
-    // Confirm the final update call is the one that flips status to ACTIVE.
-    expect(tenantUpdate).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ subaccountStatus: "ACTIVE", paystackSubaccountCode: "ACCT_123" }),
-      }),
-    );
+    expect(checkCredentials).toHaveBeenCalledWith({ email: "jane@example.com", apiKey: "tuma-secret-key" });
+    const data = tenantUpdate.mock.calls[0]![0].data;
+    expect(data).toMatchObject({ tumaEmail: "jane@example.com", subaccountStatus: "ACTIVE" });
+    expect(data.tumaApiKeyEncrypted).not.toContain("tuma-secret-key");
+    expect(decryptSecret(data.tumaApiKeyEncrypted)).toBe("tuma-secret-key");
+    expect(JSON.stringify(await res.json())).not.toContain("tuma-secret-key");
   });
 
-  it("sets the tenant to FAILED and surfaces the error when Paystack rejects the account", async () => {
-    createPaystackSubaccountMock.mockRejectedValue(new Error("Invalid account number"));
-
-    const res = await POST(req({ settlementBankCode: "068", settlementBankName: "Equity Bank", accountNumber: "bad" }));
-    const json = await res.json();
-
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    expect(json.error).toMatch(/Invalid account number/);
-    expect(tenantUpdate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ data: { subaccountStatus: "FAILED" } }),
-    );
+  it("saves nothing when TUMA rejects the details", async () => {
+    checkCredentials.mockRejectedValue(new Error("Invalid credentials"));
+    const res = await post(BODY);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Invalid credentials/);
+    expect(tenantUpdate).not.toHaveBeenCalled();
   });
 
   it("rejects a non-tenant-owner caller", async () => {
-    requireAuthMock.mockResolvedValue({ userId: "u2", email: "x@x.com", tenantId: null, roles: [] });
-
-    const res = await POST(req({ settlementBankCode: "068", settlementBankName: "Equity Bank", accountNumber: "1234567890" }));
-
+    requireAuthMock.mockResolvedValue({ ...OWNER, roles: [{ role: "TEAM_MANAGER", championshipId: "c" }] });
+    const res = await post(BODY);
     expect(res.status).toBe(403);
-    expect(createPaystackSubaccountMock).not.toHaveBeenCalled();
+    expect(tenantUpdate).not.toHaveBeenCalled();
   });
 
-  it("lets a super admin (who has no tenant of their own) configure a named tenant's payout account", async () => {
-    requireAuthMock.mockResolvedValue({
-      userId: "admin-1",
-      email: "admin@zaroda.com",
-      tenantId: null,
-      roles: [{ role: "SUPER_ADMIN", championshipId: null }],
-    });
-    createPaystackSubaccountMock.mockResolvedValue({
-      status: true,
-      message: "ok",
-      data: {
-        subaccount_code: "ACCT_999",
-        account_number: "1234567890",
-        account_name: "Jane's Open Tournament",
-        settlement_bank: "068",
-        percentage_charge: 0,
-      },
-    });
-
-    const res = await POST(
-      req({
-        settlementBankCode: "068",
-        settlementBankName: "Equity Bank",
-        accountNumber: "1234567890",
-        tenantId: "11111111-1111-1111-1111-111111111111",
-      }),
-    );
-    const json = await res.json();
-
+  it("lets a super admin connect a named tenant's account", async () => {
+    requireAuthMock.mockResolvedValue(SUPER);
+    tenantFindUnique.mockResolvedValue({ id: "33333333-3333-3333-3333-333333333333" });
+    const res = await post({ ...BODY, tenantId: "33333333-3333-3333-3333-333333333333" });
     expect(res.status).toBe(201);
-    expect(tenantFindUnique).toHaveBeenCalledWith({ where: { id: "11111111-1111-1111-1111-111111111111" } });
-    expect(json.payoutAccount.subaccountStatus).toBe("ACTIVE");
+    expect(tenantUpdate.mock.calls[0]![0].where).toEqual({ id: "33333333-3333-3333-3333-333333333333" });
   });
 
   it("rejects a super admin who didn't name a tenant", async () => {
-    requireAuthMock.mockResolvedValue({
-      userId: "admin-1",
-      email: "admin@zaroda.com",
-      tenantId: null,
-      roles: [{ role: "SUPER_ADMIN", championshipId: null }],
-    });
-
-    const res = await POST(req({ settlementBankCode: "068", settlementBankName: "Equity Bank", accountNumber: "1234567890" }));
-
+    requireAuthMock.mockResolvedValue(SUPER);
+    const res = await post(BODY);
     expect(res.status).toBe(403);
-    expect(createPaystackSubaccountMock).not.toHaveBeenCalled();
+  });
+
+  it("never returns the key when read", async () => {
+    tenantFindUnique.mockResolvedValue({ subaccountStatus: "ACTIVE", tumaEmail: "jane@example.com" });
+    const res = await GET(new Request("http://localhost/api/tenant/payout-account"));
+    expect(tenantFindUnique.mock.calls[0]![0].select).toEqual({ subaccountStatus: true, tumaEmail: true });
+    expect((await res.json()).payoutAccount).toEqual({ subaccountStatus: "ACTIVE", tumaEmail: "jane@example.com" });
+  });
+
+  it("disconnects, clearing the stored key", async () => {
+    await DELETE(new Request("http://localhost/api/tenant/payout-account", { method: "DELETE" }));
+    expect(tenantUpdate.mock.calls[0]![0].data).toEqual({ tumaEmail: null, tumaApiKeyEncrypted: null, subaccountStatus: "NOT_CONFIGURED" });
   });
 });

@@ -95,8 +95,8 @@ const SECTIONS: LegalSection[] = [
             the law requires.
           </li>
           <li>
-            <strong>Team entry fees</strong> for open tournaments are set by the organiser and paid through Paystack
-            directly to the organiser&rsquo;s bank account. Questions and refunds for entry fees are between the team and
+            <strong>Team entry fees</strong> for open tournaments are set by the organiser and paid by M-Pesa through TUMA
+            directly into the organiser&rsquo;s own TUMA account. Questions and refunds for entry fees are between the team and
             the organiser.
           </li>
         </ul>

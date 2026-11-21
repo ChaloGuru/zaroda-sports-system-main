@@ -70,9 +70,9 @@ const SECTIONS: LegalSection[] = [
           consent the school confirms on the signed nominal roll.
         </p>
         <p>
-          <strong>Payments:</strong> for subscriptions paid by M-Pesa through TUMA, the M-Pesa phone number, amount,
-          M-Pesa receipt number and payment status. For team entry fees paid through Paystack, the payer&rsquo;s email,
-          the team&rsquo;s details and the payment status. We never see or store card numbers or M-Pesa PINs.
+          <strong>Payments:</strong> for subscriptions and team entry fees paid by M-Pesa through TUMA, the M-Pesa phone
+          number, amount, M-Pesa receipt number and payment status, and for team entry fees the payer&rsquo;s email and the
+          team&rsquo;s details. We never see or store M-Pesa PINs.
         </p>
         <p>
           <strong>Security and usage records:</strong> sign-in attempts (email, IP address, time, success), a record of
@@ -154,7 +154,7 @@ const SECTIONS: LegalSection[] = [
           <li><strong>The championship&rsquo;s organiser and officials</strong>, according to their role.</li>
           <li><strong>Higher-level championships</strong>, when an organiser promotes a learner or team (for example from Zone to Sub-County): the learner&rsquo;s record, including photo and birth certificate number, goes with them.</li>
           <li><strong>The public</strong>, for results the organiser publishes.</li>
-          <li><strong>Service providers</strong> who host or support the service for us: Vercel (website hosting and file storage), Neon (database), Resend (email), TUMA (M-Pesa payments), Paystack (card and team-fee payments) and Meta (site analytics, see Cookies).</li>
+          <li><strong>Service providers</strong> who host or support the service for us: Vercel (website hosting and file storage), Neon (database), Resend (email), TUMA (M-Pesa payments) and Meta (site analytics, see Cookies).</li>
           <li><strong>Authorities</strong>, where the law requires it.</li>
         </ul>
       </>

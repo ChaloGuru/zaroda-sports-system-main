@@ -3,78 +3,61 @@
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Landmark, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Smartphone, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiGet, apiPost } from "@/lib/api-client";
-
-interface Bank {
-  name: string;
-  code: string;
-  slug: string;
-}
+import { apiDelete, apiGet, apiPost } from "@/lib/api-client";
 
 interface PayoutAccount {
   subaccountStatus: "NOT_CONFIGURED" | "PENDING" | "ACTIVE" | "FAILED";
-  settlementBankName: string | null;
-  settlementBankCode: string | null;
-  settlementAccountNumber: string | null;
-  settlementAccountName: string | null;
+  tumaEmail: string | null;
 }
 
-const STATUS_LABEL: Record<PayoutAccount["subaccountStatus"], string> = {
-  NOT_CONFIGURED: "Not configured",
-  PENDING: "Pending",
-  ACTIVE: "Active",
-  FAILED: "Failed",
-};
-
+/**
+ * The manager's own TUMA account: open-tournament teams pay their registration fees by M-Pesa straight into it.
+ * The API key is checked with TUMA, stored encrypted and never shown again.
+ */
 export function PayoutAccountPanel({ tenantId }: { tenantId?: string } = {}) {
   const queryClient = useQueryClient();
-  const [bankCode, setBankCode] = React.useState("");
-  const [accountNumber, setAccountNumber] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [apiKey, setApiKey] = React.useState("");
   const queryKey = ["tenant-payout-account", tenantId ?? "self"];
+  const suffix = tenantId ? `?tenantId=${tenantId}` : "";
 
-  const { data: banksData, isLoading: banksLoading } = useQuery({
-    queryKey: ["paystack-banks"],
-    queryFn: () => apiGet<{ banks: Bank[] }>("/api/paystack/banks"),
-  });
-  const { data: payoutData, isLoading: payoutLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey,
-    queryFn: () =>
-      apiGet<{ payoutAccount: PayoutAccount }>(
-        `/api/tenant/payout-account${tenantId ? `?tenantId=${tenantId}` : ""}`,
-      ),
+    queryFn: () => apiGet<{ payoutAccount: PayoutAccount }>(`/api/tenant/payout-account${suffix}`),
   });
+  const account = data?.payoutAccount;
+  const connected = account?.subaccountStatus === "ACTIVE" && !!account.tumaEmail;
 
-  const banks = banksData?.banks ?? [];
-  const payoutAccount = payoutData?.payoutAccount;
-  const selectedBank = banks.find((b) => b.code === bankCode);
-
-  const submit = useMutation({
-    mutationFn: () => {
-      if (!selectedBank) throw new Error("Select a bank");
-      return apiPost<{ payoutAccount: PayoutAccount }>("/api/tenant/payout-account", {
-        settlementBankCode: selectedBank.code,
-        settlementBankName: selectedBank.name,
-        accountNumber,
+  const connect = useMutation({
+    mutationFn: () =>
+      apiPost<{ payoutAccount: PayoutAccount }>("/api/tenant/payout-account", {
+        tumaEmail: email.trim(),
+        tumaApiKey: apiKey.trim(),
         ...(tenantId ? { tenantId } : {}),
-      });
-    },
+      }),
     onSuccess: (result) => {
       queryClient.setQueryData(queryKey, { payoutAccount: result.payoutAccount });
-      if (result.payoutAccount.subaccountStatus === "ACTIVE") {
-        toast.success("Payout account configured - confirm the account name below matches your own.");
-      }
+      queryClient.invalidateQueries({ queryKey: ["tenant-payout-account"] });
+      setApiKey("");
+      toast.success("TUMA account connected - teams can now pay by M-Pesa.");
     },
-    onError: (error) => {
-      queryClient.invalidateQueries({ queryKey });
-      toast.error(error instanceof Error ? error.message : "Failed to configure payout account");
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not connect the TUMA account"),
+  });
+
+  const disconnect = useMutation({
+    mutationFn: () => apiDelete<{ payoutAccount: PayoutAccount }>(`/api/tenant/payout-account${suffix}`),
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKey, { payoutAccount: result.payoutAccount });
+      queryClient.invalidateQueries({ queryKey: ["tenant-payout-account"] });
+      toast.success("TUMA account disconnected.");
     },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not disconnect"),
   });
 
   return (
@@ -82,70 +65,58 @@ export function PayoutAccountPanel({ tenantId }: { tenantId?: string } = {}) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-primary" /> Payout Account
+            <Smartphone className="h-5 w-5 text-primary" /> M-Pesa payout account (TUMA)
           </CardTitle>
           <CardDescription>
-            The bank account that receives team registration fees for your open-tournament championships.
-            100% of every fee settles here - Zaroda takes no commission on registration fees. This is separate
-            from your Zaroda subscription billing.
+            Teams registering for your open tournaments pay their fees by M-Pesa, straight into your own TUMA account - Zaroda takes no
+            commission on registration fees and never holds the money. This is separate from your Zaroda subscription.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {payoutAccount && (
-            <div className="flex items-center gap-2 rounded-md border border-border p-3">
-              {payoutAccount.subaccountStatus === "ACTIVE" ? (
-                <CheckCircle2 className="h-4 w-4 text-[#2EA043]" />
-              ) : (
-                <AlertTriangle className="h-4 w-4 text-[#DA3633]" />
-              )}
+          {account && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-border p-3">
+              {connected ? <CheckCircle2 className="h-4 w-4 text-[#2EA043]" /> : <AlertTriangle className="h-4 w-4 text-[#DA3633]" />}
               <span className="text-sm font-medium text-foreground">Status:</span>
-              <Badge variant={payoutAccount.subaccountStatus === "ACTIVE" ? "success" : "outline"}>
-                {STATUS_LABEL[payoutAccount.subaccountStatus]}
-              </Badge>
+              <Badge variant={connected ? "success" : "outline"}>{connected ? "Connected" : "Not connected"}</Badge>
+              {connected && <span className="text-sm text-muted">TUMA account {account.tumaEmail}</span>}
             </div>
           )}
 
-          {payoutAccount?.subaccountStatus === "ACTIVE" && (
-            <div className="rounded-md border border-border bg-surface-raised p-3 text-sm">
-              <p className="text-muted">Confirm this is your correct account name before proceeding:</p>
-              <p className="mt-1 font-semibold text-foreground">{payoutAccount.settlementAccountName}</p>
-              <p className="text-muted">
-                {payoutAccount.settlementBankName} - {payoutAccount.settlementAccountNumber}
-              </p>
-            </div>
-          )}
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
+            <li>
+              Open a free account at{" "}
+              <a href="https://tuma.co.ke" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                tuma.co.ke
+              </a>{" "}
+              and add the M-Pesa till or paybill the fees should go to.
+            </li>
+            <li>In the TUMA dashboard, copy your API key.</li>
+            <li>Enter your TUMA email and the API key below. We check them with TUMA before saving.</li>
+          </ol>
 
           <div className="space-y-2">
-            <Label>Bank</Label>
-            <Select value={bankCode} onValueChange={setBankCode} disabled={banksLoading}>
-              <SelectTrigger>
-                <SelectValue placeholder={banksLoading ? "Loading banks..." : "Select your bank"} />
-              </SelectTrigger>
-              <SelectContent>
-                {banks.map((b) => (
-                  <SelectItem key={b.code} value={b.code}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="tuma-email">TUMA account email</Label>
+            <Input id="tuma-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={account?.tumaEmail ?? "you@example.com"} />
           </div>
-
           <div className="space-y-2">
-            <Label>Account number</Label>
-            <Input
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              placeholder="e.g. 1234567890"
-            />
+            <Label htmlFor="tuma-key">TUMA API key</Label>
+            <Input id="tuma-key" type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste the key" />
           </div>
 
-          <Button
-            onClick={() => submit.mutate()}
-            disabled={!bankCode || !accountNumber.trim() || submit.isPending || payoutLoading}
-          >
-            {submit.isPending ? "Verifying with Paystack..." : "Save payout account"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => connect.mutate()} disabled={!email.trim() || apiKey.trim().length < 8 || connect.isPending || isLoading}>
+              {connect.isPending ? "Checking with TUMA..." : connected ? "Replace TUMA account" : "Connect TUMA account"}
+            </Button>
+            {connected && (
+              <Button
+                variant="outline"
+                disabled={disconnect.isPending}
+                onClick={() => window.confirm("Disconnect? Teams can't pay registration fees until an account is connected again.") && disconnect.mutate()}
+              >
+                Disconnect
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

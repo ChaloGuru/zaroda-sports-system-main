@@ -221,6 +221,10 @@ model Tenant {
   settlementAccountNumber String?
   settlementAccountName   String?
   subaccountStatus        SubaccountStatus @default(NOT_CONFIGURED)
+  // The manager's own TUMA account (as POS shops connect theirs): open-tournament team fees are paid by M-Pesa straight
+  // into it. subaccountStatus ACTIVE = connected. The API key is stored encrypted (lib/secret-box.ts), never shown again.
+  tumaEmail               String?
+  tumaApiKeyEncrypted     String?
 
   user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   championships       Championship[]
@@ -858,6 +862,14 @@ model TeamFeePayment {
   paystackReference String?
   paidAt            DateTime?
   notes             String?
+  // M-Pesa through TUMA (new payments): the PIN prompt went to phone; TUMA's notification must carry the secret whose
+  // hash is here and the checkout id it gave us. Older payments went through Paystack.
+  provider           String            @default("PAYSTACK")
+  phone              String?
+  checkoutRequestId  String?
+  callbackSecretHash String?
+  mpesaReceipt       String?
+  message            String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 

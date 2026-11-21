@@ -13,10 +13,9 @@ export interface ReceiptData {
 }
 
 /**
- * Looks up a paid transaction by its Paystack reference so the client can
- * render a receipt PDF. The reference itself is the bearer token here, same
- * trust model as /api/payments/verify - it's an unguessable value only the
- * payer's browser or Paystack ever sees.
+ * Looks up a paid transaction by its payment reference so the client can
+ * render a receipt PDF. The reference itself is the bearer token here - an
+ * unguessable value only the payer's browser ever sees.
  */
 export async function GET(request: Request): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);

@@ -343,10 +343,6 @@ export const subscriptionPaySchema = z.object({
   phone: z.string().trim().min(9).max(20),
 });
 
-export const paymentVerifySchema = z.object({
-  reference: z.string().min(1),
-});
-
 // Gender is intentionally not collected here - it's derived server-side from
 // the selected game (a team registers for one specific game, so its gender
 // always matches that game's). Only name is required; everything else,
@@ -543,10 +539,10 @@ export const championshipFeeSchema = z.object({
 });
 export type ChampionshipFeeInput = z.infer<typeof championshipFeeSchema>;
 
+/** A manager's own TUMA account (tuma.co.ke), for open-tournament team fees paid by M-Pesa. */
 export const payoutAccountSchema = z.object({
-  settlementBankCode: z.string().min(1).max(20),
-  settlementBankName: z.string().min(1).max(200),
-  accountNumber: z.string().min(1).max(50),
+  tumaEmail: z.string().trim().email("Enter the email of your TUMA account").max(200),
+  tumaApiKey: z.string().trim().min(8, "Paste the API key from your TUMA dashboard").max(500),
   // Only honored for the caller when they're a super admin (enforced in the
   // route) - a super admin has no tenant of their own, so they must name
   // which tenant they're configuring the payout account on behalf of.

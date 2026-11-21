@@ -27,7 +27,7 @@ vi.mock("@/lib/prisma", () => ({
 const { GET: listTeams } = await import("@/app/api/tournament-teams/route");
 const { GET: listParticipants } = await import("@/app/api/participants/route");
 const { GET: listGames } = await import("@/app/api/games/route");
-const { generatePaymentReference } = await import("@/lib/paystack");
+const { generatePaymentReference } = await import("@/lib/tuma");
 
 const CHAMP = "11111111-1111-1111-1111-111111111111";
 const OWN_TEAM = "22222222-2222-2222-2222-222222222222";

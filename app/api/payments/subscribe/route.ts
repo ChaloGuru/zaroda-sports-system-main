@@ -2,19 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isSuperAdmin, hasRole, toErrorResponse, AuthorizationError } from "@/lib/authorize";
 import { subscriptionPaySchema } from "@/lib/validations";
-import { generatePaymentReference } from "@/lib/paystack";
-import { normaliseKenyanPhone, randomSecret, sha256, tumaConfigured, tumaStkPush } from "@/lib/tuma";
+import { CALLBACK_BASE, generatePaymentReference, normaliseKenyanPhone, randomSecret, sha256, tumaConfigured, tumaStkPush } from "@/lib/tuma";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Where TUMA sends payment notifications. Fixed - never taken from the
- * request, so a forged Host header can't send a payment's secret
- * notification address elsewhere. The www host, because the bare domain
- * redirects and a redirected notification may not be followed.
- */
-const CALLBACK_BASE = (process.env.TUMA_CALLBACK_BASE_URL || "https://www.zarodasports.live").replace(/\/$/, "");
 
 /**
  * Starts paying for a subscription by M-Pesa: records a pending payment with

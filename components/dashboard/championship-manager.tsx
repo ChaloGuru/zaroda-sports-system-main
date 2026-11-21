@@ -151,10 +151,10 @@ export function ChampionshipManager({
           <div className="text-sm">
             <p className="font-medium text-foreground">Team registration payments are blocked</p>
             <p className="text-muted">
-              Set up your bank payout account before opening registration - otherwise team fee payments cannot be
-              accepted.{" "}
+              Connect your M-Pesa (TUMA) payout account before opening registration - otherwise teams can&apos;t pay their
+              fees.{" "}
               <a href="/dashboard/payout-account" className="font-medium text-primary underline">
-                Configure payout account
+                Connect TUMA account
               </a>
             </p>
           </div>
